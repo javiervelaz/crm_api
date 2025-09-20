@@ -1,0 +1,16 @@
+const jwt = require('jsonwebtoken');
+const userService = require('../services/user/userService');
+
+const login = async (req, res) => {
+  const { email, password } = req.body;
+ const user = await userService.authenticate(email, password);
+  if (user.error) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  console.log("", user);
+  const token = jwt.sign({ userId: user.id, role: user.role, sucursal:1, username: user.name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  res.json({ token });
+  
+};
+
+module.exports = { login };

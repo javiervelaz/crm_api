@@ -1,0 +1,65 @@
+[handleMsg]:  {
+  key: {
+    remoteJid: '5493513344326@s.whatsapp.net',
+    fromMe: false,
+    id: '83655B2CCECB81E14EDB4102E8623993',
+    participant: undefined
+  },
+  messageTimestamp: 1716668647,
+  pushName: 'Vane',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    }
+  },
+  verifiedBizName: 'Vane',
+  body: 'Hola',
+  from: '5493513344326'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_9a7b2638-299a-4032-99c0-505b6335e79b',
+  keyword: 'key_c38694c2-9e3e-49f5-afbb-98ed97e80c22',
+  answer: '🙌 Hola bienvenido a este *Chatbot*',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: false
+  },
+  refSerialize: 'adc3d3182d6fe8aa3cdf08bc292959d2'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_62a8f08f-a8a0-4a76-af27-b1fcd04317f5',
+  keyword: 'ans_9a7b2638-299a-4032-99c0-505b6335e79b',
+  answer: 'te comparto los siguientes links de interes sobre el proyecto\n' +
+    '👉 *doc* para ver la documentación\n' +
+    '👉 *gracias*  para ver la lista de videos\n' +
+    '👉 *discord* unirte al discord',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object]
+    ],
+    keyword: {},
+    callback: false
+  },
+  refSerialize: '31e34090e645c8766dd47c74a329b564'
+}

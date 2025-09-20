@@ -1,0 +1,190 @@
+-- Crear la tabla 'sucursal'
+CREATE TABLE "sucursal" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    direccion VARCHAR(255) NOT NULL
+);
+
+-- Modificar la tabla 'registro_diario' para incluir una referencia a la sucursal
+CREATE TABLE "registro_diario" (
+    id SERIAL PRIMARY KEY,
+    fecha DATE NOT NULL UNIQUE,
+    usuario_apertura_id INTEGER NOT NULL,
+    usuario_cierre_id INTEGER,
+    caja_inicial DECIMAL(10, 2) NOT NULL,
+    caja_final DECIMAL(10, 2),
+    sucursal_id INTEGER NOT NULL,
+    ventas_efectivo DECIMAL(10, 2) NOT NULL,
+    ventas_digital DECIMAL(10, 2) NOT NULL,
+    retiros_total DECIMAL(10, 2) NOT NULL,
+    gatos_total DECIMAL(10, 2) NOT NULL,
+    diferencias_caja DECIMAL(10, 2) NOT NULL,
+    caja_cerrada bool NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
+    FOREIGN KEY (usuario_apertura_id) REFERENCES "user" (id),
+    FOREIGN KEY (usuario_cierre_id) REFERENCES "user" (id),
+    FOREIGN KEY (sucursal_id) REFERENCES "sucursal" (id)
+);
+
+ALTER TABLE registro_diario
+  ADD COLUMN ventas_efectivo DECIMAL(10,2),
+  ADD COLUMN ventas_digital DECIMAL(10,2),
+  ADD COLUMN retiros_total DECIMAL(10,2),
+  ADD COLUMN gastos_total DECIMAL(10,2),
+  ADD COLUMN diferencias_caja DECIMAL(10,2);
+
+
+-- Modificar la tabla 'pedido' para incluir una referencia a la sucursal
+CREATE TABLE "pedido" (
+    id SERIAL PRIMARY KEY,
+    registro_diario_id INTEGER NOT NULL,
+    monto_total DECIMAL(10, 2) NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    sucursal_id INTEGER NOT NULL,
+    medio_pago_id INTEGER NOT NULL,
+    observacion VARCHAR NULL,
+    comanda_nro NUMERIC NULL, 
+    cliente_id INTEGER NULL,
+    pedido_terminado boolean NULL,
+    paga_efectivo DECIMAL(10, 2) NULL,
+    vuelto_pago_efectivo DECIMAL(10, 2)  NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
+    FOREIGN KEY (registro_diario_id) REFERENCES "registro_diario" (id),
+    FOREIGN KEY (usuario_id) REFERENCES "user" (id),
+    FOREIGN KEY (sucursal_id) REFERENCES "sucursal" (id)
+    FOREIGN KEY (producto_id) REFERENCES "producto" (id)
+    FOREIGN KEY (medio_pago_id) REFERENCES "medio_pago" (id)
+);
+
+-- Modificar la tabla 'compra_insumo' para incluir una referencia a la sucursal
+CREATE TABLE "compra_insumo" (
+    id SERIAL PRIMARY KEY,
+    registro_diario_id INTEGER NOT NULL,
+    insumo VARCHAR(100) NOT NULL,
+    cantidad INTEGER NOT NULL,
+    precio_total DECIMAL(10, 2) NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    sucursal_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
+    FOREIGN KEY (registro_diario_id) REFERENCES "registro_diario" (id),
+    FOREIGN KEY (usuario_id) REFERENCES "user" (id),
+    FOREIGN KEY (sucursal_id) REFERENCES "sucursal" (id)
+);
+
+-- Modificar la tabla 'salida_caja' para incluir una referencia a la sucursal
+CREATE TABLE salida_caja (
+  id SERIAL PRIMARY KEY,
+  registro_diario_id INTEGER NOT NULL,
+  categoria_salida_id INTEGER NOT NULL,
+  descripcion VARCHAR(255),
+  monto DECIMAL(10, 2) NOT NULL,
+  usuario_id INTEGER NOT NULL,
+  sucursal_id INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (registro_diario_id) REFERENCES registro_diario(id),
+  FOREIGN KEY (categoria_salida_id) REFERENCES categoria_tipo(id),
+  FOREIGN KEY (usuario_id) REFERENCES "user"(id),
+  FOREIGN KEY (sucursal_id) REFERENCES sucursal(id)
+);
+
+
+CREATE TABLE categoria_salida (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(100) NOT NULL,
+  categoria_tipo_id INTEGER NOT NULL,
+  FOREIGN KEY (categoria_tipo_id) REFERENCES categoria_tipo(id)
+);
+
+CREATE TYPE tipo_conteo AS ENUM ('billete', 'moneda');
+
+CREATE TABLE conteo_caja (
+  id SERIAL PRIMARY KEY,
+  registro_diario_id INTEGER NOT NULL,
+  tipo ENUM('billete', 'moneda') NOT NULL,
+  denominacion NUMERIC(10, 2) NOT NULL,
+  cantidad INTEGER NOT NULL,
+  FOREIGN KEY (registro_diario_id) REFERENCES registro_diario(id)
+);
+
+-- Crear la tabla 'inventario_insumos' para gestionar el inventario de insumos
+CREATE TABLE inventario_insumos (
+    id SERIAL PRIMARY KEY,
+    sucursal_id INTEGER NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
+    cantidad DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sucursal_id) REFERENCES sucursal (id)
+);
+
+-- Crear la tabla 'movimiento_inventario' para registrar los movimientos de inventario
+CREATE TABLE movimiento_inventario (
+    id SERIAL PRIMARY KEY,
+    inventario_insumos_id INTEGER NOT NULL,
+    registro_diario_id INTEGER NOT NULL,
+    tipo_movimiento VARCHAR(50) NOT NULL, -- "entrada" o "salida"
+    cantidad DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (inventario_insumos_id) REFERENCES inventario_insumos (id),
+    FOREIGN KEY (registro_diario_id) REFERENCES registro_diario (id)
+);
+
+-- Crear la tabla 'producto'
+CREATE TABLE "producto" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL,
+    tipo_producto_id INTEGER NOT NULL,
+    permite_mitad bool NULL,
+    FOREIGN KEY (tipo_producto_id) REFERENCES tipo_producto (id)
+);
+
+-- Crear la tabla 'producto_img'
+CREATE TABLE "producto_img" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255) NOT NULL,
+    producto_id INTEGER NOT NULL,
+    FOREIGN KEY (producto_id) REFERENCES producto (id)
+);
+
+
+-- Crear la tabla 'tipo producto'
+CREATE TABLE "tipo_producto" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL
+);
+
+-- Crear la tabla 'medio pago'
+CREATE TABLE "medio_pago" (
+    id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(255) NOT NULL,
+    codigo VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE "pedido_producto" (
+    id SERIAL PRIMARY KEY,
+    pedido_id INTEGER NOT NULL,
+    producto_id INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    cantidad_mitad INTEGER NOT NULL,
+    observaciones VARCHAR(255) NULL,
+    precio_final DECIMAL(10, 2) NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL,
+    monto_adicional DECIMAL(10, 2) NULL,
+    FOREIGN KEY (pedido_id) REFERENCES "pedido" (id),
+    FOREIGN KEY (producto_id) REFERENCES "producto" (id)
+);
+
+CREATE TABLE categoria_tipo (
+  id SERIAL PRIMARY KEY,
+  descripcion VARCHAR(20) NOT NULL 
+);
+
+
+

@@ -1,0 +1,62 @@
+    user:
+        id (serial, PK)
+        nombre (varchar, NOT NULL)
+        apellido (varchar, NOT NULL)
+        dni (integer, NOT NULL)
+        email (varchar, UNIQUE, NOT NULL)
+        created_at (timestamp, DEFAULT CURRENT_TIMESTAMP)
+        updated_at (timestamp, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+        deleted_at (timestamp, DEFAULT NULL)
+
+    empleado:
+        id (serial, PK)
+        id_user (integer, FK -> user.id, NOT NULL)
+        password (varchar, NOT NULL) -- Encriptado
+        legajo (varchar, NOT NULL)
+        fecha_ingreso (date, NOT NULL)
+        rol_id (integer, FK -> rol.id, NOT NULL)
+        created_at (timestamp, DEFAULT CURRENT_TIMESTAMP)
+        updated_at (timestamp, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+        deleted_at (timestamp, DEFAULT NULL)
+
+    rol:
+        id (serial, PK)
+        descripcion (varchar, NOT NULL)
+
+    modulo:
+        id (serial, PK)
+        descripcion (varchar, NOT NULL)
+        status (boolean, NOT NULL)
+        created_at (timestamp, DEFAULT CURRENT_TIMESTAMP)
+        updated_at (timestamp, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+        deleted_at (timestamp, DEFAULT NULL)
+
+    modulo_rol:
+        id (serial, PK)
+        id_rol (integer, FK -> rol.id, NOT NULL)
+        id_modulo (integer, FK -> modulo.id, NOT NULL)
+
+    permisos:
+        id (serial, PK)
+        nombre (varchar, NOT NULL)
+        descripcion (varchar, NOT NULL)
+
+    rol_permiso:
+        id (serial, PK)
+        id_rol (integer, FK -> rol.id, NOT NULL)
+        id_permiso (integer, FK -> permisos.id, NOT NULL)
+
+    logs:
+        id (serial, PK)
+        id_user (integer, FK -> user.id, NOT NULL)
+        accion (varchar, NOT NULL)
+        descripcion (varchar, NOT NULL)
+        created_at (timestamp, DEFAULT CURRENT_TIMESTAMP)
+
+Relación entre Tablas
+
+    user tiene una relación 1 a 1 con empleado.
+    empleado tiene una relación N a 1 con rol.
+    modulo tiene una relación N a N con rol a través de modulo_rol.
+    rol tiene una relación N a N con permisos a través de rol_permiso.
+    user tiene una relación 1 a N con logs.
