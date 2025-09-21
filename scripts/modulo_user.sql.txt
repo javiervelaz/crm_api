@@ -1,14 +1,4 @@
-CREATE TABLE "user" (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR NOT NULL,
-    apellido VARCHAR NOT NULL,
-    email VARCHAR UNIQUE NOT NULL,
-    user_type_id INTEGER REFERENCES "user_type"(id) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP) ,
-    deleted_at TIMESTAMP DEFAULT NULL
-);
-
+-- 1. Primero crear las tablas básicas sin dependencias
 CREATE TABLE "user_type" (
     id SERIAL PRIMARY KEY,
     descripcion VARCHAR NOT NULL,
@@ -20,21 +10,6 @@ CREATE TABLE "rol" (
     descripcion VARCHAR NOT NULL
 );
 
-CREATE TABLE "profile" (
-    id SERIAL PRIMARY KEY,
-    id_user INTEGER REFERENCES "user"(id) NOT NULL,
-    dni INTEGER NOT NULL,
-    telefono VARCHAR NULL,
-    password VARCHAR NOT NULL,  -- Encriptado
-    legajo VARCHAR NOT NULL,
-    fecha_ingreso DATE NOT NULL,
-    casa_nro VARCHAR DEFAULT NULL,
-    barrio VARCHAR DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
-    deleted_at TIMESTAMP DEFAULT NULL
-);
-
 CREATE TABLE "modulo" (
     id SERIAL PRIMARY KEY,
     descripcion VARCHAR NOT NULL,
@@ -44,6 +19,49 @@ CREATE TABLE "modulo" (
     deleted_at TIMESTAMP DEFAULT NULL
 );
 
+CREATE TABLE "permisos" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR NOT NULL,
+    descripcion VARCHAR NOT NULL
+);
+
+-- 2. Crear tabla user (depende de user_type)
+CREATE TABLE "user" (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR NOT NULL,
+    apellido VARCHAR NOT NULL,
+    email VARCHAR UNIQUE NOT NULL,
+    user_type_id INTEGER REFERENCES "user_type"(id) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL
+);
+
+-- 3. Crear tablas que dependen de user
+CREATE TABLE "profile" (
+    id SERIAL PRIMARY KEY,
+    id_user INTEGER REFERENCES "user"(id) NOT NULL,
+    dni INTEGER NOT NULL,
+    telefono VARCHAR NULL,
+    password VARCHAR NOT NULL,
+    legajo VARCHAR NOT NULL,
+    fecha_ingreso DATE NOT NULL,
+    casa_nro VARCHAR DEFAULT NULL,
+    barrio VARCHAR DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL
+);
+
+CREATE TABLE "logs" (
+    id SERIAL PRIMARY KEY,
+    id_user INTEGER REFERENCES "user"(id) NOT NULL,
+    accion VARCHAR NOT NULL,
+    descripcion VARCHAR NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Crear tablas de relación many-to-many
 CREATE TABLE "user_rol" (
     id SERIAL PRIMARY KEY,
     id_rol INTEGER REFERENCES "rol"(id) NOT NULL,
@@ -56,22 +74,8 @@ CREATE TABLE "modulo_rol" (
     id_modulo INTEGER REFERENCES "modulo"(id) NOT NULL
 );
 
-CREATE TABLE "permisos" (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR NOT NULL,
-    descripcion VARCHAR NOT NULL
-);
-
 CREATE TABLE "rol_permiso" (
     id SERIAL PRIMARY KEY,
     id_rol INTEGER REFERENCES "rol"(id) NOT NULL,
     id_permiso INTEGER REFERENCES "permisos"(id) NOT NULL
-);
-
-CREATE TABLE "logs" (
-    id SERIAL PRIMARY KEY,
-    id_user INTEGER REFERENCES "user"(id) NOT NULL,
-    accion VARCHAR NOT NULL,
-    descripcion VARCHAR NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
