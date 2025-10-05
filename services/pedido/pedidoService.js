@@ -29,8 +29,8 @@ const createPedidoService = async (pedido) => {
     return result.rows[0];
   }
 
-  const getDetallePedido = async (id) => {
-    const result = await db.getDetallePedido(id);
+  const getDetallePedido = async (id,cliente_id) => {
+    const result = await db.getDetallePedido(id,cliente_id);
     return result;
   };
 
@@ -54,8 +54,8 @@ const createPedidoService = async (pedido) => {
     return result;
   }
 
-  const deletePedidoService = async (id) => {
-    const result = await db.deletePedido(id);
+  const deletePedidoService = async (id,cliente_id) => {
+    const result = await db.deletePedido(id,cliente_id);
     if (!result) {
       return res.status(404).json({ error: 'Pedido not found' });
     }

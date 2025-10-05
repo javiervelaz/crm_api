@@ -32,6 +32,7 @@ CREATE TABLE "user" (
     apellido VARCHAR NOT NULL,
     email VARCHAR UNIQUE NOT NULL,
     user_type_id INTEGER REFERENCES "user_type"(id) NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL
@@ -48,6 +49,7 @@ CREATE TABLE "profile" (
     fecha_ingreso DATE NOT NULL,
     casa_nro VARCHAR DEFAULT NULL,
     barrio VARCHAR DEFAULT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL
@@ -58,6 +60,7 @@ CREATE TABLE "logs" (
     id_user INTEGER REFERENCES "user"(id) NOT NULL,
     accion VARCHAR NOT NULL,
     descripcion VARCHAR NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -65,7 +68,8 @@ CREATE TABLE "logs" (
 CREATE TABLE "user_rol" (
     id SERIAL PRIMARY KEY,
     id_rol INTEGER REFERENCES "rol"(id) NOT NULL,
-    id_user INTEGER REFERENCES "user"(id) NOT NULL
+    id_user INTEGER REFERENCES "user"(id) NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
 );
 
 CREATE TABLE "modulo_rol" (
@@ -78,4 +82,12 @@ CREATE TABLE "rol_permiso" (
     id SERIAL PRIMARY KEY,
     id_rol INTEGER REFERENCES "rol"(id) NOT NULL,
     id_permiso INTEGER REFERENCES "permisos"(id) NOT NULL
+);
+
+CREATE TABLE cliente (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    cuit VARCHAR(20) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

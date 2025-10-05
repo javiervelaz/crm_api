@@ -13,20 +13,19 @@ const bcrypt = require('bcrypt');
     const result = await db.getReporteClientesWithFilters(data);
     return result;
   }; 
+  
   const getReporteGatosPorTipoService = async (data) => {
-    console.log("data",data);
     const result = await db.getReporteGastosPorTipoCategoria(data);
     return result;
   };
 
   const getReporteGatosPorCategoriaSalidaService = async (data) => {
-    console.log("data",data);
     const result = await db.getReporteGastosPorCategoriaSalida(data);
     return result;
   };
 
-  const getCategoriaSalidaService = async () => {
-    const result = await db.getCategoriaSalida();
+  const getCategoriaSalidaService = async (cliente_id) => {
+    const result = await db.getCategoriaSalida(cliente_id);
     return result;
   };
   const getCategoriaTipoService = async () => {

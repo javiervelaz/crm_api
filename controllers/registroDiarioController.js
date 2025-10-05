@@ -2,8 +2,10 @@
 const pool = require('../db');
 
 const getRegistrosDiarios = async (req, res) => {
+  const {  cliente_id } = req.params;
+  if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
   try {
-    const result = await pool.query('SELECT * FROM registro_diario');
+    const result = await pool.query('SELECT * FROM registro_diario where cliente_id =  $1',[cliente_id]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

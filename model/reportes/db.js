@@ -2,7 +2,7 @@ const pool = require('../../pool');
 
   
 const getReporteVentasWithFilters = async (request) => {
-  const { fecha_desde, fecha_hasta, productos } = request;
+  const { fecha_desde, fecha_hasta, productos ,cliente_id} = request;
   
   // Usamos una consulta parametrizada con condición dinámica segura
   let query = `
@@ -15,11 +15,12 @@ const getReporteVentasWithFilters = async (request) => {
     JOIN pedido_producto pp ON p.id = pp.pedido_id 
     JOIN producto pr ON pr.id = pp.producto_id 
     WHERE 
-      DATE(p.created_at) BETWEEN $1 AND $2
+      DATE(p.created_at) BETWEEN $1 AND $2  AND p.cliente_id = $3::int
   `;
 
-  const params = [fecha_desde, fecha_hasta];
+  const params = [fecha_desde, fecha_hasta, cliente_id];
   
+
   if (productos) {
     query += ` AND pp.producto_id = ANY(string_to_array($${params.length + 1}, ',')::int[])`;
     params.push(productos);
@@ -36,12 +37,12 @@ const getReporteVentasWithFilters = async (request) => {
 
 
 const getReporteClientesWithFilters = async (request) => {
-  const { fecha_desde, fecha_hasta, tipo_cliente } = request;
+  const { fecha_desde, fecha_hasta, tipo_cliente, cliente_id } = request;
   
   // Usamos una consulta parametrizada con condición dinámica segura
   let query = `
     SELECT 
-       u.id as cliente_id,
+      u.id as cliente_id,
       COALESCE(u.nombre || ' ' || u.apellido, 'Mostrador') as cliente_nombre,
       u.email as cliente_email,
       pf.telefono as cliente_telefono,
@@ -51,19 +52,19 @@ const getReporteClientesWithFilters = async (request) => {
       MAX(p.created_at) as ultima_compra,
       STRING_AGG(DISTINCT pp.producto_id || ':' || pr.nombre, ', ') as productos_comprados
     FROM pedido p
-    LEFT JOIN "user" u ON p.cliente_id = u.id
+    LEFT JOIN "user" u ON p.user_cliente_id = u.id
     LEFT JOIN "user_type" ut on ut.id = u.user_type_id
     left join "profile" pf on pf.id_user = u.id
     LEFT JOIN pedido_producto pp ON p.id = pp.pedido_id
     LEFT JOIN producto pr ON pp.producto_id = pr.id
     WHERE 
-      DATE(p.created_at) BETWEEN $1 AND $2
+      DATE(p.created_at) BETWEEN $1 AND $2 AND p.cliente_id = $3::int
   `;
 
-  const params = [fecha_desde, fecha_hasta];
+  const params = [fecha_desde, fecha_hasta, cliente_id];
   
   if (tipo_cliente == 'MOS') {
-    query += ` AND p.cliente_id IS NULL `;
+    query += ` AND p.user_cliente_id IS NULL `;
     console.log("query",query);
     //params.push(tipo_cliente);
   }
@@ -76,45 +77,45 @@ const getReporteClientesWithFilters = async (request) => {
     GROUP BY u.id, u.nombre, u.apellido, u.email,pf.telefono
     ORDER BY monto_total DESC
   `;
-  console.log("query",query);
   const result = await pool.query(query, params);
+ 
   return result.rows;
 };
 
 const getReporteGastosPorTipoCategoria = async (request) => {
-  const { fecha_desde, fecha_hasta, tipoId } = request;
-  
-  // Usamos una consulta parametrizada con condición dinámica segura
+  const { fecha_desde, fecha_hasta, tipoId, cliente_id } = request;
+
   let query = `
     SELECT 
       ct.descripcion AS tipo_categoria,
       COUNT(sc.id) AS cantidad_gastos,
       SUM(sc.monto) AS total_gastos
     FROM salida_caja sc
-    JOIN categoria_tipo ct ON sc.categoria_salida_id  = ct.id
-    WHERE 
-      DATE(sc.created_at) BETWEEN $1 AND $2
+    JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
+    WHERE DATE(sc.created_at) BETWEEN $1 AND $2
+      AND sc.cliente_id = $3::int
   `;
 
-  const params = [fecha_desde, fecha_hasta];
-  
+  const params = [fecha_desde, fecha_hasta, cliente_id];
+
   if (tipoId) {
-    query += ` AND ct.id = $3`;
+    query += ` AND ct.id = $${params.length + 1}`;
     params.push(tipoId);
   }
 
-  query += `
-    GROUP BY ct.id,ct.descripcion
-  `;
+  query += ` GROUP BY ct.id, ct.descripcion`;
+
+  console.log("Query:", query);
+  console.log("Params:", params);
 
   const result = await pool.query(query, params);
   return result.rows;
 };
 
 const getReporteGastosPorCategoriaSalida = async (request) => {
-  const { fecha_desde, fecha_hasta, salida_descripcion } = request;
-  
-  // Usamos una consulta parametrizada con condición dinámica segura
+  const { fecha_desde, fecha_hasta, salida_descripcion, cliente_id } = request;
+
+  // Base de la consulta
   let query = `
     SELECT 
       sc.descripcion AS salida,
@@ -123,35 +124,41 @@ const getReporteGastosPorCategoriaSalida = async (request) => {
     FROM salida_caja sc
     WHERE 
       DATE(sc.created_at) BETWEEN $1 AND $2
+      AND sc.cliente_id = $3::int
   `;
 
-  const params = [fecha_desde, fecha_hasta];
-  
+  const params = [fecha_desde, fecha_hasta, cliente_id];
+
+  // Agregar descripción opcional
   if (salida_descripcion) {
-    query += ` AND sc.descripcion = $3`;
+    query += ` AND sc.descripcion = $${params.length + 1}`;
     params.push(salida_descripcion);
   }
 
   query += `
-    GROUP BY salida
+    GROUP BY sc.descripcion
   `;
+
+  console.log("Query:", query);
+  console.log("Params:", params);
 
   const result = await pool.query(query, params);
   return result.rows;
 };
 
-const getCategoriaSalida = async () => {
-  
-  
+
+const getCategoriaSalida = async (cliente_id) => {
+
   // Usamos una consulta parametrizada con condición dinámica segura
   let query = `
     SELECT 
       cs.id AS id,
       cs.nombre AS nombre
     FROM categoria_salida cs
+    WHERE cs.cliente_id =  $1::int
   `;
 
-  const result = await pool.query(query, []);
+  const result = await pool.query(query, [cliente_id]);
   return result.rows;
 };
 

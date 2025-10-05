@@ -3,27 +3,28 @@ const e = require('express');
 const pool = require('../../pool');
 
 const createUser = async (user) => {
-  const { nombre, apellido, email, user_type_id } = user;
+  const { nombre, apellido, email, user_type_id,cliente_id } = user;
   const result = await pool.query(
-    'INSERT INTO "user" (nombre, apellido, email, user_type_id) VALUES ($1, $2, $3, $4) RETURNING *',
-    [nombre, apellido, email, user_type_id]
+    'INSERT INTO "user" (nombre, apellido, email, user_type_id,cliente_id) VALUES ($1, $2, $3, $4,$5) RETURNING *',
+    [nombre, apellido, email, user_type_id, cliente_id]
   );
   return result.rows[0];
 };
 
-const getUserById = async (id) => {
-  const result = await pool.query('SELECT * FROM "user" WHERE id = $1', [id]);
+const getUserById = async (id,cliente_id) => {
+  const result = await pool.query('SELECT * FROM "user" WHERE id = $1 and cliente_id =$2', [id,cliente_id]);
   return result;
 };
 
 
-const getUsers = async () => {
-  const result = await pool.query('SELECT  u.*,ut.codigo as user_type_codigo,ut.descripcion as user_type_descripcion, p.telefono as telefono  FROM "user" u left join "user_type" ut on u.user_type_id=ut.id left join "profile" p on p.id_user =u.id' , []);
+const getUsers = async (cliente_id) => {
+  const result = await pool.query('SELECT  u.*,ut.codigo as user_type_codigo,ut.descripcion as user_type_descripcion, p.telefono as telefono  FROM "user" u left join "user_type" ut on u.user_type_id=ut.id left join "profile" p on p.id_user =u.id where u.cliente_id =  $1' , [cliente_id]);
   return result;
 }
 
 const getUserTypeList = async () => {
   const result = await pool.query('SELECT id, descripcion, codigo FROM "user_type"  ', []);
+  console.log("db user type",result);
   return result;
 }
 
@@ -37,20 +38,20 @@ const updateUser = async (id, user) => {
   return result.rows[0];
 };
 
-const deleteUser = async (id) => {
+const deleteUser = async (id,cliente_id) => {
   const client = await pool.connect();
     
   try {
     await client.query('BEGIN'); // Iniciar transacción
 
     // 1. Eliminar perfil (usando el mismo client)
-    await client.query('DELETE FROM "profile" WHERE id_user = $1', [id]);
+    await client.query('DELETE FROM "profile" WHERE id_user = $1 and cliente_id =  $2', [id,cliente_id]);
     
     // 1. Eliminar perfil (usando el mismo client)
-    await client.query('DELETE FROM "user_rol" WHERE id_user = $1', [id]);
+    await client.query('DELETE FROM "user_rol" WHERE id_user = $1 and cliente_id =  $2', [id,cliente_id]);
 
     // 2. Eliminar usuario (usando el mismo client)
-    const result = await client.query('DELETE FROM "user" WHERE id = $1 RETURNING *', [id]);
+    const result = await client.query('DELETE FROM "user" WHERE id = $1 and cliente_id =  $2 RETURNING *', [id,cliente_id]);
     
     await client.query('COMMIT'); // Confirmar transacción
     return result.rows[0];
@@ -68,43 +69,43 @@ const getUserTypeById =  async (id) => {
   return result;
 };
 
-const getUserRol =  async (id) => {
-  const result = await pool.query('select r.descripcion,ur.id_rol,ur.id_user from "rol" r join "user_rol" ur on r.id = ur.id_rol join "user" u on u.id=ur.id_user where ur.id_user = $1', [id]);
+const getUserRol =  async (id,cliente_id) => {
+  const result = await pool.query('select r.descripcion,ur.id_rol,ur.id_user from "rol" r join "user_rol" ur on r.id = ur.id_rol join "user" u on u.id=ur.id_user where ur.id_user = $1 and ur.cliente_id = $2', [id,cliente_id]);
   return result;
 };
 
 const auth = async (email) => {
-  const result = await pool.query('SELECT u.id as "id", u.email as "email" , p.password as "password", u."nombre",u."apellido" FROM "user" u join "profile" p on u.id=p.id_user WHERE u.email = $1', [email]);
+  const result = await pool.query('SELECT u.id as "id", u.email as "email" , p.password as "password", u."nombre",u."apellido", u.cliente_id as "cliente_id" FROM "user" u join "profile" p on u.id=p.id_user WHERE u.email = $1', [email]);
   return result.rows[0];
 };
 
-const getUserByTel =  async (telefono) => {
-  const result = await pool.query('SELECT u."id",p."telefono",u."nombre",u."apellido",p.casa_nro,p.barrio from "profile" p join "user" u on u.id=p.id_user where p."telefono" = $1', [telefono]);
+const getUserByTel =  async (telefono,cliente_id) => {
+  const result = await pool.query('SELECT u."id",p."telefono",u."nombre",u."apellido",p.casa_nro,p.barrio from "profile" p join "user" u on u.id=p.id_user where p."telefono" = $1 and u.cliente_id = $2', [telefono,cliente_id]);
   return result;
 }
 
-const getEstadisticasCliente = async (clienteId) => {
+const getEstadisticasCliente = async (userClienteId,cliente_id) => {
   const client = await pool.connect();
   
   try {
     // 1. Cantidad de pedidos
     const cantPedidosResult = await client.query(
-      'SELECT COUNT(*) as cantidad FROM pedido WHERE cliente_id = $1',
-      [clienteId]
+      'SELECT COUNT(*) as cantidad FROM pedido WHERE uer_cliente_id = $1 and cliente_id = $2',
+      [userClienteId, cliente_id]
     );
     const cantidadPedidos = parseInt(cantPedidosResult.rows[0].cantidad);
 
     // 2. Total gastado
     const totalGastadoResult = await client.query(
-      'SELECT COALESCE(SUM(monto_total), 0) as total FROM pedido WHERE cliente_id = $1',
-      [clienteId]
+      'SELECT COALESCE(SUM(monto_total), 0) as total FROM pedido WHERE user_cliente_id = $1',
+      [userClienteId,cliente_id]
     );
     const totalGastado = parseFloat(totalGastadoResult.rows[0].total);
 
     // 3. Última compra
     const ultimaCompraResult = await client.query(
-      'SELECT MAX(created_at) as ultima_compra FROM pedido WHERE cliente_id = $1',
-      [clienteId]
+      'SELECT MAX(created_at) as ultima_compra FROM pedido WHERE user_cliente_id = $1 and cliente_id = $2',
+      [userClienteId,cliente_id]
     );
     const ultimaCompra = ultimaCompraResult.rows[0].ultima_compra;
 
@@ -127,12 +128,12 @@ const getEstadisticasCliente = async (clienteId) => {
         FROM pedido_producto pp
         INNER JOIN pedido p ON pp.pedido_id = p.id
         INNER JOIN producto pr ON pp.producto_id = pr.id
-        WHERE p.cliente_id = $1
+        WHERE p.user_cliente_id = $1 and p.cliente_id = $2
         GROUP BY pp.producto_id, pr.nombre
         ORDER BY cantidad_total DESC
         LIMIT 3
       ) sub
-    `, [clienteId]);
+    `, [userClienteId,cliente_id]);
     const topProductos = topProductosResult.rows[0]?.top_productos || [];
 
     // 5. Top medio de pago
@@ -151,12 +152,12 @@ const getEstadisticasCliente = async (clienteId) => {
           COUNT(*) as veces_utilizado
         FROM medio_pago mp
         INNER JOIN pedido p ON p.medio_pago_id = mp.id
-        WHERE p.cliente_id = $1
+        WHERE p.user_cliente_id = $1 and p.cliente_id = $2
         GROUP BY mp.id, mp.descripcion, mp.codigo
         ORDER BY veces_utilizado DESC
         LIMIT 1
       ) sub
-    `, [clienteId]);
+    `, [userClienteId]);
     const topMedioPago = topMedioPagoResult.rows[0]?.top_medio_pago || {};
 
     // Retornar todos los datos en un objeto

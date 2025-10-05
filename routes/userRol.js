@@ -10,10 +10,10 @@ const {
 } = require('../controllers/userRolController');
 
 router.post('/', createUserRol);
-router.get('/list', getUserRolList);
-router.get('/:id', getUserRolById);
+router.get('/list/:cliente_id', getUserRolList);
+router.get('/:id/:cliente_id', getUserRolById);
 router.put('/:id', updateUserRol);
 router.delete('/:id', deleteUserRol);
-router.get('/user/:id', getUserRoleByUserId);
+router.get('/user/:id/:cliente_id', getUserRoleByUserId);
 
 module.exports = router;

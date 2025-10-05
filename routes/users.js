@@ -20,14 +20,14 @@ const {
 
 router.post('/login',login);
 router.post('/',authenticateJWT,authorizeRole([1]), createUser);
-router.get('/list', getUsers);
-router.get('/:id', getUserById);
-router.put('/:id',authenticateJWT,authorizeRole([1]), updateUser);
-router.delete('/:id',authenticateJWT,authorizeRole([1]) ,deleteUser);
 router.get('/type/:id', getUserTypeById);
-router.get('/tipo/list', getUserTypeList);
-router.get('/rol/:id', getUserRol);
-router.get('/cliente/:telefono', getUserByTel);
-router.get('/estadistica/cliente/:id', getUserEstadistica);
+router.get('/tipo', getUserTypeList);
+router.get('/list/:cliente_id', getUsers);
+router.get('/rol/:id/:cliente_id', getUserRol);
+router.get('/cliente/:telefono/:cliente_id', getUserByTel);
+router.get('/estadistica/cliente/:id/:cliente_id', getUserEstadistica);
+router.get('/:id/:cliente_id', getUserById);
+router.put('/:id',authenticateJWT,authorizeRole([1]), updateUser);
+router.delete('/:id/:cliente_id',authenticateJWT,authorizeRole([1]) ,deleteUser);
 
 module.exports = router;

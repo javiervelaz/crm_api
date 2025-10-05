@@ -11,9 +11,9 @@ const createSalidaCaja = async (req, res) => {
 };
 
 const getSalidaCajaById = async (req, res) => {
-    const { id } = req.params;
+    const { id, cliente_id } = req.params;
     try {
-      const SalidaCaja = await SalidaCajaService.getSalidaCajaByIdService({ id });
+      const SalidaCaja = await SalidaCajaService.getSalidaCajaByIdService({ id, cliente_id });
         if (!SalidaCaja) {
           return res.status(404).json({ error: 'SalidaCaja not found' });
         }
@@ -24,8 +24,10 @@ const getSalidaCajaById = async (req, res) => {
   };
 
   const getSalidaCajaList = async (req, res) => {
+    const {  id, cliente_id } = req.params;
+    if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
     try {
-      const result = await SalidaCajaService.getSalidaCajaListService()
+      const result = await SalidaCajaService.getSalidaCajaListService(id,cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -34,9 +36,9 @@ const getSalidaCajaById = async (req, res) => {
   
   const updateSalidaCaja = async (req, res) => {
     const id = req.params.id;
-    const {  descripcion, monto } = req.body;
+    const {  descripcion, monto, cliente_id } = req.body;
     try {
-      const updatedSalidaCaja = await SalidaCajaService.updateSalidaCajaService(id, { descripcion, monto});
+      const updatedSalidaCaja = await SalidaCajaService.updateSalidaCajaService(id, { descripcion, monto, cliente_id});
       res.status(200).json(updatedSalidaCaja);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -44,9 +46,9 @@ const getSalidaCajaById = async (req, res) => {
   };
   
   const deleteSalidaCaja = async (req, res) => {
-    const { id } = req.params;
+    const { id, cliente_id } = req.params;
     try {
-      const result = await SalidaCajaService.deleteSalidaCajaService(id);
+      const result = await SalidaCajaService.deleteSalidaCajaService(id, cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -55,9 +57,9 @@ const getSalidaCajaById = async (req, res) => {
 
   const getMontoGastos = async (req, res) => {
     const { id } = req.params;
-    const {  salida_categoria_id } = req.body
+    const {  salida_categoria_id , cliente_id} = req.body
     try {
-      const monto = await SalidaCajaService.getMontoGastosdService( id, salida_categoria_id );
+      const monto = await SalidaCajaService.getMontoGastosdService( id, salida_categoria_id, cliente_id );
         //if (!monto) {
           //return res.status(404).json({ error: 'SalidaCaja not found' });
         //}

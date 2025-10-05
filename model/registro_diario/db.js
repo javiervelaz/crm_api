@@ -1,10 +1,10 @@
 const pool = require('../../pool');
 
 const createRegistroDiario  = async (RegistroDiario) => {
-    const { fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id } = RegistroDiario;
+    const { fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id, cliente_id } = RegistroDiario;
     const result = await pool.query(
-      'INSERT INTO "registro_diario" (fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id]
+      'INSERT INTO "registro_diario" (fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id) VALUES ($1, $2, $3, $4, $5, $6,$7) RETURNING *',
+      [fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id]
     );
     return result.rows[0];
   };
@@ -14,34 +14,34 @@ const createRegistroDiario  = async (RegistroDiario) => {
     return result;
   };
   
-  const getByRegistroFechaUsuario = async(fecha) => {
-    const result = await pool.query('select * from "registro_diario" where fecha = $1 and caja_cerrada  is NULL ',[fecha]);
+  const getByRegistroFechaUsuario = async(fecha,cliente_id) => {
+    const result = await pool.query('select * from "registro_diario" where fecha = $1 and cliente_id =$2 and caja_cerrada  is NULL ',[fecha,cliente_id]);
     return result.rows;
   }
 
-  const getRegistrosDiarios = async (filtroParam) => {
+  const getRegistrosDiarios = async (filtroParam,cliente_id) => {
     try {
       const filtro = filtroParam || 'dia';
       console.log (filtro);
       let query = `
-        SELECT * FROM registro_diario 
+        SELECT * FROM registro_diario
       `;
       
       switch (filtro) {
         case 'dia':
-          query += 'WHERE fecha = CURRENT_DATE ORDER BY fecha DESC';
+          query += 'WHERE fecha = CURRENT_DATE and cliente_id =  $1 ORDER BY fecha DESC';
           break;
         case 'semana':
-          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'7 days\' ORDER BY fecha DESC';
+          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'7 days\' and cliente_id =  $1 ORDER BY fecha DESC';
           break;
         case 'mes':
-          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'30 days\' ORDER BY fecha DESC';
+          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'30 days\' and cliente_id =  $1 ORDER BY fecha DESC';
           break;
         default:
           query += 'ORDER BY fecha DESC LIMIT 30';
       }
      
-      const result = await pool.query(query);
+      const result = await pool.query(query,[cliente_id]);
       return result.rows;
       
     } catch (error) {
@@ -50,10 +50,10 @@ const createRegistroDiario  = async (RegistroDiario) => {
   }
 
   
-  const getRegistrosDiariosDetalle = async (id) => {
+  const getRegistrosDiariosDetalle = async (id,cliente_id) => {
     try {
-      const registroQuery = 'SELECT * FROM registro_diario WHERE id = $1';
-      const registroResult = await pool.query(registroQuery, [id]);
+      const registroQuery = 'SELECT * FROM registro_diario WHERE id = $1 and cliente_id =  $2';
+      const registroResult = await pool.query(registroQuery, [id,cliente_id]);
       
       if (registroResult.rows.length === 0) {
         // CORRECCIÓN: Devuelve un objeto con error, no una tupla
@@ -123,17 +123,17 @@ const createRegistroDiario  = async (RegistroDiario) => {
     return result.rows[0];
   };
 
-  const updateMontoFinalRegistroDiario  = async (id,monto_final, usuario_cierre_id, sucursal_id) => {
+  const updateMontoFinalRegistroDiario  = async (id,monto_final, usuario_cierre_id, sucursal_id,cliente_id) => {
     const result = await pool.query(
-      'UPDATE "registro_diario" SET caja_final = $2, usuario_cierre_id = $3, sucursal_id = $4, updated_at = CURRENT_TIMESTAMP, caja_cerrada = TRUE WHERE id = $1 RETURNING *',
-      [id,monto_final, usuario_cierre_id, sucursal_id]
+      'UPDATE "registro_diario" SET caja_final = $2, usuario_cierre_id = $3, sucursal_id = $4, updated_at = CURRENT_TIMESTAMP, caja_cerrada = TRUE WHERE id = $1 and cliente_id = $5 RETURNING *',
+      [id,monto_final, usuario_cierre_id, sucursal_id,cliente_id]
     );
     return result;
   };
 
-  const getCajaInicial = async(registro_diario_id) => {
-    const result = await pool.query('SELECT sum("caja_inicial") FROM registro_diario where "id"= $1 '
-      ,[registro_diario_id]);
+  const getCajaInicial = async(registro_diario_id,cliente_id) => {
+    const result = await pool.query('SELECT sum("caja_inicial") FROM registro_diario where "id"= $1 and "cliente_id" =  $2 '
+      ,[registro_diario_id,cliente_id]);
       return result.rows[0];
   }
   

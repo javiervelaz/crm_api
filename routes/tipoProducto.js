@@ -9,7 +9,7 @@ const {
 } = require('../controllers/tipoProductoController');
 
 router.post('/', createTipoProducto);
-router.get('/list', getTipoProductoList);
+router.get('/list/:cliente_id', getTipoProductoList);
 router.get('/:id', getTipoProductoById);
 router.put('/:id', updateTipoProducto);
 router.delete('/:id', deleteTipoProducto);

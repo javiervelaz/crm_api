@@ -2,13 +2,20 @@
 CREATE TABLE "sucursal" (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     direccion VARCHAR(255) NOT NULL
 );
 
 -- 2. Tablas de catálogos básicos
-CREATE TABLE "tipo_producto" (
+CREATE TABLE tipo_producto (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL
+    nombre VARCHAR(100) NOT NULL,
+    cliente_id INTEGER NOT NULL,
+    CONSTRAINT fk_tipo_producto_cliente
+        FOREIGN KEY (cliente_id)
+        REFERENCES cliente(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
 );
 
 CREATE TABLE "medio_pago" (
@@ -19,7 +26,8 @@ CREATE TABLE "medio_pago" (
 
 CREATE TABLE categoria_tipo (
   id SERIAL PRIMARY KEY,
-  descripcion VARCHAR(20) NOT NULL 
+  descripcion VARCHAR(20) NOT NULL ,
+  codigo VARCHAR(20) NOT NULL
 );
 
 -- 3. Asumiendo que la tabla 'user' ya existe, si no debería crearse primero
@@ -32,6 +40,7 @@ CREATE TABLE "producto" (
     precio_unitario DECIMAL(10, 2) NOT NULL,
     tipo_producto_id INTEGER NOT NULL,
     permite_mitad bool NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     FOREIGN KEY (tipo_producto_id) REFERENCES tipo_producto (id)
 );
 
@@ -44,11 +53,12 @@ CREATE TABLE "registro_diario" (
     caja_inicial DECIMAL(10, 2) NOT NULL,
     caja_final DECIMAL(10, 2),
     sucursal_id INTEGER NOT NULL,
-    ventas_efectivo DECIMAL(10, 2) NOT NULL,
-    ventas_digital DECIMAL(10, 2) NOT NULL,
-    retiros_total DECIMAL(10, 2) NOT NULL,
-    gatos_total DECIMAL(10, 2) NOT NULL,
-    diferencias_caja DECIMAL(10, 2) NOT NULL,
+    ventas_efectivo DECIMAL(10, 2)  NULL,
+    ventas_digital DECIMAL(10, 2)  NULL,
+    retiros_total DECIMAL(10, 2)  NULL,
+    gatos_total DECIMAL(10, 2)  NULL,
+    diferencias_caja DECIMAL(10, 2)  NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     caja_cerrada bool NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -75,10 +85,12 @@ CREATE TABLE "pedido" (
     medio_pago_id INTEGER NOT NULL,
     observacion VARCHAR NULL,
     comanda_nro NUMERIC NULL, 
-    cliente_id INTEGER NULL,
+    user_cliente_id INTEGER NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     pedido_terminado boolean NULL,
     paga_efectivo DECIMAL(10, 2) NULL,
     vuelto_pago_efectivo DECIMAL(10, 2)  NULL,
+    monto_adicional numeric(10, 2) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (registro_diario_id) REFERENCES "registro_diario" (id),
@@ -95,7 +107,7 @@ CREATE TABLE "pedido_producto" (
     cantidad INTEGER NOT NULL,
     cantidad_mitad INTEGER NOT NULL,
     observaciones VARCHAR(255) NULL,
-    precio_final DECIMAL(10, 2) NOT NULL,
+    precio_final DECIMAL(10, 2) NULL,
     precio_unitario DECIMAL(10, 2) NOT NULL,
     monto_adicional DECIMAL(10, 2) NULL,
     FOREIGN KEY (pedido_id) REFERENCES "pedido" (id),
@@ -111,6 +123,7 @@ CREATE TABLE "compra_insumo" (
     precio_total DECIMAL(10, 2) NOT NULL,
     usuario_id INTEGER NOT NULL,
     sucursal_id INTEGER NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (registro_diario_id) REFERENCES "registro_diario" (id),
@@ -123,6 +136,7 @@ CREATE TABLE categoria_salida (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(100) NOT NULL,
   categoria_tipo_id INTEGER NOT NULL,
+  cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
   FOREIGN KEY (categoria_tipo_id) REFERENCES categoria_tipo(id)
 );
 
@@ -132,13 +146,13 @@ CREATE TABLE salida_caja (
   registro_diario_id INTEGER NOT NULL,
   categoria_salida_id INTEGER NOT NULL,
   descripcion VARCHAR(255),
+  cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
   monto DECIMAL(10, 2) NOT NULL,
   usuario_id INTEGER NOT NULL,
   sucursal_id INTEGER NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (registro_diario_id) REFERENCES registro_diario(id),
-  FOREIGN KEY (categoria_salida_id) REFERENCES categoria_salida(id),
   FOREIGN KEY (usuario_id) REFERENCES "user"(id),
   FOREIGN KEY (sucursal_id) REFERENCES sucursal(id)
 );
@@ -162,6 +176,7 @@ CREATE TABLE inventario_insumos (
     sucursal_id INTEGER NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     cantidad DECIMAL(10, 2) NOT NULL,
+    cliente_id  INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sucursal_id) REFERENCES sucursal (id)

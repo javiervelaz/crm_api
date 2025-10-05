@@ -12,7 +12,7 @@ getClientesFiltersController
 router.post('/ventas', getVentasFiltersController);
 router.post("/gastos/tipo-categoria-filter",getGastosPorTipoFiltersController)
 router.post("/gastos/categoria-salida-filter",getGastosPorCategoriaSalidaFiltersController)
-router.get("/salida/categoria-salida",getCategoriaSalidaController)
+router.get("/salida/categoria-salida/:cliente_id",getCategoriaSalidaController)
 router.get("/salida/categoria-tipo",getCategoriaTipoController)
 router.post('/clientes', getClientesFiltersController);
 

@@ -10,10 +10,10 @@ const {
 } = require('../controllers/salidaCajaController');
 
 router.post('/', createSalidaCaja);
-router.get('/list', getSalidaCajaList);
-router.get('/:id', getSalidaCajaById);
+router.get('/list/:id/:cliente_id', getSalidaCajaList);
+router.get('/:id/:cliente_id', getSalidaCajaById);
 router.put('/:id', updateSalidaCaja);
-router.delete('/:id', deleteSalidaCaja);
+router.delete('/:id/:cliente_id', deleteSalidaCaja);
 router.post('/monto-gastos/:id', getMontoGastos);
 
 module.exports = router;

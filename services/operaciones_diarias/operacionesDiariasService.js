@@ -58,7 +58,7 @@ exports.registrarMovimientoInventario = async (inventarioInsumosId, registroDiar
 };
 
 // Lógica para registrar salida de caja
-exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId) => {
+exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId,cliente_id) => {
     try {
         const salidaCaja = await SalidaCaja.createSalidaCaja({
             registro_diario_id: registroDiarioId,
@@ -66,7 +66,8 @@ exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, m
             descripcion,
             monto,
             usuario_id: usuarioId,
-            sucursal_id: sucursalId
+            sucursal_id: sucursalId,
+            cliente_id: cliente_id
         });
         return salidaCaja;
     } catch (error) {
@@ -76,7 +77,7 @@ exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, m
 
 // Lógica para registrar un pedido
 exports.crearPedido = async ( data) => {
-    const { registro_diario_id,usuario_id,monto_total,sucursal_id,medio_pago_id,cliente_nombre, cliente_telefono, productos,cliente_casa_nro, cliente_barrio ,pedido_obs,cliente_id,paga_efectivo,vuelto_pago_efectivo, monto_adicional} = data;  
+    const { registro_diario_id,usuario_id,monto_total,sucursal_id,medio_pago_id,cliente_nombre, cliente_telefono, productos,cliente_casa_nro, cliente_barrio ,pedido_obs,user_cliente_id,paga_efectivo,vuelto_pago_efectivo, monto_adicional,cliente_id} = data;  
     try {
         const pedido_data = await Pedido.getComandaNro(registro_diario_id);
         const comandaCount = parseInt(pedido_data[0].count, 10); // base 10
@@ -87,23 +88,25 @@ exports.crearPedido = async ( data) => {
             monto_total: monto_total,
             sucursal_id: sucursal_id,
             medio_pago_id: medio_pago_id,
-            observaciones: pedido_obs,
+            observacion: pedido_obs,
             comanda_nro: nuevoNumeroComanda,
             productos,
-            cliente_id : cliente_id,
+            user_cliente_id : user_cliente_id,
             paga_efectivo:paga_efectivo,
             vuelto_pago_efectivo:vuelto_pago_efectivo,
+            cliente_id : cliente_id,
+            monto_adicional: monto_adicional
         });
         
         // Insertar los productos relacionados en la tabla intermedia
         await Pedido.insertPedidoProducto(pedidoId, productos); 
         if(cliente_telefono != 1){
-            const profileByTelefono  = await Profile.getByTelefono(cliente_telefono);
+            const profileByTelefono  = await Profile.getByTelefono(cliente_telefono,cliente_id);
         if(profileByTelefono == null) {
             const fecha = new Date();
-            let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:cliente_nombre+'@gmail.com', user_type_id : 4};
+            let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:cliente_nombre+'@gmail.com', user_type_id : 4, cliente_id: cliente_id};
             let newUser =  await  Users.createUser(user)
-            let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio}
+            let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio, cliente_id:cliente_id}
             await Profile.createProfile(profile);
             }
         }
@@ -115,9 +118,9 @@ exports.crearPedido = async ( data) => {
 };
 
 // Lógica para registrar apertura y cierre de caja
-exports.registrarAperturaCierreCaja = async (fecha, usuarioAperturaId, cajaInicial, sucursalId, usuarioCierreId, cajaFinal) => {
+exports.registrarAperturaCierreCaja = async (fecha, usuarioAperturaId, cajaInicial, sucursalId, usuarioCierreId, cajaFinal,cliente_id) => {
     try {
-        const registroExists = await RegistroDiario.getByRegistroFechaUsuario(fecha,usuarioAperturaId); 
+        const registroExists = await RegistroDiario.getByRegistroFechaUsuario(fecha,cliente_id); 
         
         if(registroExists.length !== 0){
             throw new Error('El registro ya fue creado para este dia.');
@@ -128,7 +131,8 @@ exports.registrarAperturaCierreCaja = async (fecha, usuarioAperturaId, cajaInici
             caja_inicial: cajaInicial,
             sucursal_id: sucursalId,
             usuario_cierre_id: usuarioCierreId,
-            caja_final: cajaFinal
+            caja_final: cajaFinal,
+            cliente_id: cliente_id,
         });
         return registroCaja;
     } catch (error) {
@@ -136,9 +140,9 @@ exports.registrarAperturaCierreCaja = async (fecha, usuarioAperturaId, cajaInici
     }
 };
 
-exports.checkCajaAbierta  = async (fecha) => {
+exports.checkCajaAbierta  = async (fecha,cliente_id) => {
     try {
-        const registroExists = await RegistroDiario.getByRegistroFechaUsuario(fecha);
+        const registroExists = await RegistroDiario.getByRegistroFechaUsuario(fecha,cliente_id);
         if(registroExists.length !== 0){
             const caja_abierta = registroExists.length !== 0;
             const fechaApertura = caja_abierta ? registroExists[0].fecha : null;
@@ -154,19 +158,19 @@ exports.checkCajaAbierta  = async (fecha) => {
     }
 }
 
-exports.listarPedidosDiario =  async (idRegistroDiarios) => {
-    const result = await Pedido.getPedidoByRegistroId(idRegistroDiarios);
+exports.listarPedidosDiario =  async (idRegistroDiarios,cliente_id) => {
+    const result = await Pedido.getPedidoByRegistroId(idRegistroDiarios,cliente_id);
     return result.rows;
 }
 
-exports.terminarPedidosDiario =  async (id) => {
-    const result = await Pedido.terminarPedido(id);
+exports.terminarPedidosDiario =  async (id,cliente_id) => {
+    const result = await Pedido.terminarPedido(id,cliente_id);
     return result.rows;
 }
 
-exports.totalMontoTotalDiario  = async (registro_diario_id) => {
+exports.totalMontoTotalDiario  = async (registro_diario_id,cliente_id) => {
     try {
-        const total = await Pedido.getPedidosMontoTotalDiario(registro_diario_id);
+        const total = await Pedido.getPedidosMontoTotalDiario(registro_diario_id,cliente_id);
         return total;
     }
     catch (error) {
@@ -175,18 +179,18 @@ exports.totalMontoTotalDiario  = async (registro_diario_id) => {
 }
 
 exports.actualizarRegistroDiarioService = async (data) => {
-    const {id,monto_final, usuario_cierre_id, sucursal_id} = data;
+    const {id,monto_final, usuario_cierre_id, sucursal_id, cliente_id} = data;
     try {
-        const result = await RegistroDiario.updateMontoFinalRegistroDiario(id,monto_final, usuario_cierre_id, sucursal_id);
+        const result = await RegistroDiario.updateMontoFinalRegistroDiario(id,monto_final, usuario_cierre_id, sucursal_id,cliente_id);
         return result.rows;
     } catch (error) {
         throw new Error('Error actualizando monto final en el registro diario ' + error.message);
     }
 };
 
-exports.reporteOperacionesRegistroDiario  = async (filtro) => {
+exports.reporteOperacionesRegistroDiario  = async (filtro,cliente_id) => {
     try {
-        const result = await RegistroDiario.getRegistrosDiarios(filtro);
+        const result = await RegistroDiario.getRegistrosDiarios(filtro,cliente_id);
         return result;
     }
     catch (error) {
@@ -194,9 +198,9 @@ exports.reporteOperacionesRegistroDiario  = async (filtro) => {
     }
 }
 
-exports.reporteOperacionesRegistroDiarioDetalle  = async (id) => {
+exports.reporteOperacionesRegistroDiarioDetalle  = async (id,cliente_id) => {
     try {
-        const result = await RegistroDiario.getRegistrosDiariosDetalle(id);
+        const result = await RegistroDiario.getRegistrosDiariosDetalle(id,cliente_id);
         return result;
     }
     catch (error) {
@@ -206,9 +210,9 @@ exports.reporteOperacionesRegistroDiarioDetalle  = async (id) => {
 
 
 
-exports.getCajaInicial  = async (registro_diario_id) => {
+exports.getCajaInicial  = async (registro_diario_id,cliente_id) => {
     try {
-        const total = await RegistroDiario.getCajaInicial(registro_diario_id);
+        const total = await RegistroDiario.getCajaInicial(registro_diario_id,cliente_id);
         return total;
     }
     catch (error) {

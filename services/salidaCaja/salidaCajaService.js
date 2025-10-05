@@ -6,7 +6,7 @@ const createSalidaCajaService = async (dataArray) => {
   }
 
   const promesas = dataArray.map((data) => {
-    const { registro_diario_id, categoria_salida_id, descripcion, monto, usuario_id } = data;
+    const { registro_diario_id, categoria_salida_id, descripcion, monto, usuario_id ,cliente_id} = data;
 
     if (!descripcion || !monto || !registro_diario_id || !categoria_salida_id || !usuario_id) {
       throw new Error('Todos los campos son requeridos por cada registro');
@@ -18,6 +18,7 @@ const createSalidaCajaService = async (dataArray) => {
       descripcion,
       monto,
       usuario_id,
+      cliente_id
     });
   });
 
@@ -25,35 +26,35 @@ const createSalidaCajaService = async (dataArray) => {
 };
 
 
-  const getSalidaCajaByIdService = async (id) => {
-    const result = await db.getSalidaCajaById(id);
+  const getSalidaCajaByIdService = async (id, cliente_id) => {
+    const result = await db.getSalidaCajaById(id, cliente_id);
     return result.rows[0];
   }
 
-  const getSalidaCajaListService = async () => {
-    const result = await db.getSalidasCajas();
+  const getSalidaCajaListService = async (id,cliente_id) => {
+    const result = await db.getSalidasCajas(id, cliente_id);
     return result.rows;
   }
 
   const updateSalidaCajaService = async (Id,data) => {
-    const { descripcion, monto } = data;
+    const { descripcion, monto, cliente_id } = data;
     if (!descripcion  ) {
       throw new Error('All fields are required');
     }
     
-    const result = await db.updateSalidaCaja(Id, { descripcion, monto });
+    const result = await db.updateSalidaCaja(Id, { descripcion, monto, cliente_id });
     return result;
   }
 
-  const deleteSalidaCajaService = async (id) => {
-    const result = await db.deleteSalidaCaja(id);
+  const deleteSalidaCajaService = async (id, cliente_id) => {
+    const result = await db.deleteSalidaCaja(id, cliente_id);
     if (!result) {
       return res.status(404).json({ error: 'SalidaCaja not found' });
     }
     return result;
   }
-  const getMontoGastosdService = async (id,data) => {
-    const result = await db.getMontoTotalDiarioGastosPorTipo(id,data);
+  const getMontoGastosdService = async (id,data,cliente_id) => {
+    const result = await db.getMontoTotalDiarioGastosPorTipo(id,data,cliente_id);
     console.log(result);
     return result;
   }
