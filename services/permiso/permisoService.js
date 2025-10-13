@@ -11,7 +11,7 @@ const createPermisoService = async (permiso) => {
     return newPermiso;
   }; 
 
-  const getPermisoByIdService = async (id) => {
+  const getPermisoByIdService = async (id, cliente_id) => {
     const result = await db.getPermisoById(id);
     return result.rows[0];
   }
@@ -39,10 +39,16 @@ const createPermisoService = async (permiso) => {
     return result;
   }
 
+  const getPermisoByUserIdService = async (user_id, cliente_id) => {
+    const result = await db.getPermisoByUserId(user_id,cliente_id);
+    return result;
+  }
+
   module.exports = {
     createPermisoService,
     getPermisoByIdService,
     getPermisoListService,
     updatePermisoService,
-    deletePermisoService
+    deletePermisoService,
+    getPermisoByUserIdService
 };

@@ -1,7 +1,8 @@
 const e = require('express');
 const db = require('../../model/users/db');
 const userRoledb  = require("../../model/user_rol/db");
-const { emit } = require('../../node');
+const moduleRol =  require("../../model/modulo_rol/db");
+const permisosUser = require("../../model/permisos/db");
 const bcrypt = require('bcrypt');
 
 
@@ -15,6 +16,10 @@ const authenticate = async (email, password) => {
     if(user){
       //const authConfig = JSON.parse(process.env.AUTH);
       const userRole =  await userRoledb.getUserRoleByUserId(user.id,user.cliente_id);
+      const userModulo = await moduleRol.getUserModuloRolByUserId(user.id, user.cliente_id);
+      const permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
+      // Mapeás solo el campo 'codigo'
+      const modulos = userModulo.map(item => item.codigo);
       const userData = 
           {
               id: user.id,
@@ -22,8 +27,11 @@ const authenticate = async (email, password) => {
               name : user.nombre + ", " + user.apellido,
               password: bcrypt.hashSync(user.password, 8),
               role: userRole,
-              cliente_id: user.cliente_id || null // agrega este campo
+              cliente_id: user.cliente_id || null,
+              modules: modulos,
+              permissions: permissions,
           };
+      //console.log(userData)
       if (!userData) {
         return { error: 'Invalid username' };
       }

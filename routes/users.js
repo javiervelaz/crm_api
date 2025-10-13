@@ -1,5 +1,8 @@
 const express = require('express');
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
+const { authorizeModule } = require('../middleware/moduleAuth');
+const { authorizePermission } = require("../middleware/permissionMiddleware");
+
 const router = express.Router();
 const {
   createUser,
@@ -19,10 +22,10 @@ const {
 } =  require('../controllers/authController');
 
 router.post('/login',login);
-router.post('/',authenticateJWT,authorizeRole([1]), createUser);
+router.post('/',authenticateJWT,authorizeModule('usuarios'), createUser);
 router.get('/type/:id', getUserTypeById);
 router.get('/tipo', getUserTypeList);
-router.get('/list/:cliente_id', getUsers);
+router.get('/list/:cliente_id',authenticateJWT, authorizeModule('usuarios'),authorizePermission('usuarios', 'ver_lista_usuarios'),getUsers);
 router.get('/rol/:id/:cliente_id', getUserRol);
 router.get('/cliente/:telefono/:cliente_id', getUserByTel);
 router.get('/estadistica/cliente/:id/:cliente_id', getUserEstadistica);

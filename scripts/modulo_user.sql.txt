@@ -12,17 +12,24 @@ CREATE TABLE "rol" (
 
 CREATE TABLE "modulo" (
     id SERIAL PRIMARY KEY,
-    descripcion VARCHAR NOT NULL,
-    status BOOLEAN NOT NULL,
+    codigo VARCHAR(50) NOT NULL, -- identificador estable (ej: 'usuarios', 'ventas')
+    descripcion VARCHAR NOT NULL,       -- nombre legible (ej: 'Gestión de Usuarios')
+    status BOOLEAN NOT NULL DEFAULT TRUE,
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL
 );
 
-CREATE TABLE "permisos" (
+CREATE TABLE permiso (
     id SERIAL PRIMARY KEY,
-    nombre VARCHAR NOT NULL,
-    descripcion VARCHAR NOT NULL
+    descripcion VARCHAR(150) NOT NULL,
+    codigo VARCHAR(100)  NOT NULL,
+    modulo_id INTEGER REFERENCES modulo(id) ON DELETE CASCADE,
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id) ON DELETE CASCADE,
+    es_global BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 2. Crear tabla user (depende de user_type)
@@ -78,10 +85,13 @@ CREATE TABLE "modulo_rol" (
     id_modulo INTEGER REFERENCES "modulo"(id) NOT NULL
 );
 
-CREATE TABLE "rol_permiso" (
+-- Tabla intermedia rol-permiso
+CREATE TABLE rol_permiso (
     id SERIAL PRIMARY KEY,
-    id_rol INTEGER REFERENCES "rol"(id) NOT NULL,
-    id_permiso INTEGER REFERENCES "permisos"(id) NOT NULL
+    rol_id INTEGER NOT NULL REFERENCES rol(id) ON DELETE CASCADE,
+    permiso_id INTEGER NOT NULL REFERENCES permiso(id) ON DELETE CASCADE,
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id) ON DELETE CASCADE,
+    UNIQUE (rol_id, permiso_id, cliente_id)
 );
 
 CREATE TABLE cliente (
