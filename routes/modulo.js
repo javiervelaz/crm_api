@@ -9,9 +9,9 @@ const {
 } = require('../controllers/moduloController');
 
 router.post('/', createModulo);
-router.get('/list', getModuloList);
-router.get('/:id', getModuloById);
+router.get('/list/:cliente_id', getModuloList);
+router.get('/:id/:cliente_id', getModuloById);
 router.put('/:id', updateModulo);
-router.delete('/:id', deleteModulo);
+router.delete('/:id/:cliente_id', deleteModulo);
 
 module.exports = router;

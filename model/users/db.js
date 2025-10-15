@@ -24,7 +24,6 @@ const getUsers = async (cliente_id) => {
 
 const getUserTypeList = async () => {
   const result = await pool.query('SELECT id, descripcion, codigo FROM "user_type"  ', []);
-  console.log("db user type",result);
   return result;
 }
 

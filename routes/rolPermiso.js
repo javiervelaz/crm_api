@@ -9,9 +9,9 @@ const {
 } = require('../controllers/rolPermisoController');
 
 router.post('/', createRolPermiso);
-router.get('/list',getRolPermisoList );
-router.get('/:id', getRolPermisoById);
+router.get('/list/:cliente_id',getRolPermisoList );
+router.get('/:id/:cliente_id', getRolPermisoById);
 router.put('/:id', updateRolPermiso);
-router.delete('/:id', deleteRolPermiso);
+router.delete('/:id/:cliente_id', deleteRolPermiso);
 
 module.exports = router;

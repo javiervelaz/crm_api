@@ -22,16 +22,19 @@ const createUserRol = async (rol) => {
   }
   
   const updateUserRol = async (id, rol) => {
-    const { id_rol, id_user } = rol;
+    const { id_rol,cliente_id } = rol;
+    const query = `
+      UPDATE "user_rol" SET id_rol =  $1  WHERE id = $3 and cliente_id =$2 RETURNING *
+    `;
     const result = await pool.query(
-      'UPDATE "user_rol" SET id_rol =  $1, id_user = $2 WHERE id = $3 RETURNING *',
-      [id_rol, id_user,id]
+      query,
+      [id_rol,cliente_id,id]
     );
     return result.rows[0];
   };
 
   const deleteUserRol = async (id,cliente_id) => {
-    const result = await pool.query('DELETE FROM "user_rol" WHERE id = $1 and cliente_id = $2RETURNING *', [id,cliente_id]);
+    const result = await pool.query('DELETE FROM "user_rol" WHERE id = $1 and cliente_id = $2 RETURNING *', [id,cliente_id]);
     return result.rows[0];
   };
 

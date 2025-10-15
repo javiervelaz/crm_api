@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
+const { authenticateJWT } = require('../middleware/authMiddleware');
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 
@@ -30,7 +30,7 @@ router.get('/rol/:id/:cliente_id', getUserRol);
 router.get('/cliente/:telefono/:cliente_id', getUserByTel);
 router.get('/estadistica/cliente/:id/:cliente_id', getUserEstadistica);
 router.get('/:id/:cliente_id', getUserById);
-router.put('/:id',authenticateJWT,authorizeRole([1]), updateUser);
-router.delete('/:id/:cliente_id',authenticateJWT,authorizeRole([1]) ,deleteUser);
+router.put('/:id',authenticateJWT,authorizeModule('usuarios'), updateUser);
+router.delete('/:id/:cliente_id',authenticateJWT,authorizeModule('usuarios') ,deleteUser);
 
 module.exports = router;

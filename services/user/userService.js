@@ -31,7 +31,7 @@ const authenticate = async (email, password) => {
               modules: modulos,
               permissions: permissions,
           };
-      //console.log(userData)
+      console.log(userData)
       if (!userData) {
         return { error: 'Invalid username' };
       }

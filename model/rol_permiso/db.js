@@ -3,35 +3,40 @@ const e = require('express');
 const pool = require('../../pool');
 
 const createRolPermiso = async (rolPermiso) => {
-    const { id_rol,id_permiso } = rolPermiso;
+    const { id_rol,id_permiso,cliente_id } = rolPermiso;
     const result = await pool.query(
-      'INSERT INTO rol_permiso (id_rol,id_permiso) VALUES ($1,$2) RETURNING *',
-      [ id_rol,id_permiso]
+      'INSERT INTO rol_permiso (rol_id,permiso_id,cliente_id) VALUES ($1,$2,$3) RETURNING *',
+      [ id_rol,id_permiso,cliente_id]
     );
     return result.rows[0];
   }
   
-  const getRolPermisoById = async (id) => {
-    const result = await pool.query('SELECT * FROM "rol_permiso" WHERE id = $1', [id]);
+  const getRolPermisoById = async (id,cliente_id) => {
+    const result = await pool.query('SELECT * FROM "rol_permiso" WHERE id = $1 and cliente_id= $2', [id,cliente_id]);
     return result.rows[0];
   }
   
-  const getRolPermisos = async () => {
-    const result = await pool.query('SELECT * FROM "rol_permiso"', []);
+  const getRolPermisos = async (cliente_id) => {
+    const result = await pool.query('SELECT * FROM "rol_permiso" where cliente_id =  $1', [cliente_id]);
     return result.rows;
   }
   
   const updateRolPermiso = async (id, rol) => {
-    const { id_rol,id_permiso } = rol;
+    const { id_permiso,cliente_id } = rol;
+    const query = `
+    UPDATE "rol_permiso" SET   
+      permiso_id=COALESCE($1,permiso_id)
+      WHERE id = $3 and cliente_id = $2 RETURNING *
+    `;
     const result = await pool.query(
-      'UPDATE "rol_permiso" SET  id_rol= $1, id_permiso=$2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      [id_rol,id_permiso]
+      query,
+      [id_permiso,cliente_id,id]
     );
     return result.rows[0];
   };
 
-  const deleteRolPermiso = async (id) => {
-    const result = await pool.query('DELETE FROM "rol_permiso" WHERE id = $1 RETURNING *', [id]);
+  const deleteRolPermiso = async (id,cliente_id) => {
+    const result = await pool.query('DELETE FROM "rol_permiso" WHERE id = $1 and cliente_id  =$2 RETURNING *', [id,cliente_id]);
     return result.rows[0];
   };
   

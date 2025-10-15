@@ -13,7 +13,7 @@ const createUserRolService = async (userRol) => {
 
   const getUserRolByIdService = async (id,cliente_id) => {
     const result = await db.getUserRolById(id,cliente_id);
-    return result.rows[0];
+    return result;
   }
 
   const getUserRolListService = async (cliente_id) => {
@@ -22,12 +22,12 @@ const createUserRolService = async (userRol) => {
   }
 
   const updateUserRolService = async (id,data) => {
-    const { id_rol,id_user } = data;
-    if (!id_rol || !id_user ) {
+    const { id_rol, cliente_id } = data;
+    if (!id_rol  ) {
       throw new Error('All fields are required');
     }
     
-    const result = await db.updateUserRol(id, { id_rol,id_user});
+    const result = await db.updateUserRol(id, { id_rol,cliente_id});
     return result;
   }
 

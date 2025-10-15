@@ -13,7 +13,7 @@ router.post('/', createUserRol);
 router.get('/list/:cliente_id', getUserRolList);
 router.get('/:id/:cliente_id', getUserRolById);
 router.put('/:id', updateUserRol);
-router.delete('/:id', deleteUserRol);
+router.delete('/:id/:cliente_id', deleteUserRol);
 router.get('/user/:id/:cliente_id', getUserRoleByUserId);
 
 module.exports = router;

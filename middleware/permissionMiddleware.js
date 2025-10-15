@@ -12,7 +12,7 @@
 const authorizePermission = (moduleCode, permissionCodes, mode = 'OR') => {
     return (req, res, next) => {
       const userPermissions = req.user.permissions || {};
-      console.log("permisos: ", userPermissions);
+  
       const modulePermissions = userPermissions[moduleCode] || [];
       const globalPermissions = userPermissions._global || [];
   

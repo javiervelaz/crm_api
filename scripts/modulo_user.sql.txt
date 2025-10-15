@@ -21,6 +21,13 @@ CREATE TABLE "modulo" (
     deleted_at TIMESTAMP DEFAULT NULL
 );
 
+CREATE TABLE "modulo_maestro" (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(50) NOT NULL, 
+    descripcion VARCHAR NOT NULL,      
+    status BOOLEAN NOT NULL DEFAULT TRUE
+);
+
 CREATE TABLE permiso (
     id SERIAL PRIMARY KEY,
     descripcion VARCHAR(150) NOT NULL,
@@ -30,6 +37,13 @@ CREATE TABLE permiso (
     es_global BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE permiso_maestro (
+    id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(150) NOT NULL,
+    codigo VARCHAR(100)  NOT NULL,
+    es_global BOOLEAN DEFAULT FALSE
 );
 
 -- 2. Crear tabla user (depende de user_type)
@@ -101,3 +115,41 @@ CREATE TABLE cliente (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+insert into modulo_maestro (codigo,descripcion,status) values ('usuarios', 'Gestion de usuarios',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('dashboard', 'Gestion de dashboard',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('caja', 'Gestion de caja',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('reportes', 'Gestion de reportes',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('tipo-productos', 'Gestion de tipo producto',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('productos', 'Gestion de productos',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('empleados', 'Gestion de empleados',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('cerrar-caja', 'Gestion de cerrar caja',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('operaciones', 'Gestion de operaciones',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('profile', 'Gestion de profiles',true);
+
+
+
+insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_usuarios', 'ver_lista_usuarios',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_usuario', 'Crear nuevo usuario',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_usuario', 'Editar un usuario',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_usuario', 'Eliminar un usuario',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_productos', 'Ver lista completa de productos',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_producto', 'crear un nuevo producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_producto', 'Editar un producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_producto', 'Eliminar un producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_detalle_producto', 'Ver detaller de un producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_tipo_productos', 'Ver lista completa de tipo de productos',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_tipo_producto', 'crear un nuevo tipo producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_tipo_producto', 'Editar un tipo de producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_tipo_producto', 'Eliminar un tipo de producto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_tipo_gastos', 'Ver lista completa de tipo gastos',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_tipo_gasto', 'crear un nuevo tipo de gasto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_tipo_gasto', 'Editar un tipo de gasto',false);
+insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_tipo_gasto', 'Eliminar un tipo de gasto',false);
+
+
+
+
+
+

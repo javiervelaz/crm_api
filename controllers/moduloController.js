@@ -2,10 +2,10 @@ const ModuloService = require('../services/modulo/moduloService');
 
 
 const createModulo = async (req, res) => {
-  const { descripcion, status } = req.body;
+  const { codigo,descripcion, status,cliente_id } = req.body;
 
   try {
-    const newModulo = await ModuloService.createModuloService({ descripcion,status });
+    const newModulo = await ModuloService.createModuloService({ codigo,descripcion, status,cliente_id });
     res.status(201).json(newModulo);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -13,9 +13,9 @@ const createModulo = async (req, res) => {
 };
 
 const getModuloById = async (req, res) => {
-    const { id } = req.params;
+    const { id,cliente_id } = req.params;
     try {
-      const Modulo = await ModuloService.getModuloByIdService({ id });
+      const Modulo = await ModuloService.getModuloByIdService( id,cliente_id );
         if (!Modulo) {
           return res.status(404).json({ error: 'Modulo not found' });
         }
@@ -26,8 +26,9 @@ const getModuloById = async (req, res) => {
   };
 
   const getModuloList = async (req, res) => {
+    const { cliente_id } = req.params;
     try {
-      const result = await ModuloService.getModuloListService()
+      const result = await ModuloService.getModuloListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -36,9 +37,9 @@ const getModuloById = async (req, res) => {
   
   const updateModulo = async (req, res) => {
     const moduloId = req.params.id;
-    const { descripcion,status } = req.body;
+    const { codigo,descripcion,status,cliente_id } = req.body;
     try {
-      const updatedModulo = await ModuloService.updateModuloService(moduloId, {descripcion, status});
+      const updatedModulo = await ModuloService.updateModuloService(moduloId, {codigo,descripcion,status,cliente_id});
       res.status(200).json(updatedModulo);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -46,9 +47,9 @@ const getModuloById = async (req, res) => {
   };
   
   const deleteModulo = async (req, res) => {
-    const { id } = req.params;
+    const { id,cliente_id } = req.params;
     try {
-      const result = await ModuloService.deleteModuloService(id);
+      const result = await ModuloService.deleteModuloService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

@@ -75,10 +75,9 @@ const getUserTypeById  = async (req, res) => {
 };
 
 const getUserTypeList = async (req, res) => {
-  console.log("lelga")
+
   try {
     const result = await userService.getUserTypeListService();
-    console.log(result)
       if (!result) {
         return res.status(404).json({ error: 'user type rol not found' });
       }

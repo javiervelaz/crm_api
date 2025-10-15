@@ -15,7 +15,7 @@ const createUserRol = async (req, res) => {
 const getUserRolById = async (req, res) => {
     const { id, cliente_id } = req.params;
     try {
-      const result = await UserRolService.getUserRolByIdService({ id ,cliente_id});
+      const result = await UserRolService.getUserRolByIdService( id ,cliente_id);
         if (!result) {
           return res.status(404).json({ error: 'Modulo rol not found' });
         }
@@ -38,9 +38,9 @@ const getUserRolById = async (req, res) => {
   
   const updateUserRol = async (req, res) => {
     const moduloId = req.params.id;
-    const {id_rol, id_user } = req.body;
+    const {id_rol, cliente_id } = req.body;
     try {
-      const result = await UserRolService.updateUserRolService(moduloId, {id_rol, id_user});
+      const result = await UserRolService.updateUserRolService(moduloId, {id_rol, cliente_id});
       res.status(200).json(result);
     } catch (error) {
       res.status(500).json({ error: error.message });

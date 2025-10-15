@@ -5,19 +5,19 @@ const pool = require('../../pool');
 const createPermiso = async (permisos) => {
     const { nombre,descripcion } = permisos;
     const result = await pool.query(
-      'INSERT INTO permisos (nombre,descripcion) VALUES ($1,$2) RETURNING *',
+      'INSERT INTO permiso (nombre,descripcion) VALUES ($1,$2) RETURNING *',
       [nombre,descripcion]
     );
     return result.rows[0];
   }
   
   const getPermisoById = async (id,cliente_id) => {
-    const result = await pool.query('SELECT * FROM "permisos" WHERE id = $1 and cliente_id = $2', [id,cliente_id]);
+    const result = await pool.query('SELECT * FROM "permiso" WHERE id = $1 and cliente_id = $2', [id,cliente_id]);
     return result.rows[0];
   }
   
-  const getPermisos = async () => {
-    const result = await pool.query('SELECT * FROM "permisos"', []);
+  const getPermisos = async (cliente_id) => {
+    const result = await pool.query('SELECT * FROM "permiso" where cliente_id = $1', [cliente_id]);
     return result.rows;
   }
   
@@ -30,9 +30,9 @@ const createPermiso = async (permisos) => {
     return result.rows[0];
   };
 
-  const deletePermiso = async (id) => {
-    const result = await pool.query('DELETE FROM "permisos" WHERE id = $1 RETURNING *', [id]);
-    return result.rows[0];
+  const deletePermiso = async (id,cliente_id) => {
+    const result = await pool.query('DELETE FROM "permiso" WHERE id = $1 and cliente_id =$2 RETURNING *', [id,cliente_id]);
+    return result.rows;
   };
 
   const getPermisoByUserId = async (user_id,cliente_id) => {
