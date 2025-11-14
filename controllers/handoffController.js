@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 
 const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET || 'change-me';
 const HANDOFF_TTL_SECONDS = parseInt(process.env.HANDOFF_TTL_SECONDS || '600', 10); // 10 min
-
 /**
  * POST /api/handoff/sign
  * Body: { conversationId: string, waPhoneId: string, userPhoneE164?: string }
