@@ -3,12 +3,12 @@ const db = require('../../model/tipo_producto/db');
 const { datacatalog } = require('googleapis/build/src/apis/datacatalog');
 
 const createTipoProductoService = async (data) => {
-    const { nombre } = data;
+    const { nombre, cliente_id } = data;
     // Validación de campos requeridos
     if ( !nombre ) {
       throw new Error('All fields are required');
     }
-    const result = await db.createTipoProducto({ nombre });
+    const result = await db.createTipoProducto({ nombre, cliente_id });
     return result;
   }; 
 
@@ -18,8 +18,8 @@ const createTipoProductoService = async (data) => {
     return result;
   }
 
-  const getTipoProductoListService = async () => {
-    const result = await db.getTipoProductos();
+  const getTipoProductoListService = async (cliente_id) => {
+    const result = await db.getTipoProductos(cliente_id);
     return result.rows;
   }
 

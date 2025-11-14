@@ -27,6 +27,7 @@ const salidaCaja  = require("./routes/salidaCaja");
 const reportes  = require("./routes/reportes");
 const authToken =  require("./routes/auth");
 const categoriaTipo  = require("./routes/categoriaTipo")
+const handoffRoutes = require('./routes/handoff');
 
 app.use(express.json());
 app.use('/api/registro_diario', registroDiarioRoutes);
@@ -49,6 +50,8 @@ app.use('/api/salida-caja',salidaCaja);
 app.use("/api/reportes",reportes)
 app.use("/api/token",authToken);
 app.use('/api/categoria-tipo',categoriaTipo)
+app.use('/api/handoff', handoffRoutes);
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

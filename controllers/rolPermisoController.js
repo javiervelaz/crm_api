@@ -2,10 +2,10 @@ const rolPermisoService = require('../services/rol_permiso/rolPermisoService');
 
 
 const createRolPermiso = async (req, res) => {
-  const { id_rol, id_permiso } = req.body;
+  const { id_rol, id_permiso ,cliente_id} = req.body;
 
   try {
-    const newRolPermiso = await rolPermisoService.createRolPermisoService({ id_rol, id_permiso });
+    const newRolPermiso = await rolPermisoService.createRolPermisoService({ id_rol, id_permiso,cliente_id });
     res.status(201).json(newRolPermiso);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -13,9 +13,9 @@ const createRolPermiso = async (req, res) => {
 };
 
 const getRolPermisoById = async (req, res) => {
-    const { id } = req.params;
+    const { id ,cliente_id} = req.params;
     try {
-      const rol = await rolPermisoService.getRolPermisoByIdService({ id });
+      const rol = await rolPermisoService.getRolPermisoByIdService( id ,cliente_id);
         if (!rol) {
           return res.status(404).json({ error: 'Rol permiso not found' });
         }
@@ -26,8 +26,9 @@ const getRolPermisoById = async (req, res) => {
   };
 
   const getRolPermisoList = async (req, res) => {
+    const { cliente_id } = req.params;
     try {
-      const result = await rolPermisoService.getRolPermisoListService()
+      const result = await rolPermisoService.getRolPermisoListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -36,9 +37,9 @@ const getRolPermisoById = async (req, res) => {
   
   const updateRolPermiso = async (req, res) => {
     const rolpermisoId = req.params.id;
-    const { id_rol,id_permiso } = req.body;
+    const { id_permiso,cliente_id } = req.body;
     try {
-      const updatedRolPermiso = await rolPermisoService.updateRolPermisoService(rolpermisoId, { id_rol,id_permiso});
+      const updatedRolPermiso = await rolPermisoService.updateRolPermisoService(rolpermisoId, { id_permiso,cliente_id});
       res.status(200).json(updatedRolPermiso);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -46,9 +47,9 @@ const getRolPermisoById = async (req, res) => {
   };
   
   const deleteRolPermiso = async (req, res) => {
-    const { id } = req.params;
+    const { id, cliente_id} = req.params;
     try {
-      const result = await rolPermisoService.deleteRolPermisoService(id);
+      const result = await rolPermisoService.deleteRolPermisoService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

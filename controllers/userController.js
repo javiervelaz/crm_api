@@ -3,10 +3,10 @@ const userService = require('../services/user/userService');
 
 
 const createUser = async (req, res) => {
-  const { nombre, apellido, email ,user_type_id } = req.body;
+  const { nombre, apellido, email ,user_type_id , cliente_id} = req.body;
 
   try {
-    const newUser = await userService.createUserService({  nombre, apellido, email ,user_type_id  });
+    const newUser = await userService.createUserService({  nombre, apellido, email ,user_type_id ,cliente_id });
     res.status(201).json(newUser);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -14,9 +14,9 @@ const createUser = async (req, res) => {
 };
 
 const getUserById = async (req, res) => {
-  const { id } = req.params;
+  const { id,cliente_id } = req.params;
   try {
-    const user = await userService.getUserByIdService(id);
+    const user = await userService.getUserByIdService(id,cliente_id);
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -28,8 +28,10 @@ const getUserById = async (req, res) => {
 
 
 const getUsers = async (req, res) => {
+  const {  cliente_id } = req.params;
+  if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
   try {
-    const result = await userService.getUserListService();
+    const result = await userService.getUserListService(cliente_id);
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -48,9 +50,11 @@ const updateUser = async (req, res) => {
 };
 
 const deleteUser = async (req, res) => {
+  const {  cliente_id } = req.params;
+  if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
   const { id } = req.params;
   try {
-    const result = await userService.deleteUserService(id);
+    const result = await userService.deleteUserService(id,cliente_id);
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -74,7 +78,6 @@ const getUserTypeList = async (req, res) => {
 
   try {
     const result = await userService.getUserTypeListService();
-    console.log(result)
       if (!result) {
         return res.status(404).json({ error: 'user type rol not found' });
       }
@@ -85,9 +88,9 @@ const getUserTypeList = async (req, res) => {
 };
 
 const getUserRol  = async (req, res) => {
-  const { id } = req.params;
+  const { id ,cliente_id} = req.params;
   try {
-    const result = await userService.getUserRolService(id);
+    const result = await userService.getUserRolService(id,cliente_id);
       if (!result) {
         return res.status(404).json({ error: 'user  rol not found' });
       }
@@ -98,9 +101,9 @@ const getUserRol  = async (req, res) => {
 };
 
 const getUserByTel = async (req, res) => {
-  const { telefono } = req.params;
+  const { telefono,cliente_id } = req.params;
   try {
-    const result = await userService.getUserByTelService(telefono);
+    const result = await userService.getUserByTelService(telefono,cliente_id);
     if (!result || result.length === 0) {
       return res.status(404).json({ error: 'Telefono  rol not found' });
     }
@@ -111,9 +114,9 @@ const getUserByTel = async (req, res) => {
 }
 
 const getUserEstadistica = async (req, res) => {
-  const { id } = req.params;
+  const { id, cliente_id } = req.params;
   try {
-    const result = await userService.getUserEstadisticaService(id);
+    const result = await userService.getUserEstadisticaService(id,cliente_id);
     if (!result || result.length === 0) {
       return res.status(404).json({ error: 'cliente  not found' });
     }

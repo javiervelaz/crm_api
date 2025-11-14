@@ -11,14 +11,14 @@ const createPermisoService = async (permiso) => {
     return newPermiso;
   }; 
 
-  const getPermisoByIdService = async (id) => {
-    const result = await db.getPermisoById(id);
-    return result.rows[0];
+  const getPermisoByIdService = async (id, cliente_id) => {
+    const result = await db.getPermisoById(id,cliente_id);
+    return result;
   }
 
-  const getPermisoListService = async () => {
-    const result = await db.getPermisos();
-    return result.rows;
+  const getPermisoListService = async (cliente_id) => {
+    const result = await db.getPermisos(cliente_id);
+    return result;
   }
 
   const updatePermisoService = async (permisoId,permiso) => {
@@ -31,11 +31,16 @@ const createPermisoService = async (permiso) => {
     return updatedPermiso;
   }
 
-  const deletePermisoService = async (id) => {
-    const result = await db.deletePermiso(id);
+  const deletePermisoService = async (id,cliente_id) => {
+    const result = await db.deletePermiso(id,cliente_id);
     if (!result) {
       return res.status(404).json({ error: 'Permiso not found' });
     }
+    return result;
+  }
+
+  const getPermisoByUserIdService = async (user_id, cliente_id) => {
+    const result = await db.getPermisoByUserId(user_id,cliente_id);
     return result;
   }
 
@@ -44,5 +49,6 @@ const createPermisoService = async (permiso) => {
     getPermisoByIdService,
     getPermisoListService,
     updatePermisoService,
-    deletePermisoService
+    deletePermisoService,
+    getPermisoByUserIdService
 };

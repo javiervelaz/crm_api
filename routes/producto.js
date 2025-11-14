@@ -9,9 +9,9 @@ const {
 } = require('../controllers/productoController');
 
 router.post('/', createProducto);
-router.get('/list', getProductoList);
-router.get('/:id', getProductoById);
+router.get('/list/:cliente_id', getProductoList);
+router.get('/:id/:cliente_id', getProductoById);
 router.put('/:id', updateProducto);
-router.delete('/:id', deleteProducto);
+router.delete('/:id/:cliente_id', deleteProducto);
 
 module.exports = router;

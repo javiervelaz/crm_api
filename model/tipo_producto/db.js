@@ -3,10 +3,10 @@ const e = require('express');
 const pool = require('../../pool');
 
 const createTipoProducto = async (tp) => {
-    const { nombre } = tp;
+    const { nombre, cliente_id } = tp;
     const result = await pool.query(
-      'INSERT INTO "tipo_producto" (nombre) VALUES ($1) RETURNING *',
-      [nombre]
+      'INSERT INTO "tipo_producto" (nombre,cliente_id) VALUES ($1, $2) RETURNING *',
+      [nombre,cliente_id]
     );
     return result.rows[0];
   }
@@ -16,8 +16,8 @@ const createTipoProducto = async (tp) => {
     return result.rows[0];
   }
   
-  const getTipoProductos = async () => {
-    const result = await pool.query('SELECT * FROM "tipo_producto"', []);
+  const getTipoProductos = async (cliente_id) => {
+    const result = await pool.query('SELECT * FROM "tipo_producto" where cliente_id= $1', [cliente_id]);
     return result;
   }
   

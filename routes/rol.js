@@ -9,9 +9,9 @@ const {
 } = require('../controllers/rolController');
 
 router.post('/', createRol);
-router.get('/list', getRolList);
-router.get('/:id', getRolById);
+router.get('/list/:cliente_id', getRolList);
+router.get('/:id/:cliente_id', getRolById);
 router.put('/:id', updateRol);
-router.delete('/:id', deleteRol);
+router.delete('/:id/:cliente_id', deleteRol);
 
 module.exports = router;

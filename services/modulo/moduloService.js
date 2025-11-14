@@ -3,37 +3,34 @@ const db = require('../../model/modulos/db');
 const { emit } = require('../../node');
 
 const createModuloService = async (Modulo) => {
-    const { descripcion,status } = Modulo;
+    const { codigo,descripcion, status,cliente_id } = Modulo;
     // Validación de campos requeridos
-    if (!descripcion || !status ) {
+    if (!descripcion || !status || !codigo ) {
       throw new Error('All fields are required');
     }
-    const newModulo = await db.createModulo({ descripcion,status });
+    const newModulo = await db.createModulo({ codigo,descripcion, status,cliente_id });
     return newModulo;
   }; 
 
-  const getModuloByIdService = async (id) => {
-    const result = await db.getModuloById(id);
-    return result.rows[0];
+  const getModuloByIdService = async (id,cliente_id) => {
+    const result = await db.getModuloById(id,cliente_id);
+    return result;
   }
 
-  const getModuloListService = async () => {
-    const result = await db.getModulos();
-    return result.rows;
+  const getModuloListService = async (cliente_id) => {
+    const result = await db.getModulos(cliente_id);
+    return result;
   }
 
   const updateModuloService = async (ModuloId,Modulo) => {
-    const { descripcion,status } = Modulo;
-    if (!descripcion || !status ) {
-      throw new Error('All fields are required');
-    }
-    
-    const updatedModulo = await db.updateModulo(ModuloId, { descripcion,status});
+    const { codigo,descripcion,status,cliente_id } = Modulo;
+   
+    const updatedModulo = await db.updateModulo(ModuloId, { codigo,descripcion,status,cliente_id});
     return updatedModulo;
   }
 
-  const deleteModuloService = async (id) => {
-    const result = await db.deleteModulo(id);
+  const deleteModuloService = async (id,cliente_id) => {
+    const result = await db.deleteModulo(id,cliente_id);
     if (!result) {
       return res.status(404).json({ error: 'Modulo not found' });
     }

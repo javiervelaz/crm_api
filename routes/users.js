@@ -1,5 +1,8 @@
 const express = require('express');
-const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
+const { authenticateJWT } = require('../middleware/authMiddleware');
+const { authorizeModule } = require('../middleware/moduleAuth');
+const { authorizePermission } = require("../middleware/permissionMiddleware");
+
 const router = express.Router();
 const {
   createUser,
@@ -19,15 +22,15 @@ const {
 } =  require('../controllers/authController');
 
 router.post('/login',login);
-router.post('/',authenticateJWT,authorizeRole([1]), createUser);
-router.get('/list', getUsers);
-router.get('/:id', getUserById);
-router.put('/:id',authenticateJWT,authorizeRole([1]), updateUser);
-router.delete('/:id',authenticateJWT,authorizeRole([1]) ,deleteUser);
+router.post('/',authenticateJWT,authorizeModule('usuarios'), createUser);
 router.get('/type/:id', getUserTypeById);
-router.get('/tipo/list', getUserTypeList);
-router.get('/rol/:id', getUserRol);
-router.get('/cliente/:telefono', getUserByTel);
-router.get('/estadistica/cliente/:id', getUserEstadistica);
+router.get('/tipo', getUserTypeList);
+router.get('/list/:cliente_id',authenticateJWT, authorizeModule('usuarios'),authorizePermission('usuarios', 'ver_lista_usuarios'),getUsers);
+router.get('/rol/:id/:cliente_id', getUserRol);
+router.get('/cliente/:telefono/:cliente_id', getUserByTel);
+router.get('/estadistica/cliente/:id/:cliente_id', getUserEstadistica);
+router.get('/:id/:cliente_id', getUserById);
+router.put('/:id',authenticateJWT,authorizeModule('usuarios'), updateUser);
+router.delete('/:id/:cliente_id',authenticateJWT,authorizeModule('usuarios') ,deleteUser);
 
 module.exports = router;

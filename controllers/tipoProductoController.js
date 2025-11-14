@@ -1,10 +1,10 @@
 const TipoProductoService = require('../services/tipo_producto/tipoProductoService');
 
 const createTipoProducto = async (req, res) => {
-  const {  nombre } = req.body;
+  const {  nombre,cliente_id } = req.body;
 
   try {
-    const result = await TipoProductoService.createTipoProductoService({  nombre });
+    const result = await TipoProductoService.createTipoProductoService({  nombre, cliente_id });
     res.status(201).json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -26,8 +26,10 @@ const getTipoProductoById = async (req, res) => {
   };
 
   const getTipoProductoList = async (req, res) => {
+    const {  cliente_id } = req.params;
+    if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
     try {
-      const result = await TipoProductoService.getTipoProductoListService()
+      const result = await TipoProductoService.getTipoProductoListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

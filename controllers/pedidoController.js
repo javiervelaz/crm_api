@@ -13,7 +13,7 @@ const createPedido = async (req, res) => {
       sucursal_id,
       medio_pago_id,
       productos,
-      observaciones
+      observacion
     });
 
     res.status(201).json({ pedido_id: newPedidoId, message: 'Pedido creado exitosamente' });
@@ -36,9 +36,9 @@ const getPedidoById = async (req, res) => {
   };
 
   const getDetallePedido = async (req, res) => {
-    const { id } = req.params;
+    const { id,cliente_id } = req.params;
     try {
-      const Pedido = await PedidoService.getDetallePedido( id );
+      const Pedido = await PedidoService.getDetallePedido( id,cliente_id );
         if (!Pedido) {
           return res.status(404).json({ error: 'Pedido88 not found' });
         }
@@ -69,9 +69,9 @@ const getPedidoById = async (req, res) => {
   };
   
   const deletePedido = async (req, res) => {
-    const { id } = req.params;
+    const { id,cliente_id } = req.params;
     try {
-      const result = await PedidoService.deletePedidoService(id);
+      const result = await PedidoService.deletePedidoService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

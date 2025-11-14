@@ -1,7 +1,8 @@
 const e = require('express');
 const db = require('../../model/users/db');
 const userRoledb  = require("../../model/user_rol/db");
-const { emit } = require('../../node');
+const moduleRol =  require("../../model/modulo_rol/db");
+const permisosUser = require("../../model/permisos/db");
 const bcrypt = require('bcrypt');
 
 
@@ -14,15 +15,23 @@ const authenticate = async (email, password) => {
     const user = await db.auth(email);
     if(user){
       //const authConfig = JSON.parse(process.env.AUTH);
-      const userRole =  await userRoledb.getUserRoleByUserId(user.id);
+      const userRole =  await userRoledb.getUserRoleByUserId(user.id,user.cliente_id);
+      const userModulo = await moduleRol.getUserModuloRolByUserId(user.id, user.cliente_id);
+      const permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
+      // Mapeás solo el campo 'codigo'
+      const modulos = userModulo.map(item => item.codigo);
       const userData = 
           {
               id: user.id,
               username: user.email,
               name : user.nombre + ", " + user.apellido,
               password: bcrypt.hashSync(user.password, 8),
-              role: userRole
+              role: userRole,
+              cliente_id: user.cliente_id || null,
+              modules: modulos,
+              permissions: permissions,
           };
+      console.log(userData)
       if (!userData) {
         return { error: 'Invalid username' };
       }
@@ -39,7 +48,7 @@ const authenticate = async (email, password) => {
 };
 
 const createUserService = async (user) => {
-    const { nombre, apellido, email,user_type_id } = user;
+    const { nombre, apellido, email,user_type_id,cliente_id } = user;
     // Validación de campos requeridos
     if (!nombre || !apellido ||  !email ) {
       throw new Error('All fields are required');
@@ -48,17 +57,17 @@ const createUserService = async (user) => {
     if (!validateEmail(email)) {
       throw new Error('Invalid email format');
     }
-    const newUser = await db.createUser({ nombre, apellido,  email, user_type_id });
+    const newUser = await db.createUser({ nombre, apellido,  email, user_type_id,cliente_id });
     return newUser;
   };
 
-  const getUserByIdService = async (id) => {
-    const result = await db.getUserById(id);
+  const getUserByIdService = async (id,cliente_id) => {
+    const result = await db.getUserById(id,cliente_id);
     return  result.rows[0];
   }
 
-  const getUserListService = async () => {
-    const result = await db.getUsers();
+  const getUserListService = async (cliente_id) => {
+    const result = await db.getUsers(cliente_id);
     return result.rows;
   }
 
@@ -75,8 +84,8 @@ const createUserService = async (user) => {
     return updatedUser;
   }
 
-  const deleteUserService = async (id) => {
-    const result = await db.deleteUser(id);
+  const deleteUserService = async (id,cliente_id) => {
+    const result = await db.deleteUser(id,cliente_id);
     if (!result) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -93,18 +102,18 @@ const createUserService = async (user) => {
     return result.rows;
   }
 
-  const getUserRolService  = async (id) => {
-    const result = await db.getUserRol(id);
+  const getUserRolService  = async (id,cliente_id) => {
+    const result = await db.getUserRol(id,cliente_id);
     return result.rows;
   }
 
-  const getUserByTelService = async (telefono) => {
-    const result = await db.getUserByTel(telefono);
+  const getUserByTelService = async (telefono,cliente_id) => {
+    const result = await db.getUserByTel(telefono,cliente_id);
     return result.rows[0];
   }
 
-  const getUserEstadisticaService = async (id) => {
-    const result = await db.getEstadisticasCliente(id);
+  const getUserEstadisticaService = async (id,cliente_id) => {
+    const result = await db.getEstadisticasCliente(id,cliente_id);
 
     return result;
   }

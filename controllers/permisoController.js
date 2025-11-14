@@ -13,9 +13,9 @@ const createPermiso = async (req, res) => {
 };
 
 const getPermisoById = async (req, res) => {
-    const { id } = req.params;
+    const { id,cliente_id } = req.params;
     try {
-      const permiso = await permisoService.getPermisoByIdService({ id });
+      const permiso = await permisoService.getPermisoByIdService( id,cliente_id );
         if (!permiso) {
           return res.status(404).json({ error: 'Rol not found' });
         }
@@ -26,8 +26,9 @@ const getPermisoById = async (req, res) => {
   };
 
   const getPermisoList = async (req, res) => {
+    const { cliente_id } = req.params;
     try {
-      const result = await permisoService.getPermisoListService()
+      const result = await permisoService.getPermisoListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -46,20 +47,35 @@ const getPermisoById = async (req, res) => {
   };
   
   const deletePermiso = async (req, res) => {
-    const { id } = req.params;
+    const { id ,cliente_id} = req.params;
     try {
-      const result = await permisoService.deletePermisoService(id);
+      const result = await permisoService.deletePermisoService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   };
 
+  const getPermisoByUserId = async (req, res) => {
+    const { user_id,cliente_id } = req.params;
+    try {
+      const permiso = await permisoService.getPermisoByUserIdService( user_id,cliente_id );
+        if (!permiso) {
+          return res.status(404).json({ error: 'Rol not found' });
+        }
+        res.status(200).json(permiso);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+  
+
 module.exports = {
     createPermiso,
     getPermisoById,
     getPermisoList,
     updatePermiso,
-    deletePermiso
+    deletePermiso,
+    getPermisoByUserId
   };
   

@@ -40,8 +40,10 @@ const reporteService = require('../services/reportes/reporteService');
     }
   };
   const getCategoriaSalidaController = async (req, res) => {
+    const {  cliente_id } = req.params;
+    if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
     try {
-      const result = await reporteService.getCategoriaSalidaService()
+      const result = await reporteService.getCategoriaSalidaService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

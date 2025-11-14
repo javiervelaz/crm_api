@@ -2,10 +2,10 @@ const CategoriaService = require('../services/categoriaSalida/categoriaSalidaSer
 
 
 const createCategoria = async (req, res) => {
-  const { nombre, categoria_tipo_id } = req.body;
+  const { nombre, categoria_tipo_id ,cliente_id } = req.body;
 
   try {
-    const newCategoria = await CategoriaService.createCategoriaService({ nombre,categoria_tipo_id });
+    const newCategoria = await CategoriaService.createCategoriaService({ nombre,categoria_tipo_id , cliente_id});
     res.status(201).json(newCategoria);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -13,9 +13,9 @@ const createCategoria = async (req, res) => {
 };
 
 const getCategoriaById = async (req, res) => {
-    const { id } = req.params;
+    const { id, cliente_id } = req.params;
     try {
-      const Categoria = await CategoriaService.getCategoriaByIdService( id);
+      const Categoria = await CategoriaService.getCategoriaByIdService( id, cliente_id);
         if (!Categoria) {
           return res.status(404).json({ error: 'Categoria not found' });
         }
@@ -26,8 +26,10 @@ const getCategoriaById = async (req, res) => {
   };
 
   const getCategoriaList = async (req, res) => {
+    const {  cliente_id } = req.params;
+    if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
     try {
-      const result = await CategoriaService.getCategoriaListService()
+      const result = await CategoriaService.getCategoriaListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -36,9 +38,9 @@ const getCategoriaById = async (req, res) => {
   
   const updateCategoria = async (req, res) => {
     const moduloId = req.params.id;
-    const { nombre,categoria_tipo_id } = req.body;
+    const { nombre,categoria_tipo_id, cliente_id } = req.body;
     try {
-      const updatedCategoria = await CategoriaService.updateCategoriaService(moduloId, {nombre, categoria_tipo_id});
+      const updatedCategoria = await CategoriaService.updateCategoriaService(moduloId, {nombre, categoria_tipo_id, cliente_id});
       res.status(200).json(updatedCategoria);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -46,9 +48,9 @@ const getCategoriaById = async (req, res) => {
   };
   
   const deleteCategoria = async (req, res) => {
-    const { id } = req.params;
+    const { id, cliente_id } = req.params;
     try {
-      const result = await CategoriaService.deleteCategoriaService(id);
+      const result = await CategoriaService.deleteCategoriaService(id, cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
