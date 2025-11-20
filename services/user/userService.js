@@ -17,21 +17,33 @@ const authenticate = async (email, password) => {
       //const authConfig = JSON.parse(process.env.AUTH);
       const userRole =  await userRoledb.getUserRoleByUserId(user.id,user.cliente_id);
       const userModulo = await moduleRol.getUserModuloRolByUserId(user.id, user.cliente_id);
-      const permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
+      const result_permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
+      const roles =  userRole.map(role => role.descripcion)
       // Mapeás solo el campo 'codigo'
       const modulos = userModulo.map(item => item.codigo);
+      const permissions = {};
+      for (const row of result_permissions) {
+        if (row.es_global) {
+          if (!permissions._global) permissions._global = [];
+          permissions._global.push(row.permiso_codigo);
+        } else {
+          const mod = row.modulo_codigo || '_sin_modulo';
+          if (!permissions[mod]) permissions[mod] = [];
+          permissions[mod].push(row.permiso_codigo);
+        }
+      }
       const userData = 
           {
               id: user.id,
               username: user.email,
               name : user.nombre + ", " + user.apellido,
               password: bcrypt.hashSync(user.password, 8),
-              role: userRole,
+              role: roles,
               cliente_id: user.cliente_id || null,
               modules: modulos,
               permissions: permissions,
           };
-      console.log(userData)
+          //console.log(userData)
       if (!userData) {
         return { error: 'Invalid username' };
       }
@@ -117,6 +129,18 @@ const createUserService = async (user) => {
 
     return result;
   }
+  const getUserModulosPermisosService = async (id,cliente_id) => {
+    const result = await db.getUserModulosPermisos(id,cliente_id);
+
+    return result;
+  }
+
+  const postUserModulosPermisosService = async (id,cliente_id,modulos) => {
+    // Validación de campos requeridos
+    const result = await db.postUserModulosPermisos(id,cliente_id,modulos );
+    return result;
+  };
+  
   
 
 module.exports = {
@@ -131,5 +155,7 @@ module.exports = {
     getUserRolService,
     getUserByTelService,
     getUserTypeListService,
-    getUserEstadisticaService
+    getUserEstadisticaService,
+    getUserModulosPermisosService,
+    postUserModulosPermisosService
 };

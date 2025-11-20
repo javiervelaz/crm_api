@@ -1,7 +1,7 @@
 const express = require('express');
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
-
+const { authorizePermission } = require("../middleware/permissionMiddleware");
 
 const router = express.Router();
 const {
@@ -12,8 +12,8 @@ const {
   deleteTipoProducto,
 } = require('../controllers/tipoProductoController');
 
-router.post('/', createTipoProducto);
-router.get('/list/:cliente_id',authenticateJWT,authorizeModule("productos"), getTipoProductoList);
+router.post('/',authenticateJWT,authorizeModule('tipo-producto'),authorizePermission('tipo-producto', 'crear_tipo_producto'), createTipoProducto);
+router.get('/list/:cliente_id', getTipoProductoList);
 router.get('/:id', getTipoProductoById);
 router.put('/:id', updateTipoProducto);
 router.delete('/:id', deleteTipoProducto);

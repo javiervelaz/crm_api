@@ -126,28 +126,37 @@ insert into modulo_maestro (codigo,descripcion,status) values ('productos', 'Ges
 insert into modulo_maestro (codigo,descripcion,status) values ('empleados', 'Gestion de empleados',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('cerrar-caja', 'Gestion de cerrar caja',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('operaciones', 'Gestion de operaciones',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('profile', 'Gestion de profiles',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('profiles', 'Gestion de profiles  ',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('gasto', 'Gestion de gastos',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('roles', 'Gestion de roles  ',true);
 
 
 
-insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_usuarios', 'ver_lista_usuarios',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_usuario', 'Crear nuevo usuario',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_usuario', 'Editar un usuario',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_usuario', 'Eliminar un usuario',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_productos', 'Ver lista completa de productos',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_producto', 'crear un nuevo producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_producto', 'Editar un producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_producto', 'Eliminar un producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_detalle_producto', 'Ver detaller de un producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_tipo_productos', 'Ver lista completa de tipo de productos',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_tipo_producto', 'crear un nuevo tipo producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_tipo_producto', 'Editar un tipo de producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_tipo_producto', 'Eliminar un tipo de producto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('ver_lista_tipo_gastos', 'Ver lista completa de tipo gastos',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('crear_tipo_gasto', 'crear un nuevo tipo de gasto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('editar_tipo_gasto', 'Editar un tipo de gasto',false);
-insert into permiso_maestro (codigo,descripcion,es_global) values ('eliminar_tipo_gasto', 'Eliminar un tipo de gasto',false);
-
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_usuarios', 'ver_lista_usuarios',false,'usuarios');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_usuario', 'Crear nuevo usuario',false,'usuarios');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_usuario', 'Editar un usuario',false,'usuarios');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_usuario', 'Eliminar un usuario',false,'usuarios');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_productos', 'Ver lista completa de productos',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_producto', 'crear un nuevo producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_producto', 'Editar un producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_producto', 'Eliminar un producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_detalle_producto', 'Ver detaller de un producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_tipo_productos', 'Ver lista completa de tipo de productos',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_tipo_producto', 'crear un nuevo tipo producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_tipo_producto', 'Editar un tipo de producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_tipo_producto', 'Eliminar un tipo de producto',false,'productos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_tipo_gastos', 'Ver lista completa de tipo gastos',false,'gastos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_tipo_gasto', 'crear un nuevo tipo de gasto',false,'gastos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_tipo_gasto', 'Editar un tipo de gasto',false,'gastos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_tipo_gasto', 'Eliminar un tipo de gasto',false,'gastos');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_roles', 'Ver lista completa de roles',false,'roles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_roles', 'crear un nuevo  roles',false,'roles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_roles', 'Editar un rol',false,'roles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_roles', 'Eliminar un rol',false,'roles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('ver_lista_profiles', 'Ver lista completa de profiles',false,'profiles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('crear_profile', 'crear un nuevo  profiles',false,'profiles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('editar_profile', 'Editar un profiles',false,'profiles');
+insert into permiso_maestro (codigo,descripcion,es_global,modulo) values ('eliminar_profile', 'Eliminar un profiles',false,'profiles');
 
 
 

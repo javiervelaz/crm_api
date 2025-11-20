@@ -56,11 +56,24 @@ const getModuloById = async (req, res) => {
     }
   };
 
+  const getPermisosByModuloId = async (req, res) => {
+    const { cliente_id, id_modulo } = req.params;
+  
+    try {
+      const permisos = await ModuloService.getPermisosByModuloIdService(cliente_id, id_modulo);
+      res.status(200).json(permisos);
+    } catch (error) {
+      console.error('Error en getPermisosByModuloId:', error);
+      res.status(500).json({ error: 'Error al obtener los permisos del módulo.' });
+    }
+  };
+
 module.exports = {
     createModulo,
     getModuloById,
     getModuloList,
     updateModulo,
-    deleteModulo
+    deleteModulo,
+    getPermisosByModuloId
   };
   

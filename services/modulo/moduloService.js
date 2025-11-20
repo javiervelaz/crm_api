@@ -37,10 +37,16 @@ const createModuloService = async (Modulo) => {
     return result;
   }
 
+  const getPermisosByModuloIdService = async (cliente_id, id_modulo) => {
+    const result = await db.getPermisosByModuloId(cliente_id, id_modulo);
+    return result.rows;
+  };
+
   module.exports = {
     createModuloService,
     getModuloByIdService,
     getModuloListService,
     updateModuloService,
-    deleteModuloService
+    deleteModuloService,
+    getPermisosByModuloIdService
 };

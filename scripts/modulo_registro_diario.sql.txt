@@ -209,19 +209,34 @@ CREATE TABLE whatsapp_conversation (
     id SERIAL PRIMARY KEY,
     cliente_id INTEGER NULL,
     telefono VARCHAR(20) NOT NULL,
-    estado VARCHAR(20) NOT NULL DEFAULT 'abierta',
+    estado VARCHAR(20) NOT NULL DEFAULT 'menu',
+    state VARCHAR(20) NULL,
+    cart JSONB NOT NULL DEFAULT '{}',
+    sucursal_id INTEGER NULL,
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (cliente_id) REFERENCES "user" (id)
+    FOREIGN KEY (cliente_id) REFERENCES "cliente" (id)
 );
 
-CREATE TABLE whatsapp_message (
-    id SERIAL PRIMARY KEY,
-    conversation_id INTEGER NOT NULL,
-    remitente VARCHAR(20) NOT NULL,
-    mensaje TEXT NOT NULL,
-    pedido_id INTEGER NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (conversation_id) REFERENCES whatsapp_conversation (id),
-    FOREIGN KEY (pedido_id) REFERENCES pedido (id)
+CREATE INDEX IF NOT EXISTS idx_whatsapp_conversation_cliente_telefono
+  ON whatsapp_conversation (cliente_id, telefono);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_conversation_cliente_state
+  ON whatsapp_conversation (cliente_id, estado);
+
+CREATE TABLE IF NOT EXISTS whatsapp_message (
+  id BIGSERIAL PRIMARY KEY,
+  conversation_id BIGINT NOT NULL REFERENCES whatsapp_conversation(id),
+  wa_message_id TEXT,                         -- id de WhatsApp
+  direction VARCHAR(10) NOT NULL,             -- 'in' | 'out'
+  body TEXT,                                  -- texto plano
+  raw JSONB,                                  -- payload completo
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_message_conversation
+  ON whatsapp_message (conversation_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_message_waid_in
+  ON whatsapp_message (wa_message_id, direction)
+  WHERE direction = 'in' AND wa_message_id IS NOT NULL;

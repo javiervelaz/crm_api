@@ -126,6 +126,30 @@ const getUserEstadistica = async (req, res) => {
   }
 }
 
+const getUserModulosPermisos = async (req, res) => {
+  const { id, cliente_id } = req.params;
+  try {
+    const result = await userService.getUserModulosPermisosService(id,cliente_id);
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: 'user modulo permisos  not found' });
+    }
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+const postUserModulosPermisos = async (req, res) => {
+  
+  const  modulos  = req.body;
+  const { id, cliente_id } = req.params;
+  try {
+    const data = await userService.postUserModulosPermisosService(  id ,cliente_id, modulos );
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
 
 
 
@@ -140,6 +164,8 @@ module.exports = {
   getUserRol,
   getUserByTel,
   getUserTypeList,
-  getUserEstadistica
+  getUserEstadistica,
+  getUserModulosPermisos,
+  postUserModulosPermisos
 };
 

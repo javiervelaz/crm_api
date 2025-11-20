@@ -14,6 +14,6 @@ router.get('/list/:cliente_id', getPermisoList);
 router.get('/:id/:cliente_id', getPermisoById);
 router.put('/:id', updatePermiso);
 router.delete('/:id/:cliente_id', deletePermiso);
-router.get('/:user_id/:cliente_id', getPermisoByUserId);
+router.get('/user/:user_id/:cliente_id', getPermisoByUserId);
 
 module.exports = router;

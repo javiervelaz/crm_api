@@ -41,12 +41,29 @@ const createModulo = async (Modulo) => {
     const result = await pool.query('DELETE FROM modulo WHERE id = $1 and cliente_id= $2 RETURNING *', [id,cliente_id]);
     return result.rows[0];
   };
+
+
+  const getPermisosByModuloId = async (cliente_id, id_modulo) => {
+    const query = `
+      SELECT 
+        p.id,
+        p.codigo,
+        p.descripcion,
+        p.modulo_id,
+        p.cliente_id
+      FROM permiso p
+      WHERE p.modulo_id = $1 AND p.cliente_id = $2
+      ORDER BY p.descripcion;
+    `;
+    return pool.query(query, [id_modulo, cliente_id]);
+  };
   
   module.exports = {
     createModulo,
     getModuloById,
     getModulos,
     updateModulo,
-    deleteModulo
+    deleteModulo,
+    getPermisosByModuloId
     // Exporta las otras funciones aquí...
   };

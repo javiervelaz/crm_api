@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateJWT } = require('../middleware/authMiddleware');
+const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 
@@ -14,7 +14,9 @@ const {
   getUserRol,
   getUserByTel,
   getUserTypeList,
-  getUserEstadistica
+  getUserEstadistica,
+  getUserModulosPermisos,
+  postUserModulosPermisos
 } = require('../controllers/userController');
 
 const {
@@ -22,7 +24,7 @@ const {
 } =  require('../controllers/authController');
 
 router.post('/login',login);
-router.post('/',authenticateJWT,authorizeModule('usuarios'), createUser);
+router.post('/',authenticateJWT,authorizeRole(['admin']),authorizeModule('usuarios'),authorizePermission('usuarios', 'crear_usuario'), createUser);
 router.get('/type/:id', getUserTypeById);
 router.get('/tipo', getUserTypeList);
 router.get('/list/:cliente_id',authenticateJWT, authorizeModule('usuarios'),authorizePermission('usuarios', 'ver_lista_usuarios'),getUsers);
@@ -30,7 +32,9 @@ router.get('/rol/:id/:cliente_id', getUserRol);
 router.get('/cliente/:telefono/:cliente_id', getUserByTel);
 router.get('/estadistica/cliente/:id/:cliente_id', getUserEstadistica);
 router.get('/:id/:cliente_id', getUserById);
-router.put('/:id',authenticateJWT,authorizeModule('usuarios'), updateUser);
-router.delete('/:id/:cliente_id',authenticateJWT,authorizeModule('usuarios') ,deleteUser);
+router.put('/:id',authenticateJWT,authorizeModule('usuarios'),authorizePermission('usuarios', 'editar_usuario'), updateUser);
+router.delete('/:id/:cliente_id',authenticateJWT,authorizeRole(['admin']),authorizeModule('usuarios'),authorizePermission('usuarios', 'eliminar_usuario') ,deleteUser);
+router.get("/:id/:cliente_id/modulos-permisos",getUserModulosPermisos)
+router.post("/:id/:cliente_id/modulos-permisos",authenticateJWT,authorizeRole(['admin']),postUserModulosPermisos)
 
 module.exports = router;
