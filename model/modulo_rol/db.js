@@ -40,7 +40,7 @@ const createModuloRol = async (rol) => {
 
   const getUserModuloRolByUserId = async (user_id, cliente_id) => {
     const result = await pool.query(`
-      SELECT m.codigo
+      SELECT distinct(m.codigo)
       FROM "user_rol" ur
       join "modulo_rol" mr  on mr.id_rol = ur.id_rol
       join "modulo" m on m.id = mr.id_modulo

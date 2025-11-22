@@ -53,7 +53,9 @@ const getProfiles = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   const profileId = req.params.id;
+  console.log("body",req.body)
   const {  dni, telefono,password, legajo, fecha_ingreso ,cliente_id} = req.body;
+  
   try {
     const result = await profileService.updateProfileService(profileId, {  dni, telefono,password, legajo, fecha_ingreso,cliente_id  });
     res.status(200).json(result);

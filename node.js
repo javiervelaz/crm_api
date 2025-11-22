@@ -28,6 +28,7 @@ const reportes  = require("./routes/reportes");
 const authToken =  require("./routes/auth");
 const categoriaTipo  = require("./routes/categoriaTipo")
 const handoffRoutes = require('./routes/handoff');
+const clienteRoutes = require('./routes/cliente');
 
 app.use(express.json());
 app.use('/api/registro_diario', registroDiarioRoutes);
@@ -51,6 +52,7 @@ app.use("/api/reportes",reportes)
 app.use("/api/token",authToken);
 app.use('/api/categoria-tipo',categoriaTipo)
 app.use('/api/handoff', handoffRoutes);
+app.use('/api/cliente',clienteRoutes)
 
 
 app.listen(port, () => {
