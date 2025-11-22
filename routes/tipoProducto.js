@@ -12,7 +12,7 @@ const {
   deleteTipoProducto,
 } = require('../controllers/tipoProductoController');
 
-router.post('/',authenticateJWT,authorizeModule('tipo-producto'),authorizePermission('tipo-producto', 'crear_tipo_producto'), createTipoProducto);
+router.post('/',authenticateJWT,authorizeModule('productos'),authorizePermission('productos', 'productos.create'), createTipoProducto);
 router.get('/list/:cliente_id', getTipoProductoList);
 router.get('/:id', getTipoProductoById);
 router.put('/:id', updateTipoProducto);

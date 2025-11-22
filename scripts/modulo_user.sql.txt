@@ -10,41 +10,7 @@ CREATE TABLE "rol" (
     descripcion VARCHAR NOT NULL
 );
 
-CREATE TABLE "modulo" (
-    id SERIAL PRIMARY KEY,
-    codigo VARCHAR(50) NOT NULL, -- identificador estable (ej: 'usuarios', 'ventas')
-    descripcion VARCHAR NOT NULL,       -- nombre legible (ej: 'Gestión de Usuarios')
-    status BOOLEAN NOT NULL DEFAULT TRUE,
-    cliente_id INTEGER NOT NULL REFERENCES cliente(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP DEFAULT NULL
-);
 
-CREATE TABLE "modulo_maestro" (
-    id SERIAL PRIMARY KEY,
-    codigo VARCHAR(50) NOT NULL, 
-    descripcion VARCHAR NOT NULL,      
-    status BOOLEAN NOT NULL DEFAULT TRUE
-);
-
-CREATE TABLE permiso (
-    id SERIAL PRIMARY KEY,
-    descripcion VARCHAR(150) NOT NULL,
-    codigo VARCHAR(100)  NOT NULL,
-    modulo_id INTEGER REFERENCES modulo(id) ON DELETE CASCADE,
-    cliente_id INTEGER NOT NULL REFERENCES cliente(id) ON DELETE CASCADE,
-    es_global BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE permiso_maestro (
-    id SERIAL PRIMARY KEY,
-    descripcion VARCHAR(150) NOT NULL,
-    codigo VARCHAR(100)  NOT NULL,
-    es_global BOOLEAN DEFAULT FALSE
-);
 
 -- 2. Crear tabla user (depende de user_type)
 CREATE TABLE "user" (
@@ -116,19 +82,64 @@ CREATE TABLE cliente (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE "modulo" (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(50) NOT NULL, -- identificador estable (ej: 'usuarios', 'ventas')
+    descripcion VARCHAR NOT NULL,       -- nombre legible (ej: 'Gestión de Usuarios')
+    status BOOLEAN NOT NULL DEFAULT TRUE,
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL
+);
+
+CREATE TABLE "modulo_maestro" (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(50) NOT NULL, 
+    descripcion VARCHAR NOT NULL,      
+    status BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE permiso (
+    id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(150) NOT NULL,
+    codigo VARCHAR(100)  NOT NULL,
+    modulo_id INTEGER REFERENCES modulo(id) ON DELETE CASCADE,
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id) ON DELETE CASCADE,
+    es_global BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE permiso_maestro (
+    id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(150) NOT NULL,
+    codigo VARCHAR(100)  NOT NULL,
+    es_global BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE permiso_accion (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+insert into permiso_accion (codigo,descripcion) values ('list', 'ver listado');
+insert into permiso_accion (codigo,descripcion) values ('create', 'crear registro');
+insert into permiso_accion (codigo,descripcion) values ('update', 'actualizar registro');
+insert into permiso_accion (codigo,descripcion) values ('delete', 'borrar registro');
 
 insert into modulo_maestro (codigo,descripcion,status) values ('usuarios', 'Gestion de usuarios',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('dashboard', 'Gestion de dashboard',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('caja', 'Gestion de caja',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('reportes', 'Gestion de reportes',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('tipo-productos', 'Gestion de tipo producto',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('productos', 'Gestion de productos',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('empleados', 'Gestion de empleados',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('cerrar-caja', 'Gestion de cerrar caja',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('cerrarcaja', 'Gestion de cerrar caja',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('operaciones', 'Gestion de operaciones',true);
-insert into modulo_maestro (codigo,descripcion,status) values ('profiles', 'Gestion de profiles  ',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('gasto', 'Gestion de gastos',true);
 insert into modulo_maestro (codigo,descripcion,status) values ('roles', 'Gestion de roles  ',true);
+insert into modulo_maestro (codigo,descripcion,status) values ('flujo', 'Gestion de caja  ',true);
 
 
 
