@@ -61,7 +61,7 @@ const getPermisoById = async (req, res) => {
     try {
       const permiso = await permisoService.getPermisoByUserIdService( user_id,cliente_id );
         if (!permiso) {
-          return res.status(404).json({ error: 'Rol not found' });
+          return res.status(404).json({ error: 'Permiso not found' });
         }
         res.status(200).json(permiso);
     } catch (error) {

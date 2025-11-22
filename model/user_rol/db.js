@@ -39,7 +39,13 @@ const createUserRol = async (rol) => {
   };
 
   const getUserRoleByUserId = async (id,cliente_id) => {
-    const result = await pool.query('SELECT * FROM "user_rol" WHERE id_user = $1 and  cliente_id =  $2 order by "id_rol" ', [id,cliente_id]);
+    const query = `
+    SELECT r.descripcion FROM "user_rol" ur
+    inner join "rol" r on r.id = ur.id_rol
+    WHERE ur.id_user = $1 and  ur.cliente_id =  $2 
+    order by ur."id_rol"
+    `;
+    const result = await pool.query(query, [id,cliente_id]);
     return result.rows;
   };
   

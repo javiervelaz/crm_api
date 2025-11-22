@@ -48,21 +48,8 @@ const createPermiso = async (permisos) => {
     WHERE ur.id_user = $1 AND ur.cliente_id = $2
   `;
   const result = await pool.query(query, [user_id, cliente_id]);
-
-  const permissions = {};
-
-  for (const row of result.rows) {
-    if (row.es_global) {
-      if (!permissions._global) permissions._global = [];
-      permissions._global.push(row.permiso_codigo);
-    } else {
-      const mod = row.modulo_codigo || '_sin_modulo';
-      if (!permissions[mod]) permissions[mod] = [];
-      permissions[mod].push(row.permiso_codigo);
-    }
-  }
-
-  return permissions;
+ 
+  return result.rows;
   }
   
   module.exports = {

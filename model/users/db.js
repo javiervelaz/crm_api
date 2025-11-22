@@ -89,7 +89,7 @@ const getEstadisticasCliente = async (userClienteId,cliente_id) => {
   try {
     // 1. Cantidad de pedidos
     const cantPedidosResult = await client.query(
-      'SELECT COUNT(*) as cantidad FROM pedido WHERE uer_cliente_id = $1 and cliente_id = $2',
+      'SELECT COUNT(*) as cantidad FROM pedido WHERE user_cliente_id = $1 and cliente_id = $2',
       [userClienteId, cliente_id]
     );
     const cantidadPedidos = parseInt(cantPedidosResult.rows[0].cantidad);
@@ -176,6 +176,135 @@ const getEstadisticasCliente = async (userClienteId,cliente_id) => {
   }
 };
 
+const getUserModulosPermisos =  async (id,cliente_id) => {
+  const { rows: userRoles } = await pool.query(
+    `SELECT id_rol FROM user_rol WHERE id_user = $1 AND cliente_id = $2`,
+    [id, cliente_id]
+  );
+  if (userRoles.length === 0) {
+    return [];
+  }
+
+  //console.log("u r", userRoles);
+
+  const roleIds = userRoles.map((r) => r.id_rol);
+  const { rows: modulos } = await pool.query(
+    `
+    SELECT DISTINCT m.id AS modulo_id, m.descripcion AS modulo_descripcion, m.codigo AS modulo_codigo
+    FROM modulo_rol mr
+    INNER JOIN modulo m ON mr.id_modulo = m.id
+    WHERE mr.id_rol = ANY($1::int[]) AND mr.cliente_id = $2
+    `,
+    [roleIds, cliente_id]
+  );
+  //console.log("modulos", modulos);
+  // 🔹 Obtener permisos asociados a esos roles y módulos
+  const { rows: permisos } = await pool.query(
+    `
+    SELECT DISTINCT 
+      p.id AS permiso_id,
+      p.descripcion AS permiso_descripcion,
+      p.codigo AS permiso_codigo,
+      p.modulo_id
+    FROM rol_permiso rp
+    INNER JOIN permiso p ON rp.permiso_id = p.id
+    WHERE rp.rol_id = ANY($1::int[]) AND rp.cliente_id = $2
+    `,
+    [roleIds, cliente_id]
+  );
+  //console.log("per",permisos);
+  // 🔹 Armar respuesta agrupada por módulo
+  const response = modulos.map((modulo) => {
+    const permisosModulo = permisos
+      .filter((p) => p.modulo_id === modulo.modulo_id)
+      .map((p) => ({
+        id: p.permiso_id,
+        descripcion: p.permiso_descripcion,
+        codigo: p.permiso_codigo,
+      }));
+
+    return {
+      modulo_id: modulo.modulo_id,
+      modulo_descripcion: modulo.modulo_descripcion,
+      modulo_codigo: modulo.modulo_codigo,
+      permisos: permisosModulo,
+    };
+  });
+
+  return response;
+}
+
+
+const postUserModulosPermisos = async (id,cliente_id,modulos) => {
+  const client = await pool.connect();
+ 
+  try {
+    await client.query('BEGIN'); // Iniciar transacción
+
+    // 1️⃣ Obtener roles del usuario
+    const { rows: userRoles } = await client.query(
+      `SELECT id_rol FROM user_rol WHERE id_user = $1 AND cliente_id = $2`,
+      [id, cliente_id]
+    );
+
+    if (userRoles.length === 0) {
+      throw new Error('El usuario no tiene roles asignados');
+    }
+
+    const roleIds = userRoles.map((r) => r.id_rol);
+
+    // 2️⃣ Limpiar permisos y módulos actuales asociados a estos roles
+    await client.query(
+      `DELETE FROM rol_permiso WHERE rol_id = ANY($1::int[])`,
+      [roleIds]
+    );
+
+    await client.query(
+      `DELETE FROM modulo_rol WHERE id_rol = ANY($1::int[])`,
+      [roleIds]
+    );
+    console.log("modulos db",modulos);
+    // 3️⃣ Registrar nuevos módulos y permisos
+    for (const item of modulos) {
+      const { modulo_id, permisos } = item;
+
+      for (const roleId of roleIds) {
+        // Asignar módulo al rol
+        await client.query(
+          `INSERT INTO modulo_rol (id_modulo, id_rol, cliente_id) VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
+          [modulo_id, roleId, cliente_id]
+        );
+
+        // Asignar permisos al rol
+        for (const permisoId of permisos) {
+          await client.query(
+            `INSERT INTO rol_permiso (rol_id, permiso_id, cliente_id) VALUES ($1, $2, $3)
+             ON CONFLICT DO NOTHING`,
+            [roleId, permisoId, cliente_id]
+          );
+        }
+      }
+    }
+    await client.query('COMMIT');
+    // ✅ Respuesta exitosa
+    return {
+      ok: true,
+      message: 'Módulos y permisos asignados correctamente',
+    };
+    
+  } catch (error) {
+    await client.query('ROLLBACK'); // Revertir en caso de error
+    console.error('Error en transacción:', error);
+    throw error;
+  } finally {
+    client.release(); // Liberar conexión
+  }
+};
+
+
+
+
 module.exports = {
     createUser,
     getUserById,
@@ -187,6 +316,7 @@ module.exports = {
     getUserRol,
     getUserByTel,
     getUserTypeList,
-    getEstadisticasCliente
-    // Exporta las otras funciones aquí...
+    getEstadisticasCliente,
+    getUserModulosPermisos,
+    postUserModulosPermisos
   };

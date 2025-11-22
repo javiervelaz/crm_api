@@ -85,7 +85,9 @@ const deleteProfile = async (id,cliente_id) => {
 };
 
 const getProfileByUserId = async (id,cliente_id) => {
-  const result = await pool.query('SELECT * FROM "profile" WHERE id_user = $1 and cliente_id = $2', [id,cliente_id]);
+  console.log("user id" ,id)
+  console.log("client id",cliente_id)
+  const result = await pool.query('SELECT * FROM "profile" WHERE "id_user" = $1 and "cliente_id" = $2', [id,cliente_id]);
   return result.rows[0];
 };
 
