@@ -47,7 +47,7 @@ CREATE TABLE "producto" (
 -- 5. Crear registro_diario (depende de user y sucursal)
 CREATE TABLE "registro_diario" (
     id SERIAL PRIMARY KEY,
-    fecha DATE NOT NULL UNIQUE,
+    fecha DATE NOT NULL,
     usuario_apertura_id INTEGER NOT NULL,
     usuario_cierre_id INTEGER,
     caja_inicial DECIMAL(10, 2) NOT NULL,
