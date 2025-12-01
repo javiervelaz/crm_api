@@ -77,7 +77,8 @@ exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, m
 
 // Lógica para registrar un pedido
 exports.crearPedido = async ( data) => {
-    const { registro_diario_id,usuario_id,monto_total,sucursal_id,medio_pago_id,cliente_nombre, cliente_telefono, productos,cliente_casa_nro, cliente_barrio ,pedido_obs,user_cliente_id,paga_efectivo,vuelto_pago_efectivo, monto_adicional,cliente_id} = data;  
+    console.log("data", data)
+    const { registro_diario_id,usuario_id,monto_total,sucursal_id,medio_pago_id,cliente_nombre, cliente_telefono, productos,cliente_casa_nro, cliente_barrio ,pedido_obs,user_cliente_id,paga_efectivo,vuelto_pago_efectivo, monto_adicional,cliente_id,conversation_id} = data;  
     try {
         const pedido_data = await Pedido.getComandaNro(registro_diario_id);
         const comandaCount = parseInt(pedido_data[0].count, 10); // base 10
@@ -95,7 +96,8 @@ exports.crearPedido = async ( data) => {
             paga_efectivo:paga_efectivo,
             vuelto_pago_efectivo:vuelto_pago_efectivo,
             cliente_id : cliente_id,
-            monto_adicional: monto_adicional
+            monto_adicional: monto_adicional,
+            conversation_id : conversation_id
         });
         
         // Insertar los productos relacionados en la tabla intermedia

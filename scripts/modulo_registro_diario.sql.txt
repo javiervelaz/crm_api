@@ -91,6 +91,7 @@ CREATE TABLE "pedido" (
     paga_efectivo DECIMAL(10, 2) NULL,
     vuelto_pago_efectivo DECIMAL(10, 2)  NULL,
     monto_adicional numeric(10, 2) NULL,
+    conversation_id INTEGER NULL;
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (registro_diario_id) REFERENCES "registro_diario" (id),
