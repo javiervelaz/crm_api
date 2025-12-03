@@ -4,7 +4,7 @@ const MovimientoInventario = require('../../model/movimiento_inventario/db');
 const SalidaCaja = require('../../model/salida_caja/db');
 const Pedido = require('../../model/pedido/db');
 const RegistroDiario = require('../../model/registro_diario/db');
-const  Users  = require("../../model/users/db") 
+const Users  = require("../../model/users/db") 
 const Profile   =  require("../../model/profile/db");
 const { json } = require('body-parser');
 
@@ -77,7 +77,7 @@ exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, m
 
 // Lógica para registrar un pedido
 exports.crearPedido = async ( data) => {
-    console.log("data", data)
+
     const { registro_diario_id,usuario_id,monto_total,sucursal_id,medio_pago_id,cliente_nombre, cliente_telefono, productos,cliente_casa_nro, cliente_barrio ,pedido_obs,user_cliente_id,paga_efectivo,vuelto_pago_efectivo, monto_adicional,cliente_id,conversation_id} = data;  
     try {
         const pedido_data = await Pedido.getComandaNro(registro_diario_id);
@@ -102,15 +102,16 @@ exports.crearPedido = async ( data) => {
         
         // Insertar los productos relacionados en la tabla intermedia
         await Pedido.insertPedidoProducto(pedidoId, productos); 
-        if(cliente_telefono != 1){
-            const profileByTelefono  = await Profile.getByTelefono(cliente_telefono,cliente_id);
-        if(profileByTelefono == null) {
-            const fecha = new Date();
-            let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:cliente_nombre+'@gmail.com', user_type_id : 4, cliente_id: cliente_id};
-            let newUser =  await  Users.createUser(user)
-            let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio, cliente_id:cliente_id}
-            await Profile.createProfile(profile);
-            }
+            if(cliente_telefono != 1){
+                const profileByTelefono  = await Profile.getByTelefono(cliente_telefono,cliente_id);
+            if(profileByTelefono == null) {
+                const fecha = new Date();
+                let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:cliente_nombre+'@gmail.com', user_type_id : 4, cliente_id: cliente_id};
+                let newUser =  await  Users.createUser(user)
+                let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio, cliente_id:cliente_id}
+                await Profile.createProfile(profile);
+                await Pedido.updatePedido(pedidoId,{'user_cliente_id':newUser.id},cliente_id)
+                }
         }
         
         return pedidoId;
