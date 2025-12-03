@@ -13,7 +13,7 @@ router.post('/registrar-compra-insumo', operacionesDiariasController.registrarCo
 router.put('/actualizar-inventario-insumos/:id', operacionesDiariasController.actualizarInventarioInsumos);
 router.post('/check-caja',operacionesDiariasController.checkCajaAbierta);
 router.put('/terminar-pedido/:id',operacionesDiariasController.terminarPedido);
-router.get('/detalle-pedido/:id/:cliente_id', pedidosController.getDetallePedido);
+router.get('/detalle-pedido/:id', pedidosController.getDetallePedido);
 router.get('/pedido-monto-total/:registro_diario_id/:cliente_id',operacionesDiariasController.pedidoMontoTotalDiario);
 router.put('/cierre-caja',operacionesDiariasController.cierrCaja);
 router.get('/registros-diarios/:filtro/:cliente_id',operacionesDiariasController.reporteOperacionesDiarias);

@@ -90,9 +90,9 @@ const registrarAperturaCierreCaja = async (req, res) => {
 };
 
 const checkCajaAbierta = async (req, res) => {
-    const { fecha,cliente_id }  = req.body;
+    const { cliente_id }  = req.body;
     try {
-        const caja  = await operacionesDiariasService.checkCajaAbierta(fecha,cliente_id);
+        const caja  = await operacionesDiariasService.checkCajaAbierta(cliente_id);
         res.status(201).json(caja)
     } catch (error) {
         res.status(500).json({ message : error.message });

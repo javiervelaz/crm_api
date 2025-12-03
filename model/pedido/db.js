@@ -37,10 +37,40 @@ const createPedido  = async (pedidos) => {
     return result.rows;
   }
 
-  const getDetallePedido = async (id,cliente_id) => {
-    const result = await pool.query('SELECT p.id,p.nombre,p.precio_unitario FROM "pedido_producto" pp inner join "producto" p on pp.producto_id = p.id WHERE pp.pedido_id = $1 and pp.cliente_id = $2', [id,cliente_id]);
-    return result.rows;
-  };
+  const getDetallePedido = async (pedidoId) => {
+  const result = await pool.query(
+    `
+    SELECT
+      pp.id,
+      pp.pedido_id,
+      pp.producto_id,
+      p.nombre                AS producto_nombre,
+      pp.cantidad,
+      pp.cantidad_mitad,
+      pp.precio_unitario,
+      pp.precio_final,
+      pp.monto_adicional,
+      pp.observaciones,
+      -- primera imagen del producto (si existe)
+      (
+        SELECT pi.nombre
+        FROM producto_img pi
+        WHERE pi.producto_id = p.id
+        ORDER BY pi.id
+        LIMIT 1
+      ) AS producto_image_public_id
+    FROM pedido_producto pp
+    INNER JOIN producto p
+      ON pp.producto_id = p.id
+    WHERE pp.pedido_id = $1
+    ORDER BY pp.id
+    `,
+    [pedidoId],
+  );
+
+  return result.rows;
+};
+
 
 
   
