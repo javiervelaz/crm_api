@@ -12,15 +12,47 @@ const createProducto = async (prod) => {
   }
   
   const getProductoById = async (id,cliente_id) => {
-    const result = await pool.query('SELECT * FROM "producto" WHERE id = $1 and cliente_id = $2', [id,cliente_id]);
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.nombre,
+        p.precio_unitario, 
+        p.tipo_producto_id, 
+        p.permite_mitad,
+        (
+          SELECT pi.nombre
+          FROM producto_img pi
+          WHERE pi.producto_id = p.id
+          ORDER BY pi.id
+          LIMIT 1
+        ) AS imagen_url
+      FROM 
+      "producto"  p
+      WHERE p.id = $1 and p.cliente_id = $2`, [id,cliente_id]);
     return result.rows[0];
   }
   
   const getProductos = async (cliente_id) => {
-    const result = await pool.query('SELECT p.id,p.nombre,p.precio_unitario, tp.nombre as tipo_producto,p.tipo_producto_id, p.permite_mitad FROM "producto" p join "tipo_producto" tp on p.tipo_producto_id=tp.id where p.cliente_id = $1 ', [cliente_id]);
+    const result = await pool.query(`
+      SELECT p.id,
+      p.nombre,
+      p.precio_unitario, 
+      tp.nombre as tipo_producto,
+      p.tipo_producto_id, 
+      p.permite_mitad,
+      (
+        SELECT pi.nombre
+        FROM producto_img pi
+        WHERE pi.producto_id = p.id
+        ORDER BY pi.id
+        LIMIT 1
+      ) AS imagen_url
+      FROM "producto" p 
+      join "tipo_producto" tp on p.tipo_producto_id=tp.id
+      where p.cliente_id = $1 `, [cliente_id]);
     return result;
   }
-  
+
   const updateProducto = async (id, prod) => {
     const {
       nombre = null,

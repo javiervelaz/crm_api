@@ -2,6 +2,9 @@ const express = require('express');
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 const { authenticateJWT } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
+
+
 
 
 const router = express.Router();
@@ -11,12 +14,35 @@ const {
   getProductoList,
   updateProducto,
   deleteProducto,
+  uploadImage,
+  listImages,
+  deleteImage
 } = require('../controllers/productoController');
 
+// Listar imágenes de un producto
+router.get(
+  '/:id/images',
+  listImages,
+);
+
+// Borrar una imagen
+router.delete(
+  '/images/:imgId',
+  deleteImage,
+);
 router.post('/', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.create'),createProducto);
 router.get('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);
 router.put('/:id', updateProducto);
 router.delete('/:id/:cliente_id', deleteProducto);
+// Subir imagen de producto
+router.post(
+  '/:id/images',
+  upload.single('image'),          // campo "image" en el form-data
+  uploadImage,
+);
+
+
+
 
 module.exports = router;
