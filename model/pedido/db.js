@@ -103,11 +103,20 @@ const createPedido  = async (pedidos) => {
   }
   
   
-  const updatePedido  = async (id, pedidos) => {
-    const { monto_total, medio_pago_id  } = pedidos;
+  const updatePedido  = async (id, pedidos,cliente_id) => {
+    const { monto_total, medio_pago_id,user_cliente_id  } = pedidos;
+    const query = `
+      UPDATE pedido SET 
+        monto_total = COALESCE($1,monto_total), 
+        medio_pago_id = COALESCE($2,medio_pago_id),
+        user_cliente_id = COALESCE($3,user_cliente_id),
+        updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $4  and cliente_id = $5 RETURNING *
+    `;
+ 
     const result = await pool.query(
-      'UPDATE "pedido" SET monto_total = $1,medio_pago_id = $2 , updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      [ monto_total, medio_pago_id , id]
+      query,
+      [ monto_total, medio_pago_id ,user_cliente_id, id,cliente_id]
     );
     return result.rows[0];
   };
