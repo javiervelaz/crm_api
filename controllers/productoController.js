@@ -1,4 +1,5 @@
 const ProductoService = require('../services/producto/productoService');
+const productoImgService = require('../services/producto/productoImgService');
 
 
 const createProducto = async (req, res) => {
@@ -57,11 +58,57 @@ const getProductoById = async (req, res) => {
     }
   };
 
+
+
+const uploadImage = async (req, res, next) => {
+  try {
+    const { id } = req.params; // id de producto
+    if (!req.file) {
+      return res.status(400).json({ message: 'No se recibió archivo' });
+    }
+
+    const result = await productoImgService.uploadImage({
+      productoId: Number(id),
+      fileBuffer: req.file.buffer,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const listImages = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const images = await productoImgService.listImages(Number(id));
+    return res.json(images);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteImage = async (req, res, next) => {
+  try {
+    const { imgId } = req.params;
+    await productoImgService.deleteImage(Number(imgId));
+    return res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
     createProducto,
     getProductoById,
     getProductoList,
     updateProducto,
-    deleteProducto
+    deleteProducto,
+    uploadImage,
+    listImages,
+    deleteImage
   };
   

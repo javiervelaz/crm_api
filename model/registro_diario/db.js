@@ -14,10 +14,23 @@ const createRegistroDiario  = async (RegistroDiario) => {
     return result;
   };
   
-  const getByRegistroFechaUsuario = async(fecha,cliente_id) => {
-    const result = await pool.query('select * from "registro_diario" where fecha = $1 and cliente_id =$2 and caja_cerrada  is NULL ',[fecha,cliente_id]);
+  const getCajasAbiertasByCliente = async(cliente_id) => {
+    const result = await pool.query('select * from "registro_diario" where cliente_id =$1 and caja_cerrada  is NULL ',[cliente_id]);
     return result.rows;
   }
+
+  const cerrarTodasLasCajasAbiertasByCliente = async (cliente_id) => {
+    await pool.query(
+      `
+      UPDATE "registro_diario"
+      SET caja_cerrada = TRUE,
+          updated_at = NOW()
+      WHERE cliente_id = $1
+        AND caja_cerrada IS NULL
+      `,
+      [cliente_id],
+    );
+  };
 
   const getRegistrosDiarios = async (filtroParam,cliente_id) => {
     try {
@@ -144,8 +157,9 @@ const createRegistroDiario  = async (RegistroDiario) => {
     getRegistrosDiarios,
     updateRegistroDiario,
     deleteRegistroDiario,
-    getByRegistroFechaUsuario,
+    getCajasAbiertasByCliente,
     updateMontoFinalRegistroDiario,
     getCajaInicial,
-    getRegistrosDiariosDetalle
+    getRegistrosDiariosDetalle,
+    cerrarTodasLasCajasAbiertasByCliente
     };
