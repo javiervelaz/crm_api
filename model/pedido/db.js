@@ -28,7 +28,29 @@ const createPedido  = async (pedidos) => {
   };
 
   const getPedidoByRegistroId = async (id,cliente_id) => {
-    const result = await pool.query('SELECT p.id,u.nombre nombre,p.comanda_nro ,p.monto_total,p.created_at, pro.telefono FROM "pedido" p join "profile" pro on p.user_cliente_id = pro.id_user join "user" u on u.id= p.user_cliente_id WHERE p.registro_diario_id = $1 and p.pedido_terminado is NULL and p.cliente_id = $2 union all SELECT p2.id,null nombre, p2.comanda_nro,p2.monto_total, p2.created_at,NULL FROM "pedido" p2 WHERE p2.registro_diario_id = $1 and p2.pedido_terminado is NULL and p2.user_cliente_id is NULL and p2.cliente_id = $2 order by 5 DESC', [id,cliente_id]);
+    const result = await pool.query(`
+      SELECT 
+        p.id,u.nombre nombre,
+        p.comanda_nro ,
+        p.monto_total,
+        p.created_at,
+        pro.telefono,
+        p.pedido_terminado 
+        FROM "pedido" p 
+        join "profile" pro on p.user_cliente_id = pro.id_user 
+        join "user" u on u.id= p.user_cliente_id 
+        WHERE p.registro_diario_id = $1  and p.cliente_id = $2 
+      union all 
+      SELECT p2.id,
+        null nombre, 
+        p2.comanda_nro,
+        p2.monto_total, 
+        p2.created_at,
+        NULL,
+        p2.pedido_terminado 
+        FROM "pedido" p2 
+        WHERE p2.registro_diario_id = $1 and  p2.user_cliente_id is NULL and p2.cliente_id = $2 
+        order by 5 DESC`, [id,cliente_id]);
     return result;
   };
 
