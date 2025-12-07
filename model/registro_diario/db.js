@@ -35,7 +35,7 @@ const createRegistroDiario  = async (RegistroDiario) => {
   const getRegistrosDiarios = async (filtroParam,cliente_id) => {
     try {
       const filtro = filtroParam || 'dia';
-      console.log (filtro);
+   
       let query = `
         SELECT * FROM registro_diario
       `;

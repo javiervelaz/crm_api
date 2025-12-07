@@ -1,17 +1,22 @@
 const e = require('express');
 const db = require('../../model/cliente/db');
-const pool = require('../../pool'); // asegurate que esto está arriba del archivo
+const pool = require('../../pool');
+const bcrypt = require('bcrypt');
 
 const createCliente = async (data) => {
-  const {
-    nombre,
+   const {
+    nombre,          // nombre del comercio
     cuit,
     adminNombre,
     adminApellido,
     adminEmail,
     adminDni,
+      plan,           // FREE / BASIC / PREMIUM
+      telefono,       // tel de contacto
+      adminPassword,  // password plano del admin
+      canal_alta,     // landing, whatsapp, etc.
   } = data;
- 
+
   if (!nombre || !cuit) {
     throw new Error('nombre y cuit son obligatorios');
   }
@@ -21,10 +26,51 @@ const createCliente = async (data) => {
   try {
     await client.query('BEGIN');
 
-    // 1) Crear cliente
+    // 0) Resolver tier_id a partir del plan
+    const tierCode = (plan || 'FREE').toUpperCase();
+    let tierId = null;
+
+    const tierRes = await client.query(
+      'SELECT id FROM tier WHERE UPPER(code) = $1',
+      [tierCode]
+    );
+    if (tierRes.rows[0]) {
+      tierId = tierRes.rows[0].id;
+    } else {
+      const fallback = await client.query(
+        'SELECT id FROM tier WHERE code = $1',
+        ['FREE']
+      );
+      tierId = fallback.rows[0]?.id ?? null;
+    }
+
+    const canalAltaValue = canal_alta || 'landing';
+
     const clienteRes = await client.query(
-      'INSERT INTO cliente (nombre, cuit) VALUES ($1, $2) RETURNING *',
-      [nombre, cuit]
+      `
+      INSERT INTO cliente (
+        nombre,           -- nombre del comercio
+        cuit,
+        contacto_nombre,
+        contacto_apellido,
+        contacto_email,
+        contacto_telefono,
+        tier_id,
+        canal_alta
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+      `,
+      [
+        nombre,
+        cuit,
+        adminNombre || null,
+        adminApellido || null,
+        adminEmail || null,
+        telefono || null,
+        tierId,
+        canalAltaValue,
+      ]
     );
     const cliente = clienteRes.rows[0];
 
@@ -46,7 +92,7 @@ const createCliente = async (data) => {
     const userTypeId = adminUserType.id;
 
     // 3) Crear user admin
-    const userNombre = adminNombre || 'Admin';
+    const userNombre = adminNombre || 'ADMIN';
     const userApellido = adminApellido || cliente.nombre;
     const userEmail =
       adminEmail ||
@@ -68,6 +114,10 @@ const createCliente = async (data) => {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const legajo = `ADMIN-${cliente.id}`;
 
+       // Hasheamos el password del admin (o usamos uno por defecto si no vino)
+    const plainPassword = adminPassword || 'Cambiar123';
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
     await client.query(
       `
       INSERT INTO "profile"
@@ -78,15 +128,16 @@ const createCliente = async (data) => {
       [
         user.id,
         dni,
-        null,       // telefono
-        '$2b$10$sLx72Xcw0uhZpxT9PXEKQ.zC7bjzUZbDCcF3UXvXVj4QH.qLNYQP2',   // password por ahora fijo
+        telefono || null,
+        hashedPassword,
         legajo,
-        today,      // fecha_ingreso
-        null,       // casa_nro
-        null,       // barrio
+        today,
+        null,
+        null,
         cliente.id,
       ]
     );
+
 
     // 5) Crear ROLES por cada user_type para este cliente
     const rolesCliente = [];
@@ -116,7 +167,7 @@ const createCliente = async (data) => {
       );
 
       // identificamos cuál es el rol "admin" (para permisos/módulos)
-      if (ut.codigo === 'admin') {
+      if (ut.codigo === 'ADMIN') {
         rolAdmin = rol;
       }
     }

@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const operacionesDiariasController = require('../controllers/operacionesDiariasController');
 const pedidosController = require("../controllers/pedidoController");
+const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
+const { authorizeModule } = require('../middleware/moduleAuth');
+const { authorizePermission } = require("../middleware/permissionMiddleware");
 
 router.post('/abrir-caja', operacionesDiariasController.registrarAperturaCierreCaja);
 router.post('/crear-pedido', operacionesDiariasController.crearPedido);
-router.get('/listar-pedidos/:registroDiarioId/:cliente_id', operacionesDiariasController.listarPedidos);
+router.get('/listar-pedidos/:registroDiarioId/:cliente_id', authenticateJWT,authorizeModule('operaciones'),
+                authorizePermission('operaciones', 'operaciones.list'),operacionesDiariasController.listarPedidos);
 router.post('/registrar-salida-caja', operacionesDiariasController.registrarSalidaCaja);
 router.get('/consultar-inventario-insumos/:sucursalId', operacionesDiariasController.consultarInventarioInsumos);
 router.post('/registrar-movimiento-inventario', operacionesDiariasController.registrarMovimientoInventario);
@@ -19,6 +23,8 @@ router.put('/cierre-caja',operacionesDiariasController.cierrCaja);
 router.get('/registros-diarios/:filtro/:cliente_id',operacionesDiariasController.reporteOperacionesDiarias);
 router.get('/registros-diarios/:id/detalle/:cliente_id',operacionesDiariasController.reporteOperacionesDiariasDetalle);
 router.get('/caja-inicial/:registro_diario_id/:cliente_id',operacionesDiariasController.getCajaInicial);
-router.delete('/borrar-pedido/:id/:cliente_id', pedidosController.deletePedido);
+router.delete('/borrar-pedido/:id/:cliente_id', authenticateJWT,authorizeModule('operaciones'),
+                authorizePermission('operaciones', 'operaciones.delete'),
+                pedidosController.deletePedido);
 
 module.exports = router;
