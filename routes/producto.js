@@ -6,7 +6,6 @@ const upload = require('../middleware/uploadMiddleware');
 
 
 
-
 const router = express.Router();
 const {
   createProducto,
@@ -32,6 +31,7 @@ router.delete(
 );
 router.post('/', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.create'),createProducto);
 router.get('/list/:cliente_id', getProductoList);
+router.post('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);
 router.put('/:id', updateProducto);
 router.delete('/:id/:cliente_id', deleteProducto);

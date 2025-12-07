@@ -126,6 +126,21 @@ CREATE TABLE permiso_accion (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.tier (
+  id serial4 PRIMARY KEY,
+  code varchar(20) NOT NULL UNIQUE,      -- FREE, BASIC, PREMIUM
+  nombre_publico varchar(50) NOT NULL,   -- "Free", "Básico", etc.
+  descripcion text,
+  precio_mensual numeric(12,2),
+  es_activo boolean DEFAULT true
+);
+
+INSERT INTO public.tier (code, nombre_publico, descripcion)
+VALUES
+  ('FREE',    'Free',    'Plan sin costo, limitado'),
+  ('BASIC',   'Básico',  'CRM sin límites de uso'),
+  ('PREMIUM', 'Premium', 'CRM + reportes + bot de WhatsApp');
+
 
 insert into permiso_accion (codigo,descripcion) values ('list', 'ver listado');
 insert into permiso_accion (codigo,descripcion) values ('create', 'crear registro');

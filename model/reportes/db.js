@@ -3,7 +3,7 @@ const pool = require('../../pool');
   
 const getReporteVentasWithFilters = async (request) => {
   const { fecha_desde, fecha_hasta, productos ,cliente_id} = request;
-  
+   
   // Usamos una consulta parametrizada con condición dinámica segura
   let query = `
     SELECT 
@@ -27,11 +27,12 @@ const getReporteVentasWithFilters = async (request) => {
   }
 
   query += `
-    GROUP BY DATE(p.created_at), pr.nombre 
+    GROUP BY fecha, pr.nombre 
     ORDER BY fecha ASC
   `;
 
   const result = await pool.query(query, params);
+ 
   return result.rows;
 };
 

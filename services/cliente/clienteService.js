@@ -2,14 +2,44 @@ const e = require('express');
 const db = require('../../model/cliente/db');
 
 const createClienteService = async (data) => {
-    const { nombre,cuit,adminNombre,adminApellido,adminEmail,adminDni } = data;
-    // Validación de campos requeridos
-    if (!nombre || !cuit  ) {
-      throw new Error('All fields are required');
-    }
-    const result = await db.createCliente({ nombre,cuit,adminNombre,adminApellido,adminEmail,adminDni });
-    return result;
-  }; 
+  const {
+    nombre,
+    cuit,
+    adminNombre,
+    adminApellido,
+    adminEmail,
+    adminDni,
+    plan,
+    telefono,
+    adminPassword,
+    canal_alta,
+  } = data;
+
+  if (!nombre || !cuit) {
+    throw new Error('nombre y cuit son obligatorios');
+  }
+
+  if (!adminNombre || !adminApellido || !adminEmail) {
+    throw new Error('datos del usuario administrador incompletos');
+  }
+
+  const result = await db.createCliente({
+    nombre,
+    cuit,
+    adminNombre,
+    adminApellido,
+    adminEmail,
+    adminDni,
+    plan,
+    telefono,
+    adminPassword,
+    canal_alta,
+  });
+
+  return result;
+};
+
+ 
 
   const getClienteByIdService = async (id,cliente_id) => {
     const result = await db.getClienteById(id,cliente_id);

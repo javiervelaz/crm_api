@@ -25,7 +25,8 @@ const createProducto = async (prod) => {
           WHERE pi.producto_id = p.id
           ORDER BY pi.id
           LIMIT 1
-        ) AS imagen_url
+        ) AS imagen_url,
+         cliente_id
       FROM 
       "producto"  p
       WHERE p.id = $1 and p.cliente_id = $2`, [id,cliente_id]);

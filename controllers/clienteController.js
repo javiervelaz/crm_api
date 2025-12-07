@@ -2,15 +2,38 @@ const ModuloService = require('../services/cliente/clienteService');
 
 
 const createCliente = async (req, res) => {
-  const { nombre,cuit,adminNombre,adminApellido,adminEmail,adminDni } = req.body;
+  const {
+    nombre,
+    cuit,
+    adminNombre,
+    adminApellido,
+    adminEmail,
+    adminDni,
+    plan,           // FREE / BASIC / PREMIUM
+    telefono,       // tel de contacto
+    adminPassword,  // password del usuario admin
+    canal_alta,     // landing, whatsapp, etc. (opcional)
+  } = req.body;
 
   try {
-    const result = await ModuloService.createClienteService({ nombre,cuit,adminNombre,adminApellido,adminEmail,adminDni });
+    const result = await ModuloService.createClienteService({
+      nombre,
+      cuit,
+      adminNombre,
+      adminApellido,
+      adminEmail,
+      adminDni,
+      plan,
+      telefono,
+      adminPassword,
+      canal_alta,
+    });
     res.status(201).json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 };
+
 
 const getClienteById = async (req, res) => {
     const { id,cliente_id } = req.params;
