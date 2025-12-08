@@ -241,3 +241,13 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_message_conversation
 CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_message_waid_in
   ON whatsapp_message (wa_message_id, direction)
   WHERE direction = 'in' AND wa_message_id IS NOT NULL;
+
+  CREATE TABLE public.billing_subscription (
+  id SERIAL PRIMARY KEY,
+  cliente_id INT NOT NULL REFERENCES cliente(id),
+  tier_id INT NOT NULL REFERENCES tier(id),
+  mp_preapproval_id VARCHAR(100) UNIQUE,
+  status VARCHAR(20) NOT NULL,   -- active / pending / paused / cancelled
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
