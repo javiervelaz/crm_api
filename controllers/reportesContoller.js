@@ -4,7 +4,6 @@ const reporteService = require('../services/reportes/reporteService');
 
 
   const getVentasFiltersController = async (req, res) => {
-    console.log("ksksksksk")
     try {
       const result = await reporteService.getReporteWithFiltersService(req.body)
       res.status(200).json(result);
