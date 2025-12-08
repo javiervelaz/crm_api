@@ -30,6 +30,10 @@ const categoriaTipo  = require("./routes/categoriaTipo")
 const handoffRoutes = require('./routes/handoff');
 const clienteRoutes = require('./routes/cliente');
 const clientePlanRoutes = require('./routes/clientePlan');
+const billingRoutes = require('./routes/billing');
+const billingWebhookRoutes = require('./routes/billingWebhook');
+const tiersRoutes = require('./routes/tiers');
+
 
 app.use(express.json());
 app.use('/api/registro_diario', registroDiarioRoutes);
@@ -55,6 +59,10 @@ app.use('/api/categoria-tipo',categoriaTipo)
 app.use('/api/handoff', handoffRoutes);
 app.use('/api/cliente',clienteRoutes)
 app.use('/api/cliente-plan', clientePlanRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/billing/webhook', billingWebhookRoutes);
+app.use('/api/tiers', tiersRoutes);
+
 
 
 app.listen(port, () => {
