@@ -2,18 +2,24 @@ const jwt = require('jsonwebtoken');
 
 const authenticateJWT = (req, res, next) => {
   const token = req.header('Authorization')?.split(' ')[1];
+  console.log('[AUTH] Token:', token);
+
   if (!token) {
+    console.log('[AUTH] Falta token');
     return res.status(403).json({ error: 'Access denied' });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('[AUTH] Token válido:', decoded);
     req.user = decoded;
     next();
   } catch (err) {
+    console.log('[AUTH] Error verificando token:', err.message);
     return res.status(403).json({ error: 'Invalid token' });
   }
 };
+
 
 const authorizeRole = (roles) => (req, res, next) => {
   // Extraer los id_rol de req.user.role
