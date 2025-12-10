@@ -24,7 +24,7 @@ const requireLimit = (limitKey) => {
           const desde = dayjs().startOf('month').format('YYYY-MM-DD');
           countRes = await pool.query(
             //`SELECT COUNT(*) FROM registro_diario WHERE cliente_id = $1 AND fecha >= $2`,
-             `SELECT COUNT(*) FROM padido WHERE cliente_id = $1`,
+             `SELECT COUNT(*) FROM pedido WHERE cliente_id = $1`,
             [user.cliente_id]
           );
           break;
