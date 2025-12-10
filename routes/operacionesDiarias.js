@@ -1,13 +1,15 @@
 const express = require('express');
+
 const router = express.Router();
 const operacionesDiariasController = require('../controllers/operacionesDiariasController');
 const pedidosController = require("../controllers/pedidoController");
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
+const { requireLimit } = require('../middleware/limitMiddleware');
 
 router.post('/abrir-caja', operacionesDiariasController.registrarAperturaCierreCaja);
-router.post('/crear-pedido', operacionesDiariasController.crearPedido);
+router.post('/crear-pedido',requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
 router.get('/listar-pedidos/:registroDiarioId/:cliente_id', authenticateJWT,authorizeModule('operaciones'),
                 authorizePermission('operaciones', 'operaciones.list'),operacionesDiariasController.listarPedidos);
 router.post('/registrar-salida-caja', operacionesDiariasController.registrarSalidaCaja);

@@ -10,8 +10,13 @@ const requireFeature = (featureName) => {
         return res.status(403).json({ error: 'Cliente no asociado al usuario' });
       }
 
-      const { features, tierCode } = await getClienteTierAndFeatures(user.cliente_id);
+      const { features, tierCode,isExpired } = await getClienteTierAndFeatures(user.cliente_id);
 
+      if (isExpired) {
+        return res.status(403).json({
+          error: `Tu plan actual (${tierCode}) ha vencido. Debés renovarlo para acceder a esta funcionalidad.`,
+        });
+      }
       // Validar que exista la key
       if (!Object.prototype.hasOwnProperty.call(features, featureName)) {
         return res.status(403).json({
@@ -25,9 +30,9 @@ const requireFeature = (featureName) => {
           error: `Tu plan actual (${tierCode}) no tiene acceso a esta funcionalidad`,
         });
       }
-
+      
       // dejar info opcional por si el controller la quiere usar
-      req.clienteTier = { tierCode, features };
+      req.clienteTier = { tierCode, features ,isExpired};
 
       next();
     } catch (err) {

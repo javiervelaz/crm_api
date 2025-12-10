@@ -10,7 +10,7 @@ const pool = require('../pool');
 /**
  * REAL WEBHOOK (MP_MOCK = false)
  */
-router.post('/webhook', async (req, res) => {
+router.post('', async (req, res) => {
   if (USE_MOCK) {
     return res.status(200).send('MOCK MODE ACTIVE');
   }
@@ -19,28 +19,63 @@ router.post('/webhook', async (req, res) => {
     const body = req.body;
     console.log('Webhook recibido REAL:', JSON.stringify(body));
 
-    if (body.type !== 'preapproval' || !body.data?.id) {
-      return res.status(200).send('IGNORED');
+    // Suscripción recurrente
+    if (body.type === 'preapproval' && body.data?.id) {
+      const preapprovalId = body.data.id;
+
+      const subRes = await pool.query(
+        `SELECT * FROM billing_subscription WHERE mp_preapproval_id = $1`,
+        [preapprovalId]
+      );
+
+      const sub = subRes.rows[0];
+      if (!sub) return res.status(200).send('OK');
+
+      await pool.query(
+        `UPDATE billing_subscription SET status = 'active' WHERE mp_preapproval_id = $1`,
+        [preapprovalId]
+      );
+
+      await activateTierForCliente(sub.cliente_id, sub.tier_id);
+
+      return res.status(200).send('OK');
     }
 
-    const preapprovalId = body.data.id;
+    // Pago único (promo)
+    if (body.type === 'payment' && body.data?.id) {
+      const paymentId = body.data.id;
 
-    const subRes = await pool.query(
-      `SELECT * FROM billing_subscription WHERE mp_preapproval_id = $1`,
-      [preapprovalId]
-    );
+      const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        },
+      });
 
-    const sub = subRes.rows[0];
-    if (!sub) return res.status(200).send('OK');
+      const payment = await paymentRes.json();
+      if (payment.status !== 'approved') return res.status(200).send('IGNORED');
 
-    await pool.query(
-      `UPDATE billing_subscription SET status = 'active' WHERE mp_preapproval_id = $1`,
-      [preapprovalId]
-    );
+      const metadata = payment.metadata;
+      if (!metadata || metadata.tipo !== 'pago_unico') return res.status(200).send('IGNORED');
 
-    await activateTierForCliente(sub.cliente_id, sub.tier_id);
+      const clienteId = payment.additional_info?.payer?.id || null;
+      const tierId = metadata.tier_id;
+      const duracionMeses = metadata.duracion_meses || 1;
 
-    res.status(200).send('OK');
+      if (!clienteId || !tierId) return res.status(200).send('MISSING DATA');
+
+      await pool.query(
+        `UPDATE cliente
+         SET tier_id = $1,
+             tier_expiration_date = CURRENT_DATE + ($2 || ' months')::interval,
+             updated_at = NOW()
+         WHERE id = $3`,
+        [tierId, duracionMeses, clienteId]
+      );
+
+      return res.status(200).send('OK');
+    }
+
+    res.status(200).send('IGNORED');
   } catch (err) {
     console.error('Error webhook real:', err);
     res.status(500).send('ERROR');
