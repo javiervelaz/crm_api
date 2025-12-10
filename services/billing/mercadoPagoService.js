@@ -1,12 +1,13 @@
 // crm_api/services/billing/mercadoPagoService.js
 const pool = require('../../pool');
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
+const { MercadoPagoConfig, PreApproval, Preference } = require('mercadopago');
 
 const USE_MOCK = process.env.MP_MOCK === 'true';
 
 // CONFIG REAL MP
 let mpClient = null;
 let preapproval = null;
+let preference = null;
 
 if (!USE_MOCK) {
   mpClient = new MercadoPagoConfig({
@@ -14,6 +15,7 @@ if (!USE_MOCK) {
     options: { timeout: 5000 }
   });
   preapproval = new PreApproval(mpClient);
+  preference = new Preference(mpClient);
 }
 
 // Email de sandbox para evitar error "different countries"
@@ -38,7 +40,6 @@ async function createSubscription(cliente, tier) {
     };
   }
 
-  // REAL MP CALL
   const payerEmail = TEST_PAYER_EMAIL;
 
   const data = {
@@ -53,19 +54,72 @@ async function createSubscription(cliente, tier) {
       currency_id: 'ARS',
     },
   };
-   console.log('[MP] PreApproval body to send:', data);
-    try {
+
+  console.log('[MP] PreApproval body to send:', data);
+  try {
     const response = await preapproval.create({ body: data });
     return {
-        preapprovalId: response.id || response.body?.id,
-        initPoint: response.init_point || response.body?.init_point,
+      preapprovalId: response.id || response.body?.id,
+      initPoint: response.init_point || response.body?.init_point,
     };
-    } catch (err) {
-        console.error('[MP] Error creando preapproval:', err.response?.data || err.message);
-        throw err;
-    }
+  } catch (err) {
+    console.error('[MP] Error creando preapproval:', err.response?.data || err.message);
+    throw err;
+  }
+}
 
+/**
+ * CREATE ONE-TIME PAYMENT (PROMO PLAN)
+ */
+async function createOneTimePayment(cliente, tier) {
+  if (USE_MOCK) {
+    const fakeId = `mock-payment-${Date.now()}`;
+    console.log('[MP MOCK] createOneTimePayment called:', {
+      cliente: cliente.id,
+      tier: tier.code,
+      fakeId,
+    });
 
+    return {
+      paymentId: fakeId,
+      initPoint: `https://fake-mp-checkout.com/pay/${fakeId}`,
+    };
+  }
+
+  const data = {
+    items: [
+      {
+        title: `Plan ${tier.nombre}`,
+        quantity: 1,
+        currency_id: 'ARS',
+        unit_price: Number(tier.precio_mensual),
+      },
+    ],
+    back_urls: {
+      success: process.env.FRONTEND_SUCCESS_URL,
+      failure: process.env.FRONTEND_FAILURE_URL,
+    },
+    auto_return: 'approved',
+    payer: {
+      email: TEST_PAYER_EMAIL,
+    },
+    metadata: {
+      tipo: 'pago_unico',
+      tier_id: tier.id,
+      duracion_meses: tier.duracion_meses,
+    },
+  };
+
+  try {
+    const response = await preference.create({ body: data });
+    return {
+      paymentId: response.id || response.body?.id,
+      initPoint: response.init_point || response.body?.init_point,
+    };
+  } catch (err) {
+    console.error('[MP] Error creando preference:', err.response?.data || err.message);
+    throw err;
+  }
 }
 
 /**
@@ -126,6 +180,7 @@ async function simulateWebhook(preapprovalId) {
 
 module.exports = {
   createSubscription,
+  createOneTimePayment,
   saveSubscription,
   activateTierForCliente,
   simulateWebhook,

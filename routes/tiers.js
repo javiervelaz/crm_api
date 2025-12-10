@@ -17,7 +17,9 @@ router.get('/', async (req, res) => {
         nombre_publico,
         descripcion,
         precio_mensual,
-        es_activo
+        es_activo,
+        es_personalizado,
+        duracion_meses
       FROM tier
       WHERE es_activo = true
       ORDER BY id
