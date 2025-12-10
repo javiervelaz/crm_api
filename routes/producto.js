@@ -3,6 +3,7 @@ const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
+const { requireLimit } = require('../middleware/limitMiddleware');
 
 
 
@@ -29,7 +30,7 @@ router.delete(
   '/images/:imgId',
   deleteImage,
 );
-router.post('/', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.create'),createProducto);
+router.post('/', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.create'),requireLimit('maxProductos'),createProducto);
 router.get('/list/:cliente_id', getProductoList);
 router.post('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);

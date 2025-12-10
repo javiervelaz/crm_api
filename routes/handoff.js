@@ -6,10 +6,10 @@ const { requireFeature } = require('../middleware/featureMiddleware');
 const handoffController = require('../controllers/handoffController');
 
 // Issue short-lived token (called by n8n)
-router.post('/sign',authenticateJWT,requireFeature('canUseWhatsappBot'), handoffController.sign);
+router.post('/sign', handoffController.sign);
 
 // Validate token and return session/cart context (called by PWA /start)
-router.get('/resolve', authenticateJWT,requireFeature('canUseWhatsappBot'),handoffController.resolve);
+router.get('/resolve',handoffController.resolve);
 
 
 
