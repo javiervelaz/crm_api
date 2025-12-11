@@ -30,7 +30,8 @@ router.delete(
   '/images/:imgId',
   deleteImage,
 );
-router.post('/', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.create'),requireLimit('maxProductos'),createProducto);
+router.post('/', authenticateJWT,authorizeModule('productos'),
+authorizePermission('productos','productos.create'),requireLimit('maxProductos'),createProducto);
 router.get('/list/:cliente_id', getProductoList);
 router.post('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);
