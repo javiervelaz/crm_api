@@ -10,6 +10,7 @@ const { requireLimit } = require('../middleware/limitMiddleware');
 
 router.post('/abrir-caja', operacionesDiariasController.registrarAperturaCierreCaja);
 router.post('/crear-pedido',authenticateJWT,requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
+router.post('/crear-pedido-whatsaap', operacionesDiariasController.crearPedido);
 router.get('/listar-pedidos/:registroDiarioId/:cliente_id', authenticateJWT,authorizeModule('operaciones'),
                 authorizePermission('operaciones', 'operaciones.list'),operacionesDiariasController.listarPedidos);
 router.post('/registrar-salida-caja', operacionesDiariasController.registrarSalidaCaja);
