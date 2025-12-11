@@ -42,7 +42,7 @@ const { sendWelcomeEmail } = require('../../services/email/emailService');
         [nombre, cuit, adminNombre, adminApellido, adminEmail, telefono, tierId, canalAltaValue]
       );
       const cliente = clienteRes.rows[0];
-      console.log("cliente id ",cliente.id)
+     
       const userTypes = (await client.query('SELECT * FROM "user_type"')).rows;
       const adminUserType = userTypes.find((ut) => ut.codigo === 'ADMIN');
       if (!adminUserType) throw new Error('user_type "admin" no está configurado');
@@ -89,9 +89,20 @@ const { sendWelcomeEmail } = require('../../services/email/emailService');
         );
         const modulo = mRes.rows[0];
         modulosCliente.push(modulo);
-        await client.query(`INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id) VALUES ($1,$2,$3)`,
-          [rolAdmin.id, modulo.id, cliente.id]);
+
+        for (const rol of rolesCliente) {
+          const esAdmin = rol.id === rolAdmin.id;
+
+          // Si el módulo es "plan" y el rol NO es admin → no lo agregamos
+          if (mm.codigo === 'plan' && !esAdmin) continue;
+
+          await client.query(
+            `INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id) VALUES ($1,$2,$3)`,
+            [rol.id, modulo.id, cliente.id]
+          );
+        }
       }
+
 
       const acciones = (await client.query(`SELECT id, codigo, descripcion FROM permiso_accion ORDER BY id`)).rows;
       for (const modulo of modulosCliente) {
