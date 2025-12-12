@@ -40,7 +40,7 @@ async function createSubscription(cliente, tier) {
     };
   }
 
-  const payerEmail = TEST_PAYER_EMAIL;
+  const payerEmail = cliente.contacto_email;
 
   const data = {
     reason: `Suscripción plan ${tier.code}`,
