@@ -32,11 +32,11 @@ router.delete(
 );
 router.post('/', authenticateJWT,authorizeModule('productos'),
 authorizePermission('productos','productos.create'),requireLimit('maxProductos'),createProducto);
-router.get('/list/:cliente_id', getProductoList);
+router.get('/list/:cliente_id',authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.list'), getProductoList);
 router.post('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);
-router.put('/:id', updateProducto);
-router.delete('/:id/:cliente_id', deleteProducto);
+router.put('/:id',authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.update'), updateProducto);
+router.delete('/:id/:cliente_id', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.delete'),deleteProducto);
 // Subir imagen de producto
 router.post(
   '/:id/images',
