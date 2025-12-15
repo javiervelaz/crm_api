@@ -38,6 +38,8 @@ router.get('/:id/:cliente_id', getProductoById);
 router.put('/:id',authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.update'), updateProducto);
 router.delete('/:id/:cliente_id', authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.delete'),deleteProducto);
 // Subir imagen de producto
+//whatsaap
+router.get('/w/list/:cliente_id', getProductoList);
 router.post(
   '/:id/images',
   upload.single('image'),          // campo "image" en el form-data
