@@ -11,6 +11,12 @@
         "src": "/(.*)",
         "dest": "node.js"
       }
+    ],
+    "crons": [
+      {
+      "path": "/api/cron/expire-tiers",
+      "schedule": "0 3 * * *"
+      }
     ]
   }
   
