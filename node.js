@@ -33,6 +33,7 @@ const clientePlanRoutes = require('./routes/clientePlan');
 const billingRoutes = require('./routes/billing');
 const billingWebhookRoutes = require('./routes/billingWebhook');
 const tiersRoutes = require('./routes/tiers');
+const whatsappRoutes = require('./routes/whatsaap');
 
 
 app.use(express.json());
@@ -62,6 +63,7 @@ app.use('/api/cliente-plan', clientePlanRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/billing/webhook', billingWebhookRoutes);
 app.use('/api/tiers', tiersRoutes);
+app.use('/api/whatsaap',whatsappRoutes);
 
 
 

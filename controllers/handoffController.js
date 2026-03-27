@@ -31,7 +31,7 @@ const sign = async (req, res) => {
 const resolve = async (req, res) => {
 
   const token = req.query.c || req.headers['x-handoff-token'];
-  console.log(token)
+ 
   if ( !token) {
     return res.status(400).json({ message: 'Missing conversationId (c) or token (t)' });
   }
@@ -46,6 +46,7 @@ const resolve = async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
     if(payload.exp){
       expiresIn = payload.exp  - now;
+      console.log("expire in", expiresIn)
        if (expiresIn <= 0) {
         return res.status(401).json({
           valid: false,
