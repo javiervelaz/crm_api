@@ -101,7 +101,7 @@ async function createOneTimePayment(cliente, tier) {
     },
     auto_return: 'approved',
     payer: {
-      email: TEST_PAYER_EMAIL,
+      email: payerEmail,
     },
     metadata: {
       tipo: 'pago_unico',
