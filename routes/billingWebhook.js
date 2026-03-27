@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const {
   activateTierForCliente,
@@ -15,9 +16,36 @@ router.post('', async (req, res) => {
     return res.status(200).send('MOCK MODE ACTIVE');
   }
 
+  // Verify MercadoPago webhook signature
+  const xSignature = req.headers['x-signature'];
+  const xRequestId = req.headers['x-request-id'];
+  const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
+
+  if (mpWebhookSecret) {
+    if (!xSignature || !xRequestId) {
+      return res.status(401).json({ error: 'Missing webhook signature' });
+    }
+
+    const dataId = req.query['data.id'] || '';
+    const parts = xSignature.split(',').reduce((acc, part) => {
+      const [key, value] = part.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {});
+
+    const ts = parts.ts;
+    const hash = parts.v1;
+
+    const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+    const hmac = crypto.createHmac('sha256', mpWebhookSecret).update(manifest).digest('hex');
+
+    if (hmac !== hash) {
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+  }
+
   try {
     const body = req.body;
-    console.log('Webhook recibido REAL:', JSON.stringify(body));
 
     // Suscripción recurrente
     if (body.type === 'preapproval' && body.data?.id) {

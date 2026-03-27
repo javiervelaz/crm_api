@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../../pool');
+const pool = require('../pool');
 const bcrypt = require('bcrypt');
 const { createOneTimePayment } = require('../services/billing/mercadoPagoService');
 
