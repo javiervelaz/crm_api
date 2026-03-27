@@ -1,7 +1,8 @@
 // controllers/handoffController.js
 const jwt = require('jsonwebtoken');
 
-const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET || 'change-me';
+const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET;
+if (!HANDOFF_JWT_SECRET) throw new Error('HANDOFF_JWT_SECRET env variable is required');
 const HANDOFF_TTL_SECONDS = parseInt(process.env.HANDOFF_TTL_SECONDS || '600', 10); // 10 min
 /**
  * POST /api/handoff/sign
@@ -31,7 +32,6 @@ const sign = async (req, res) => {
 const resolve = async (req, res) => {
 
   const token = req.query.c || req.headers['x-handoff-token'];
-  console.log(token)
   if ( !token) {
     return res.status(400).json({ message: 'Missing conversationId (c) or token (t)' });
   }
@@ -44,6 +44,7 @@ const resolve = async (req, res) => {
       userPhoneE164:'userPhoneE164',
     });
     const now = Math.floor(Date.now() / 1000);
+    let expiresIn = null;
     if(payload.exp){
       expiresIn = payload.exp  - now;
        if (expiresIn <= 0) {
@@ -62,7 +63,7 @@ const resolve = async (req, res) => {
       waPhoneId: payload.waPhoneId,
       conversationId: payload.conversationId,
       exp: payload.exp ?? null,
-      expiresIn, // segundos restantes (puede ser null si no hay exp)
+      expiresIn,
     });
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });

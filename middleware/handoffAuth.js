@@ -1,6 +1,7 @@
 // middleware/handoffAuth.js
 const jwt = require('jsonwebtoken');
-const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET || 'change-me';
+const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET;
+if (!HANDOFF_JWT_SECRET) throw new Error('HANDOFF_JWT_SECRET env variable is required');
 
 module.exports = function handoffAuth(req, res, next) {
   const token = (req.query.t) || req.headers['x-handoff-token'];

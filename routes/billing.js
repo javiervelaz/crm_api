@@ -8,7 +8,6 @@ router.post('/checkout', authenticateJWT, async (req, res) => {
   try {
     const { tierCode } = req.body;
     const user = req.user;
-    console.log(user)
     if (!user || !user.cliente_id) {
       return res.status(403).json({ error: 'Usuario sin cliente asociado' });
     }

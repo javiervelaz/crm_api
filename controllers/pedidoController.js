@@ -2,7 +2,7 @@ const PedidoService = require('../services/pedido/pedidoService');
 
 
 const createPedido = async (req, res) => {
-  const { registro_diario_id, monto_total,usuario_id,sucursal_id,productos  } = req.body;
+  const { registro_diario_id, monto_total,usuario_id,sucursal_id,productos,medio_pago_id,observacion  } = req.body;
 
   try {
     // Crear el pedido y los productos asociados
