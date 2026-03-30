@@ -36,6 +36,7 @@ const billingRoutes = require('./routes/billing');
 const billingWebhookRoutes = require('./routes/billingWebhook');
 const tiersRoutes = require('./routes/tiers');
 const whatsappRoutes = require('./routes/whatsaap');
+const expireTiersRoutes = require('./routes/expireTiers');
 
 
 app.use(express.json());
@@ -65,6 +66,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/billing/webhook', billingWebhookRoutes);
 app.use('/api/tiers', tiersRoutes);
 app.use('/api/whatsaap',whatsappRoutes);
+app.use('/api/cron/expire-tiers', expireTiersRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
