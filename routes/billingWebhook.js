@@ -85,7 +85,8 @@ router.post('', async (req, res) => {
       const metadata = payment.metadata;
       if (!metadata || metadata.tipo !== 'pago_unico') return res.status(200).send('IGNORED');
 
-      const clienteId = payment.additional_info?.payer?.id || null;
+      const rawRef = payment.external_reference || '';
+      const clienteId = rawRef.startsWith('cliente-') ? rawRef.replace('cliente-', '') : rawRef || null;
       const tierId = metadata.tier_id;
       const duracionMeses = metadata.duracion_meses || 1;
 

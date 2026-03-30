@@ -40,7 +40,7 @@ async function createSubscription(cliente, tier) {
     };
   }
 
-  const payerEmail = cliente.contacto_email;
+  const payerEmail = process.env.MERCADOPAGO_TEST_PAYER_EMAIL || cliente.contacto_email;
 
   const data = {
     reason: `Suscripción plan ${tier.code}`,
@@ -63,7 +63,7 @@ async function createSubscription(cliente, tier) {
       initPoint: response.init_point || response.body?.init_point,
     };
   } catch (err) {
-    console.error('[MP] Error creando preapproval:', err.response?.data || err.message);
+    console.error('[MP] Error creando preapproval:', JSON.stringify(err.cause || err.apiResponse || err.response?.data || err, null, 2));
     throw err;
   }
 }
@@ -86,6 +86,8 @@ async function createOneTimePayment(cliente, tier) {
     };
   }
 
+  const payerEmail = cliente.contacto_email || process.env.MERCADOPAGO_TEST_PAYER_EMAIL;
+
   const data = {
     items: [
       {
@@ -95,11 +97,13 @@ async function createOneTimePayment(cliente, tier) {
         unit_price: Number(tier.precio_mensual),
       },
     ],
+    external_reference: `cliente-${cliente.id}`,
     back_urls: {
       success: process.env.FRONTEND_SUCCESS_URL,
       failure: process.env.FRONTEND_FAILURE_URL,
     },
     auto_return: 'approved',
+    notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
     payer: {
       email: payerEmail,
     },
@@ -115,6 +119,7 @@ async function createOneTimePayment(cliente, tier) {
     return {
       paymentId: response.id || response.body?.id,
       initPoint: response.init_point || response.body?.init_point,
+      sandboxInitPoint: response.sandbox_init_point || response.body?.sandbox_init_point,
     };
   } catch (err) {
     console.error('[MP] Error creando preference:', err.response?.data || err.message);
