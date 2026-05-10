@@ -100,7 +100,6 @@ const checkCajaAbierta = async (req, res) => {
 }
 
 const terminarPedido =  async (req, res) => {
-    console.log("body", req.body);
     const id = req.params.id;
     const {cliente_id} = req.body;
     try {
@@ -123,7 +122,6 @@ const pedidoMontoTotalDiario = async (req, res) => {
 
 const cierrCaja = async (req, res) => {
     const { id, monto_final,usuario_cierre_id,sucursal_id,cliente_id } = req.body;
-    console.log(req.body)
     try {
         const result = await operacionesDiariasService.actualizarRegistroDiarioService({id,monto_final, usuario_cierre_id, sucursal_id,cliente_id });
         res.status(200).json(result);

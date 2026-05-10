@@ -1,4 +1,4 @@
-const ModuloService = require('../services/cliente/clienteService');
+const ClienteService = require('../services/cliente/clienteService');
 
 
 const createCliente = async (req, res) => {
@@ -16,7 +16,7 @@ const createCliente = async (req, res) => {
   } = req.body;
 
   try {
-    const result = await ModuloService.createClienteService({
+    const result = await ClienteService.createClienteService({
       nombre,
       cuit,
       adminNombre,
@@ -38,11 +38,11 @@ const createCliente = async (req, res) => {
 const getClienteById = async (req, res) => {
     const { id,cliente_id } = req.params;
     try {
-      const Modulo = await ModuloService.getModuloByIdService( id,cliente_id );
-        if (!Modulo) {
-          return res.status(404).json({ error: 'Modulo not found' });
+      const cliente = await ClienteService.getClienteByIdService( id,cliente_id );
+        if (!cliente) {
+          return res.status(404).json({ error: 'Cliente not found' });
         }
-        res.status(200).json(Modulo);
+        res.status(200).json(cliente);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -51,7 +51,7 @@ const getClienteById = async (req, res) => {
   const getClienteList = async (req, res) => {
     const { cliente_id } = req.params;
     try {
-      const result = await ModuloService.getModuloListService(cliente_id)
+      const result = await ClienteService.getClienteListService(cliente_id)
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -62,8 +62,8 @@ const getClienteById = async (req, res) => {
     const moduloId = req.params.id;
     const { codigo,descripcion,status,cliente_id } = req.body;
     try {
-      const updatedModulo = await ModuloService.updateModuloService(moduloId, {codigo,descripcion,status,cliente_id});
-      res.status(200).json(updatedModulo);
+      const updatedCliente = await ClienteService.updateClienteService(moduloId, {codigo,descripcion,status,cliente_id});
+      res.status(200).json(updatedCliente);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -72,7 +72,7 @@ const getClienteById = async (req, res) => {
   const deleteCliente = async (req, res) => {
     const { id,cliente_id } = req.params;
     try {
-      const result = await ModuloService.deleteModuloService(id,cliente_id);
+      const result = await ClienteService.deleteClienteService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

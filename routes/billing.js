@@ -2,13 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const pool = require('../pool');
-const { createSubscription, saveSubscription } = require('../services/billing/mercadoPagoService');
+const { createSubscription, createOneTimePayment, saveSubscription } = require('../services/billing/mercadoPagoService');
 
 router.post('/checkout', authenticateJWT, async (req, res) => {
   try {
     const { tierCode } = req.body;
     const user = req.user;
-    console.log(user)
     if (!user || !user.cliente_id) {
       return res.status(403).json({ error: 'Usuario sin cliente asociado' });
     }
@@ -22,18 +21,23 @@ router.post('/checkout', authenticateJWT, async (req, res) => {
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
 
     const tierRes = await pool.query(
-      `SELECT id, code, precio_mensual FROM tier WHERE UPPER(code) = $1`,
+      `SELECT id, code, nombre, precio_mensual, duracion_meses FROM tier WHERE UPPER(code) = $1`,
       [tierCode.toUpperCase()]
     );
 
     const tier = tierRes.rows[0];
     if (!tier) return res.status(400).json({ error: 'Plan inválido' });
-   
-    const { initPoint, preapprovalId } = await createSubscription(cliente, tier);
 
-    await saveSubscription(cliente.id, tier.id, preapprovalId);
+    const paymentType = req.body.paymentType || 'one_time';
 
-    return res.json({ initPoint, preapprovalId });
+    if (paymentType === 'subscription') {
+      const { initPoint, preapprovalId } = await createSubscription(cliente, tier);
+      await saveSubscription(cliente.id, tier.id, preapprovalId);
+      return res.json({ initPoint, preapprovalId });
+    }
+
+    const { initPoint, sandboxInitPoint, paymentId } = await createOneTimePayment(cliente, tier);
+    return res.json({ initPoint, sandboxInitPoint, paymentId });
 
   } catch (err) {
     console.error('Error en /checkout:', err);
