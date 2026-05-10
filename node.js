@@ -9,7 +9,8 @@ const port = process.env.PORT || 3001;
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:3000'];
-app.use(cors({ origin: allowedOrigins }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json());
 const registroDiarioRoutes = require('./routes/registroDiario');
 const userRoutes = require('./routes/users');
 const rolRoutes = require("./routes/rol");
@@ -39,7 +40,6 @@ const whatsappRoutes = require('./routes/whatsaap');
 const expireTiersRoutes = require('./routes/expireTiers');
 
 
-app.use(express.json());
 app.use('/api/registro_diario', registroDiarioRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rol', rolRoutes);
