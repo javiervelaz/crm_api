@@ -47,9 +47,8 @@ const resolve = async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
     let expiresIn = null;
     if(payload.exp){
-      expiresIn = payload.exp  - now;
-      console.log("expire in", expiresIn)
-       if (expiresIn <= 0) {
+      expiresIn = payload.exp - now;
+      if (expiresIn <= 0) {
         return res.status(401).json({
           valid: false,
           reason: 'expired',

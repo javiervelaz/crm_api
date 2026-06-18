@@ -10,49 +10,58 @@ const pool = require('../pool');
 
 /**
  * REAL WEBHOOK (MP_MOCK = false)
+ * Nota: se lee process.env.MP_MOCK en tiempo de request (no al cargar el modulo)
+ * para que los tests puedan cambiar el valor entre suites sin reiniciar el proceso.
  */
 router.post('', async (req, res) => {
-  if (USE_MOCK) {
+  if (process.env.MP_MOCK === 'true') {
     return res.status(200).send('MOCK MODE ACTIVE');
   }
 
-  // Verify MercadoPago webhook signature
+  // Verificar firma del webhook de MercadoPago (obligatorio en produccion)
   const xSignature = req.headers['x-signature'];
   const xRequestId = req.headers['x-request-id'];
   const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
 
-  if (mpWebhookSecret) {
-    if (!xSignature || !xRequestId) {
-      return res.status(401).json({ error: 'Missing webhook signature' });
-    }
+  if (!mpWebhookSecret) {
+    console.error('[BILLING WEBHOOK] MP_WEBHOOK_SECRET no esta configurado -- rechazando request por seguridad');
+    return res.status(500).json({ error: 'Webhook secret not configured' });
+  }
 
-    const dataId = req.query['data.id'] || '';
-    const parts = xSignature.split(',').reduce((acc, part) => {
-      const [key, value] = part.trim().split('=');
-      acc[key] = value;
-      return acc;
-    }, {});
+  if (!xSignature || !xRequestId) {
+    return res.status(401).json({ error: 'Missing webhook signature headers' });
+  }
 
-    const ts = parts.ts;
-    const hash = parts.v1;
+  const dataId = req.query['data.id'] || '';
+  const parts = xSignature.split(',').reduce((acc, part) => {
+    const [key, value] = part.trim().split('=');
+    acc[key] = value;
+    return acc;
+  }, {});
 
-    const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
-    const hmac = crypto.createHmac('sha256', mpWebhookSecret).update(manifest).digest('hex');
+  const ts = parts.ts;
+  const hash = parts.v1;
 
-    if (hmac !== hash) {
-      return res.status(401).json({ error: 'Invalid webhook signature' });
-    }
+  if (!ts || !hash) {
+    return res.status(401).json({ error: 'Malformed x-signature header' });
+  }
+
+  const manifest = 'id:' + dataId + ';request-id:' + xRequestId + ';ts:' + ts + ';';
+  const hmac = crypto.createHmac('sha256', mpWebhookSecret).update(manifest).digest('hex');
+
+  if (hmac !== hash) {
+    return res.status(401).json({ error: 'Invalid webhook signature' });
   }
 
   try {
     const body = req.body;
 
-    // Suscripción recurrente
-    if (body.type === 'preapproval' && body.data?.id) {
+    // Suscripcion recurrente
+    if (body.type === 'preapproval' && body.data && body.data.id) {
       const preapprovalId = body.data.id;
 
       const subRes = await pool.query(
-        `SELECT * FROM billing_subscription WHERE mp_preapproval_id = $1`,
+        'SELECT * FROM billing_subscription WHERE mp_preapproval_id = $1',
         [preapprovalId]
       );
 
@@ -60,7 +69,7 @@ router.post('', async (req, res) => {
       if (!sub) return res.status(200).send('OK');
 
       await pool.query(
-        `UPDATE billing_subscription SET status = 'active' WHERE mp_preapproval_id = $1`,
+        "UPDATE billing_subscription SET status = 'active' WHERE mp_preapproval_id = $1",
         [preapprovalId]
       );
 
@@ -69,13 +78,13 @@ router.post('', async (req, res) => {
       return res.status(200).send('OK');
     }
 
-    // Pago único (promo)
-    if (body.type === 'payment' && body.data?.id) {
+    // Pago unico (promo)
+    if (body.type === 'payment' && body.data && body.data.id) {
       const paymentId = body.data.id;
 
-      const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      const paymentRes = await fetch('https://api.mercadopago.com/v1/payments/' + paymentId, {
         headers: {
-          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+          Authorization: 'Bearer ' + process.env.MERCADOPAGO_ACCESS_TOKEN,
         },
       });
 
@@ -93,11 +102,7 @@ router.post('', async (req, res) => {
       if (!clienteId || !tierId) return res.status(200).send('MISSING DATA');
 
       await pool.query(
-        `UPDATE cliente
-         SET tier_id = $1,
-             tier_expiration_date = CURRENT_DATE + ($2 || ' months')::interval,
-             updated_at = NOW()
-         WHERE id = $3`,
+        "UPDATE cliente SET tier_id = $1, tier_expiration_date = CURRENT_DATE + ($2 || ' months')::interval, updated_at = NOW() WHERE id = $3",
         [tierId, duracionMeses, clienteId]
       );
 
