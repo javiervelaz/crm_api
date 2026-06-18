@@ -1,57 +1,81 @@
 const request = require('supertest');
 const sinon = require('sinon');
-const app = require('../node'); // Asegúrate de que la ruta sea correcta a tu archivo principal
-const operacionesService = require('../services/operaciones_diarias/operacionesDiariasService'); // Importa el servicio de operaciones
-const InventarioInsumosService = require('../services/inventario_insumo/inventarioInsumoService'); // Importa el modelo de InventarioInsumos
-const MovimientoInventario = require('../services/movimiento_inventario/movimientoInventarioService'); // Importa el modelo correspondiente
+const jwt = require('jsonwebtoken');
+const app = require('../node');
+const operacionesService = require('../services/operaciones_diarias/operacionesDiariasService');
+const InventarioInsumosService = require('../services/inventario_insumo/inventarioInsumoService');
+const MovimientoInventario = require('../services/movimiento_inventario/movimientoInventarioService');
+const planService = require('../services/cliente/planService');
+const pool = require('../pool');
 
 let chai;
 let expect;
 
 describe('Operaciones Diarias API', () => {
+  let adminToken;
+
   before(async () => {
     chai = await import('chai');
     expect = chai.expect;
+    adminToken = jwt.sign(
+      {
+        userId: 'test-user-id',
+        cliente_id: 'test-cliente-id',
+        username: 'test',
+        sucursal: 1,
+        role: ['admin'],
+        modules: ['operaciones'],
+        permissions: {
+          operaciones: ['operaciones.list', 'operaciones.delete', 'operaciones.create'],
+        },
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
   });
 
   let mockopId = 'mocked-op-id';
 
   beforeEach(() => {
+    // requireLimit: plan sin limite pasa directamente
+    sinon.stub(planService, 'getClienteTierAndFeatures').resolves({
+      features: { maxPedidosMensuales: null },
+      tierCode: 'FREE',
+    });
+    sinon.stub(pool, 'query').resolves({ rows: [{ count: '0' }] });
+
     sinon.stub(operacionesService, 'registrarAperturaCierreCaja').callsFake(async (abrirCaja) => {
-        return { id: mockopId  };
+      return { id: mockopId };
     });
 
     sinon.stub(operacionesService, 'registrarCompraInsumo').callsFake(async (compraIn) => {
-        return { id: mockopId };
+      return { id: mockopId };
     });
 
-    // Mock ajustado para 'actualizarInventarioInsumos'
     sinon.stub(operacionesService, 'actualizarInventarioInsumos').callsFake(async (id, compraIn) => {
-        const { sucursal_id, nombre, cantidad } = compraIn;
-        if (id === 1) {
-            return { id: 1, nombre: 'harina', sucursal_id: 1, cantidad: 10 }; // Simulación para actualizar inventario existente
-        } else {
-            return await InventarioInsumosService.createInventarioInsumoService({ nombre, sucursal_id, cantidad });
-        }
+      const { sucursal_id, nombre, cantidad } = compraIn;
+      if (id === 1) {
+        return { id: 1, nombre: 'harina', sucursal_id: 1, cantidad: 10 };
+      } else {
+        return await InventarioInsumosService.createInventarioInsumoService({ nombre, sucursal_id, cantidad });
+      }
     });
 
     sinon.stub(InventarioInsumosService, 'createInventarioInsumoService').callsFake(async (nuevoInsumo) => {
-        return { id: 2, nombre: nuevoInsumo.nombre, sucursal_id: nuevoInsumo.sucursal_id, cantidad: nuevoInsumo.cantidad }; // Simulación correcta de creación de nuevo insumo
+      return { id: 2, nombre: nuevoInsumo.nombre, sucursal_id: nuevoInsumo.sucursal_id, cantidad: nuevoInsumo.cantidad };
     });
 
-    /////
     sinon.stub(operacionesService, 'registrarMovimientoInventario').callsFake(async (inventarioInsumosId, registroDiarioId, tipoMovimiento, cantidad) => {
-        return { id: mockopId, tipo_movimiento: 'entrada', cantidad: 10 };
+      return { id: mockopId, tipo_movimiento: 'entrada', cantidad: 10 };
     });
 
     sinon.stub(operacionesService, 'registrarSalidaCaja').callsFake(async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId) => {
-        return { id: mockopId, categoria: 'compra', monto: 500 };
+      return { id: mockopId, categoria: 'compra', monto: 500 };
     });
 
-    sinon.stub(operacionesService, 'crearPedido').callsFake(async (registroDiarioId, montoTotal, usuarioId, sucursalId) => {
-        return { id: mockopId, monto_total: 1000 };
+    sinon.stub(operacionesService, 'crearPedido').callsFake(async (body) => {
+      return { id: mockopId, monto_total: 1000 };
     });
-
   });
 
   afterEach(() => {
@@ -61,13 +85,13 @@ describe('Operaciones Diarias API', () => {
   it('should create a new operacion diaria', async () => {
     const res = await request(app)
       .post('/api/operaciones/abrir-caja')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         fecha: '2024-02-02',
         usuario_apertura_id: 1,
         caja_inicial: 100,
-        sucursal_id: 1
+        sucursal_id: 1,
       });
-      
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('id', mockopId);
   });
@@ -75,15 +99,15 @@ describe('Operaciones Diarias API', () => {
   it('should create a new compra insumo', async () => {
     const res = await request(app)
       .post('/api/operaciones/registrar-compra-insumo')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         registroDiarioId: 1,
         insumo: 'harina',
         cantidad: 2,
         precioTotal: 200,
         usuarioId: 1,
-        sucursalId: 1
+        sucursalId: 1,
       });
-      
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('id', mockopId);
   });
@@ -91,38 +115,39 @@ describe('Operaciones Diarias API', () => {
   it('should update inventory insumo', async () => {
     const res = await request(app)
       .put('/api/operaciones/actualizar-inventario-insumos/1')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         sucursal_id: 1,
         nombre: 'harina',
-        cantidad: 12
+        cantidad: 12,
       });
-    expect(res.body).to.have.property('cantidad', 12); 
+    expect(res.body).to.have.property('cantidad', 12);
   });
 
   it('should create new inventory insumo if not found', async () => {
     const res = await request(app)
       .put('/api/operaciones/actualizar-inventario-insumos/2')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         sucursal_id: 1,
         nombre: 'aceite',
-        cantidad: 5
+        cantidad: 5,
       });
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property('id', 2);
     expect(res.body).to.have.property('nombre', 'aceite');
   });
 
-
   it('should register a new inventory movement', async () => {
     const res = await request(app)
       .post('/api/operaciones/registrar-movimiento-inventario')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         inventario_insumos_id: 1,
         registro_diario_id: 1,
         tipo_movimiento: 'entrada',
-        cantidad: 10
+        cantidad: 10,
       });
-
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('id', mockopId);
     expect(res.body).to.have.property('tipo_movimiento', 'entrada');
@@ -132,15 +157,15 @@ describe('Operaciones Diarias API', () => {
   it('should register a new cash withdrawal', async () => {
     const res = await request(app)
       .post('/api/operaciones/registrar-salida-caja')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         registroDiarioId: 1,
         categoria: 'compra',
         descripcion: 'compra de materiales',
         monto: 500,
         usuarioId: 1,
-        sucursalId: 1
+        sucursalId: 1,
       });
-
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('id', mockopId);
     expect(res.body).to.have.property('categoria', 'compra');
@@ -150,16 +175,16 @@ describe('Operaciones Diarias API', () => {
   it('should register a new order', async () => {
     const res = await request(app)
       .post('/api/operaciones/crear-pedido')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         registroDiarioId: 1,
         montoTotal: 1000,
         usuarioId: 1,
-        sucursalId: 1
+        sucursalId: 1,
       });
-
     expect(res.status).to.equal(201);
-    expect(res.body).to.have.property('id', mockopId);
-    expect(res.body).to.have.property('monto_total', 1000);
+    expect(res.body).to.have.property('status', 'OK');
+    expect(res.body.idPedido).to.have.property('id', mockopId);
+    expect(res.body.idPedido).to.have.property('monto_total', 1000);
   });
-
 });
