@@ -79,7 +79,7 @@ describe('Billing API (MP_MOCK=true)', () => {
       const res = await request(app)
         .post('/api/billing/checkout')
         .set('Authorization', `Bearer ${token}`)
-        .send({ tierCode: 'BASIC' });
+        .send({ tierCode: 'BASIC', paymentType: 'subscription' });
 
       expect(res.status).to.equal(200);
       expect(res.body).to.have.property('initPoint');
@@ -91,7 +91,7 @@ describe('Billing API (MP_MOCK=true)', () => {
     it('rechaza sin token JWT', async () => {
       const res = await request(app)
         .post('/api/billing/checkout')
-        .send({ tierCode: 'BASIC' });
+        .send({ tierCode: 'BASIC', paymentType: 'subscription' });
 
       expect(res.status).to.equal(403);
     });
@@ -108,7 +108,7 @@ describe('Billing API (MP_MOCK=true)', () => {
       const res = await request(app)
         .post('/api/billing/checkout')
         .set('Authorization', `Bearer ${token}`)
-        .send({ tierCode: 'BASIC' });
+        .send({ tierCode: 'BASIC', paymentType: 'subscription' });
 
       expect(res.status).to.equal(404);
     });
@@ -138,6 +138,9 @@ describe('Billing API (MP_MOCK=true)', () => {
   // POST /api/billing/webhook (real endpoint, mock mode)
   // ─────────────────────────────────────────────
   describe('POST /api/billing/webhook (modo mock)', () => {
+    before(() => { process.env.MP_MOCK = 'true'; });
+    after(() => { process.env.MP_MOCK = 'false'; });
+
     it('responde 200 con mensaje MOCK MODE ACTIVE', async () => {
       const res = await request(app)
         .post('/api/billing/webhook')

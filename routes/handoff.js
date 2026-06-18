@@ -5,11 +5,11 @@ const { authenticateJWT } = require('../middleware/authMiddleware');
 const { requireFeature } = require('../middleware/featureMiddleware');
 const handoffController = require('../controllers/handoffController');
 
-// Issue short-lived token (called by n8n)
-router.post('/sign', handoffController.sign);
+// Issue short-lived token (called by n8n — requiere JWT del sistema)
+router.post('/sign', authenticateJWT, handoffController.sign);
 
-// Validate token and return session/cart context (called by PWA /start)
-router.get('/resolve',handoffController.resolve);
+// Validate token and return session/cart context (called by PWA /start — usa handoff JWT propio)
+router.get('/resolve', handoffController.resolve);
 
 
 

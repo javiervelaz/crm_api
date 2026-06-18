@@ -22,12 +22,16 @@ const {
 // Listar imágenes de un producto
 router.get(
   '/:id/images',
+  authenticateJWT,
   listImages,
 );
 
 // Borrar una imagen
 router.delete(
   '/images/:imgId',
+  authenticateJWT,
+  authorizeModule('productos'),
+  authorizePermission('productos', 'productos.update'),
   deleteImage,
 );
 router.post('/', authenticateJWT,authorizeModule('productos'),

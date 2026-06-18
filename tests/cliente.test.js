@@ -1,5 +1,6 @@
 const request = require('supertest');
 const sinon = require('sinon');
+const jwt = require('jsonwebtoken');
 const app = require('../node');
 const clienteService = require('../services/cliente/clienteService');
 
@@ -7,9 +8,24 @@ let chai;
 let expect;
 
 describe('Cliente API', () => {
+  let adminToken;
+
   before(async () => {
     chai = await import('chai');
     expect = chai.expect;
+    adminToken = jwt.sign(
+      {
+        userId: 'test-user-id',
+        cliente_id: 'test-cliente-id',
+        username: 'test',
+        sucursal: 1,
+        role: ['admin'],
+        modules: [],
+        permissions: {},
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
   });
 
   const mockClienteId = 'mocked-cliente-id';
@@ -31,39 +47,31 @@ describe('Cliente API', () => {
       };
     });
 
-    // Note: clienteController imports clienteService as "ModuloService" and calls
-    // getModuloByIdService, getModuloListService, updateModuloService, deleteModuloService.
-    // These are method names from a copy-paste of moduloController. We stub them
-    // directly on the service object so the controller can find them.
-    clienteService.getModuloByIdService = sinon.stub().callsFake(async (id) => {
+    sinon.stub(clienteService, 'getClienteByIdService').callsFake(async (id) => {
       return { id, nombre: 'Test Cliente', cuit: '20-12345678-9' };
     });
 
-    clienteService.getModuloListService = sinon.stub().callsFake(async () => {
+    sinon.stub(clienteService, 'getClienteListService').callsFake(async () => {
       return [{ id: mockClienteId, nombre: 'Test Cliente', cuit: '20-12345678-9' }];
     });
 
-    clienteService.updateModuloService = sinon.stub().callsFake(async (id, data) => {
+    sinon.stub(clienteService, 'updateClienteService').callsFake(async (id, data) => {
       return { id, ...data };
     });
 
-    clienteService.deleteModuloService = sinon.stub().callsFake(async (id) => {
+    sinon.stub(clienteService, 'deleteClienteService').callsFake(async (id) => {
       return { message: 'Cliente eliminado' };
     });
   });
 
   afterEach(() => {
     sinon.restore();
-    delete clienteService.getModuloByIdService;
-    delete clienteService.getModuloListService;
-    delete clienteService.updateModuloService;
-    delete clienteService.deleteModuloService;
   });
 
-  // CREATE
   it('should create a new cliente', async () => {
     const res = await request(app)
       .post('/api/cliente')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         nombre: 'Mi Empresa',
         cuit: '20-12345678-9',
@@ -75,7 +83,6 @@ describe('Cliente API', () => {
         telefono: '1122334455',
         adminPassword: 'password123',
       });
-
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('cliente');
     expect(res.body.cliente).to.have.property('id', mockClienteId);
@@ -84,6 +91,7 @@ describe('Cliente API', () => {
   it('should return error if nombre or cuit is missing when creating cliente', async () => {
     const res = await request(app)
       .post('/api/cliente')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         nombre: '',
         cuit: '',
@@ -91,7 +99,6 @@ describe('Cliente API', () => {
         adminApellido: 'Perez',
         adminEmail: 'admin@empresa.com',
       });
-
     expect(res.status).to.equal(400);
     expect(res.body).to.have.property('error', 'nombre y cuit son obligatorios');
   });
@@ -99,6 +106,7 @@ describe('Cliente API', () => {
   it('should return error if admin data is incomplete when creating cliente', async () => {
     const res = await request(app)
       .post('/api/cliente')
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         nombre: 'Mi Empresa',
         cuit: '20-12345678-9',
@@ -106,49 +114,44 @@ describe('Cliente API', () => {
         adminApellido: '',
         adminEmail: '',
       });
-
     expect(res.status).to.equal(400);
     expect(res.body).to.have.property('error', 'datos del usuario administrador incompletos');
   });
 
-  // GET LIST
   it('should get a list of clientes', async () => {
     const res = await request(app)
-      .get('/api/cliente/list/');
-
+      .get('/api/cliente/list/')
+      .set('Authorization', 'Bearer ' + adminToken);
     expect(res.status).to.equal(200);
     expect(res.body).to.be.an('array');
   });
 
-  // GET BY ID
   it('should get a cliente by id', async () => {
     const res = await request(app)
-      .get(`/api/cliente/list/${mockClienteId}`);
-
+      .get('/api/cliente/list/' + mockClienteId)
+      .set('Authorization', 'Bearer ' + adminToken);
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property('id');
   });
 
-  // UPDATE
   it('should update a cliente', async () => {
     const res = await request(app)
-      .put(`/api/cliente/${mockClienteId}`)
+      .put('/api/cliente/' + mockClienteId)
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({
         codigo: 'CLI001',
         descripcion: 'Cliente Actualizado',
         status: true,
         cliente_id: mockClienteId,
       });
-
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property('descripcion', 'Cliente Actualizado');
   });
 
-  // DELETE
   it('should delete a cliente', async () => {
     const res = await request(app)
-      .delete(`/api/cliente/${mockClienteId}`);
-
+      .delete('/api/cliente/' + mockClienteId)
+      .set('Authorization', 'Bearer ' + adminToken);
     expect(res.status).to.equal(200);
   });
 });

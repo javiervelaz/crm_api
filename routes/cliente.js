@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
 const {
   createCliente,
   getClienteById,
@@ -8,10 +9,10 @@ const {
   deleteCliente,
 } = require('../controllers/clienteController');
 
-router.post('/', createCliente);
-router.get('/list/', getClienteList);
-router.get('/list/:id', getClienteById);
-router.put('/:id', updateCliente);
-router.delete('/:id', deleteCliente);
+router.post('/', authenticateJWT, authorizeRole(['admin']), createCliente);
+router.get('/list/', authenticateJWT, getClienteList);
+router.get('/list/:id', authenticateJWT, getClienteById);
+router.put('/:id', authenticateJWT, authorizeRole(['admin']), updateCliente);
+router.delete('/:id', authenticateJWT, authorizeRole(['admin']), deleteCliente);
 
 module.exports = router;

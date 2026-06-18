@@ -1,5 +1,5 @@
 // crm_api/middleware/limitMiddleware.js
-const { getClienteTierAndFeatures } = require('../services/cliente/planService');
+const planService = require('../services/cliente/planService');
 const pool = require('../pool');
 const dayjs = require('dayjs');
 
@@ -10,47 +10,47 @@ const requireLimit = (limitKey) => {
       return res.status(403).json({ error: 'Cliente no asociado al usuario' });
     }
 
-    const { features, tierCode } = await getClienteTierAndFeatures(user.cliente_id);
+    const { features, tierCode } = await planService.getClienteTierAndFeatures(user.cliente_id);
     const limitValue = features[limitKey];
 
-    // Si el plan no tiene restricción en este ítem
+    // Si el plan no tiene restriccion en este item
     if (limitValue == null) return next();
 
     try {
       let countRes;
 
       switch (limitKey) {
-        case 'maxPedidosMensuales':
-          const desde = dayjs().startOf('month').format('YYYY-MM-DD');
+        case 'maxPedidosMensuales': {
           countRes = await pool.query(
-            //`SELECT COUNT(*) FROM registro_diario WHERE cliente_id = $1 AND fecha >= $2`,
-             `SELECT COUNT(*) FROM pedido WHERE cliente_id = $1`,
+            'SELECT COUNT(*) FROM pedido WHERE cliente_id = $1',
             [user.cliente_id]
           );
           break;
+        }
 
-        case 'maxProductos':
+        case 'maxProductos': {
           countRes = await pool.query(
-            `SELECT COUNT(*) FROM producto WHERE cliente_id = $1`,
+            'SELECT COUNT(*) FROM producto WHERE cliente_id = $1',
             [user.cliente_id]
           );
           break;
+        }
 
         default:
-          return res.status(500).json({ error: 'Restricción no implementada: ' + limitKey });
+          return res.status(500).json({ error: 'Restriccion no implementada: ' + limitKey });
       }
 
       const currentCount = Number(countRes.rows[0].count);
       if (currentCount >= limitValue) {
         return res.status(403).json({
-          error: `Tu plan (${tierCode}) permite hasta ${limitValue} ${limitKey}. Ya alcanzaste el límite.`
+          error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + limitKey + '. Ya alcanzaste el limite.',
         });
       }
 
       next();
     } catch (err) {
       console.error('Error en requireLimit:', err);
-      return res.status(500).json({ error: 'Error evaluando restricción de plan' });
+      return res.status(500).json({ error: 'Error evaluando restriccion de plan' });
     }
   };
 };
