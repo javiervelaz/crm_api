@@ -1,9 +1,9 @@
-FROM node:18-bullseye as bot
+FROM node:22-slim
 WORKDIR /app
+ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm i
+RUN npm ci --omit=dev
 COPY . .
-ARG RAILWAY_STATIC_URL
-ARG PUBLIC_URL
-ARG PORT
-CMD ["npm", "start"]
+USER node
+EXPOSE 3001
+CMD ["node", "node.js"]

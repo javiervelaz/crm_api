@@ -12,7 +12,7 @@ const createUser = async (user) => {
 };
 
 const getUserById = async (id) => {
-  const result = await pool.query('SELECT * FROM user WHERE id = $1', [id]);
+  const result = await pool.query('SELECT * FROM "user" WHERE id = $1', [id]);
   return result.rows[0];
 };
 
@@ -39,7 +39,7 @@ const deleteUser = async (id) => {
 const createRol = async (rol) => {
   const { descripcion } = rol;
   const result = await pool.query(
-    'INSERT INTO rol (descripcionl) VALUES ($1) RETURNING *',
+    'INSERT INTO rol (descripcion) VALUES ($1) RETURNING *',
     [descripcion]
   );
   return result.rows[0];

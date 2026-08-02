@@ -1,18 +1,20 @@
+// routes/cliente.js — el tenant sólo puede leer y editar su propia ficha
 const express = require('express');
 const router = express.Router();
-const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
-const {
-  createCliente,
-  getClienteById,
-  getClienteList,
-  updateCliente,
-  deleteCliente,
-} = require('../controllers/clienteController');
+const { authorizeRole } = require('../middleware/authMiddleware');
+const { getClienteById, updateCliente } = require('../controllers/clienteController');
 
-router.post('/', authenticateJWT, authorizeRole(['admin']), createCliente);
-router.get('/list/', authenticateJWT, getClienteList);
-router.get('/list/:id', authenticateJWT, getClienteById);
-router.put('/:id', authenticateJWT, authorizeRole(['admin']), updateCliente);
-router.delete('/:id', authenticateJWT, authorizeRole(['admin']), deleteCliente);
+// GET /api/cliente/me
+router.get('/me', async (req, res, next) => {
+  req.params.id = String(req.clienteId);
+  return getClienteById(req, res, next);
+});
 
+router.put('/me', authorizeRole(['admin']), async (req, res, next) => {
+  req.params.id = String(req.clienteId);
+  return updateCliente(req, res, next);
+});
+
+// createCliente vive en /api/saas (alta pública)
+// deleteCliente y el listado global viven en /api/platform
 module.exports = router;

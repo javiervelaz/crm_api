@@ -16,7 +16,7 @@ describe('Rol API', () => {
     adminToken = jwt.sign(
       {
         userId: 'test-user-id',
-        cliente_id: 'test-cliente-id',
+        cliente_id: 1,
         username: 'test',
         sucursal: 1,
         role: ['admin'],
@@ -29,7 +29,7 @@ describe('Rol API', () => {
   });
 
   const mockRolId = 'mocked-rol-id';
-  const mockClienteId = 'test-cliente-id';
+  const mockClienteId = 1;
 
   beforeEach(() => {
     sinon.stub(rolService, 'createRolService').callsFake(async (rol) => {

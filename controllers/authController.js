@@ -1,24 +1,27 @@
-const jwt = require('jsonwebtoken');
+// controllers/authController.js
 const userService = require('../services/user/userService');
+const { issueToken, TTL } = require('../services/auth/tokenService');
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
- const user = await userService.authenticate(email, password);
-  if (user.error) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
+    }
+
+    const user = await userService.authenticate(String(email).trim().toLowerCase(), password);
+
+    // authenticate puede devolver undefined (usuario inexistente) o { error }
+    if (!user || user.error) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    res.json({ token: issueToken(user), expiresIn: TTL });
+  } catch (err) {
+    console.error('[login]', err);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
   }
-  const token = jwt.sign(
-    { 
-      userId: user.id, 
-      role: user.role, 
-      modules: user.modules,
-      permissions: user.permissions,
-      sucursal:1, 
-      username: user.name, 
-      cliente_id: user.cliente_id 
-    }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  res.json({ token });
-  
 };
 
 module.exports = { login };

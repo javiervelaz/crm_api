@@ -101,10 +101,7 @@ router.post('', async (req, res) => {
 
       if (!clienteId || !tierId) return res.status(200).send('MISSING DATA');
 
-      await pool.query(
-        "UPDATE cliente SET tier_id = $1, tier_expiration_date = CURRENT_DATE + ($2 || ' months')::interval, updated_at = NOW() WHERE id = $3",
-        [tierId, duracionMeses, clienteId]
-      );
+      await activateTierForCliente(clienteId, tierId, { meses: Number(duracionMeses) || 1 });
 
       return res.status(200).send('OK');
     }
