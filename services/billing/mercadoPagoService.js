@@ -40,7 +40,14 @@ async function createSubscription(cliente, tier) {
     };
   }
 
-  const payerEmail = process.env.MERCADOPAGO_TEST_PAYER_EMAIL || cliente.contacto_email;
+ // createSubscription — el email real gana; el de test sólo en sandbox
+const payerEmail = USE_MOCK || process.env.NODE_ENV !== 'production'
+  ? (process.env.MERCADOPAGO_TEST_PAYER_EMAIL || cliente.contacto_email)
+  : cliente.contacto_email;
+
+  if (!payerEmail) {
+    throw new Error(`Cliente ${cliente.id} sin contacto_email — no se puede crear la suscripción`);
+  }
 
   const data = {
     reason: `Suscripción plan ${tier.code}`,
@@ -99,8 +106,9 @@ async function createOneTimePayment(cliente, tier) {
     ],
     external_reference: `cliente-${cliente.id}`,
     back_urls: {
-      success: process.env.FRONTEND_SUCCESS_URL,
-      failure: process.env.FRONTEND_FAILURE_URL,
+      success: `${process.env.PLATFORM_BASE_URL}/auth/pago?status=success`,
+      failure: `${process.env.PLATFORM_BASE_URL}/auth/pago?status=failure`,
+      pending: `${process.env.PLATFORM_BASE_URL}/auth/pago?status=pending`,
     },
     auto_return: 'approved',
     notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
@@ -140,17 +148,32 @@ async function saveSubscription(clienteId, tierId, preapprovalId) {
   );
 }
 
+
+const TZ = 'America/Argentina/Cordoba';
+
 /**
- * ACTIVATE PLAN FOR THE CLIENTE
+ * Activa el tier y setea la fecha de vencimiento.
+ * Sin la fecha, el enforcement de la Fase 2 nunca corta:
+ * planStatus queda ACTIVE para siempre.
  */
-async function activateTierForCliente(clienteId, tierId) {
+async function activateTierForCliente(clienteId, tierId, { meses } = {}) {
+  const { rows } = await pool.query(
+    `SELECT duracion_meses FROM tier WHERE id = $1`, [tierId]
+  );
+  // Suscripción recurrente: 1 mes por ciclo. Pago único: lo que diga el tier.
+  const duracion = meses ?? (Number(rows[0]?.duracion_meses) || 1);
+
   await pool.query(
-    `
-    UPDATE cliente
-    SET tier_id = $1, updated_at = NOW()
-    WHERE id = $2
-    `,
-    [tierId, clienteId]
+    `UPDATE cliente
+        SET tier_id              = $1,
+            tier_expiration_date = GREATEST(
+              COALESCE(tier_expiration_date, (now() AT TIME ZONE $4)::date),
+              (now() AT TIME ZONE $4)::date
+            ) + ($2 || ' months')::interval,
+            tier_downgraded_at   = NULL,
+            updated_at           = now()
+      WHERE id = $3`,
+    [tierId, duracion, clienteId, TZ]
   );
 }
 

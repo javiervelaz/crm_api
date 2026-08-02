@@ -1,0 +1,4 @@
+
+> base-bailey-memory@1.0.0 test
+> cross-env JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js --exit --timeout 10000 --require tests/setup.js
+

@@ -7,60 +7,34 @@ const clienteService = require('../services/cliente/clienteService');
 let chai;
 let expect;
 
-describe('Cliente API', () => {
+describe('Cliente API (/api/cliente/me)', () => {
+  const CLIENTE_ID = 1;
   let adminToken;
+  let employeeToken;
 
   before(async () => {
     chai = await import('chai');
     expect = chai.expect;
-    adminToken = jwt.sign(
-      {
-        userId: 'test-user-id',
-        cliente_id: 'test-cliente-id',
-        username: 'test',
-        sucursal: 1,
-        role: ['admin'],
-        modules: [],
-        permissions: {},
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+
+    const basePayload = {
+      userId: 'test-user-id',
+      cliente_id: CLIENTE_ID,
+      username: 'test',
+      sucursal: 1,
+      modules: [],
+      permissions: {},
+    };
+    adminToken = jwt.sign({ ...basePayload, role: ['admin'] }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    employeeToken = jwt.sign({ ...basePayload, role: ['empleado'] }, process.env.JWT_SECRET, { expiresIn: '1h' });
   });
 
-  const mockClienteId = 'mocked-cliente-id';
-
   beforeEach(() => {
-    sinon.stub(clienteService, 'createClienteService').callsFake(async (data) => {
-      const { nombre, cuit, adminNombre, adminApellido, adminEmail } = data;
-      if (!nombre || !cuit) {
-        throw new Error('nombre y cuit son obligatorios');
-      }
-      if (!adminNombre || !adminApellido || !adminEmail) {
-        throw new Error('datos del usuario administrador incompletos');
-      }
-      return {
-        cliente: { id: mockClienteId, nombre },
-        adminUser: { id: 'admin-id', nombre: adminNombre, apellido: adminApellido, email: adminEmail },
-        roles: [],
-        modulos: [],
-      };
-    });
-
     sinon.stub(clienteService, 'getClienteByIdService').callsFake(async (id) => {
-      return { id, nombre: 'Test Cliente', cuit: '20-12345678-9' };
-    });
-
-    sinon.stub(clienteService, 'getClienteListService').callsFake(async () => {
-      return [{ id: mockClienteId, nombre: 'Test Cliente', cuit: '20-12345678-9' }];
+      return { id: Number(id), nombre: 'Mi Empresa', cuit: '20-12345678-9' };
     });
 
     sinon.stub(clienteService, 'updateClienteService').callsFake(async (id, data) => {
-      return { id, ...data };
-    });
-
-    sinon.stub(clienteService, 'deleteClienteService').callsFake(async (id) => {
-      return { message: 'Cliente eliminado' };
+      return { id: Number(id), nombre: 'Mi Empresa', cuit: '20-12345678-9', ...data };
     });
   });
 
@@ -68,90 +42,34 @@ describe('Cliente API', () => {
     sinon.restore();
   });
 
-  it('should create a new cliente', async () => {
-    const res = await request(app)
-      .post('/api/cliente')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        nombre: 'Mi Empresa',
-        cuit: '20-12345678-9',
-        adminNombre: 'Juan',
-        adminApellido: 'Perez',
-        adminEmail: 'admin@empresa.com',
-        adminDni: '12345678',
-        plan: 'FREE',
-        telefono: '1122334455',
-        adminPassword: 'password123',
-      });
-    expect(res.status).to.equal(201);
-    expect(res.body).to.have.property('cliente');
-    expect(res.body.cliente).to.have.property('id', mockClienteId);
+  it('GET /api/cliente/me sin token → 401', async () => {
+    const res = await request(app).get('/api/cliente/me');
+    expect(res.status).to.equal(401);
   });
 
-  it('should return error if nombre or cuit is missing when creating cliente', async () => {
+  it('GET /api/cliente/me devuelve la ficha del propio tenant', async () => {
     const res = await request(app)
-      .post('/api/cliente')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        nombre: '',
-        cuit: '',
-        adminNombre: 'Juan',
-        adminApellido: 'Perez',
-        adminEmail: 'admin@empresa.com',
-      });
-    expect(res.status).to.equal(400);
-    expect(res.body).to.have.property('error', 'nombre y cuit son obligatorios');
-  });
-
-  it('should return error if admin data is incomplete when creating cliente', async () => {
-    const res = await request(app)
-      .post('/api/cliente')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        nombre: 'Mi Empresa',
-        cuit: '20-12345678-9',
-        adminNombre: '',
-        adminApellido: '',
-        adminEmail: '',
-      });
-    expect(res.status).to.equal(400);
-    expect(res.body).to.have.property('error', 'datos del usuario administrador incompletos');
-  });
-
-  it('should get a list of clientes', async () => {
-    const res = await request(app)
-      .get('/api/cliente/list/')
+      .get('/api/cliente/me')
       .set('Authorization', 'Bearer ' + adminToken);
     expect(res.status).to.equal(200);
-    expect(res.body).to.be.an('array');
+    expect(res.body).to.have.property('id', CLIENTE_ID);
+    expect(res.body).to.have.property('nombre', 'Mi Empresa');
   });
 
-  it('should get a cliente by id', async () => {
+  it('PUT /api/cliente/me actualiza la ficha con rol admin', async () => {
     const res = await request(app)
-      .get('/api/cliente/list/' + mockClienteId)
-      .set('Authorization', 'Bearer ' + adminToken);
-    expect(res.status).to.equal(200);
-    expect(res.body).to.have.property('id');
-  });
-
-  it('should update a cliente', async () => {
-    const res = await request(app)
-      .put('/api/cliente/' + mockClienteId)
+      .put('/api/cliente/me')
       .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        codigo: 'CLI001',
-        descripcion: 'Cliente Actualizado',
-        status: true,
-        cliente_id: mockClienteId,
-      });
+      .send({ nombre: 'Empresa Actualizada' });
     expect(res.status).to.equal(200);
-    expect(res.body).to.have.property('descripcion', 'Cliente Actualizado');
+    expect(res.body).to.have.property('nombre', 'Empresa Actualizada');
   });
 
-  it('should delete a cliente', async () => {
+  it('PUT /api/cliente/me con role=empleado → 403 (requiere admin)', async () => {
     const res = await request(app)
-      .delete('/api/cliente/' + mockClienteId)
-      .set('Authorization', 'Bearer ' + adminToken);
-    expect(res.status).to.equal(200);
+      .put('/api/cliente/me')
+      .set('Authorization', 'Bearer ' + employeeToken)
+      .send({ nombre: 'Empresa Actualizada' });
+    expect(res.status).to.equal(403);
   });
 });
