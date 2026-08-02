@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { enforceParamTenant } = require('../middleware/tenantMiddleware');
+router.use(enforceParamTenant);
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
 const {
   createRol,

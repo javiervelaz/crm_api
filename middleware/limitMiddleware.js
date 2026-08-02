@@ -22,7 +22,9 @@ const requireLimit = (limitKey) => {
       switch (limitKey) {
         case 'maxPedidosMensuales': {
           countRes = await pool.query(
-            'SELECT COUNT(*) FROM pedido WHERE cliente_id = $1',
+            `SELECT COUNT(*) FROM pedido
+            WHERE cliente_id = $1
+              AND created_at >= date_trunc('month', CURRENT_DATE)`,
             [user.cliente_id]
           );
           break;

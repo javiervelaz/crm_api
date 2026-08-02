@@ -1,6 +1,8 @@
 // crm_api/routes/clientePlan.js
 const express = require('express');
 const router = express.Router();
+const { enforceParamTenant } = require('../middleware/tenantMiddleware');
+router.use(enforceParamTenant);
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const { getClienteTierAndFeatures } = require('../services/cliente/planService');
 

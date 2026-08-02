@@ -59,10 +59,15 @@ const getClienteById = async (req, res) => {
   };
   
   const updateCliente = async (req, res) => {
-    const moduloId = req.params.id;
-    const { codigo,descripcion,status,cliente_id } = req.body;
+    const id = req.params.id;
+    const { nombre, contacto_nombre, contacto_apellido, contacto_email, contacto_telefono } = req.body;
     try {
-      const updatedCliente = await ClienteService.updateClienteService(moduloId, {codigo,descripcion,status,cliente_id});
+      const updatedCliente = await ClienteService.updateClienteService(id, {
+        nombre, contacto_nombre, contacto_apellido, contacto_email, contacto_telefono,
+      });
+      if (!updatedCliente) {
+        return res.status(404).json({ error: 'Cliente not found' });
+      }
       res.status(200).json(updatedCliente);
     } catch (error) {
       res.status(500).json({ error: error.message });

@@ -39,7 +39,7 @@ function makeAdminToken(overrides = {}) {
   return jwt.sign(
     {
       userId:      'test-user-id',
-      cliente_id:  'test-cliente-id',
+      cliente_id:  1,
       username:    'test',
       sucursal:    1,
       role:        ['admin'],
@@ -83,19 +83,16 @@ function makeMpSignature(dataId, requestId, ts, secret) {
 // Sección 1: Autenticación — 403 sin token
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('Fase 1 — Auth: 403 sin token en endpoints protegidos', () => {
+describe('Fase 1 — Auth: 401 sin token en endpoints protegidos', () => {
   before(async () => {
     chai = await import('chai');
     expect = chai.expect;
   });
 
-  // Tabla de rutas que deben retornar 403 sin Authorization
+  // Tabla de rutas que deben retornar 401 sin Authorization
   const protectedRoutes = [
-    { method: 'post',   path: '/api/cliente',                  body: {} },
-    { method: 'get',    path: '/api/cliente/list/',             body: null },
-    { method: 'get',    path: '/api/cliente/list/any-id',       body: null },
-    { method: 'put',    path: '/api/cliente/any-id',            body: {} },
-    { method: 'delete', path: '/api/cliente/any-id',            body: null },
+    { method: 'get',    path: '/api/cliente/me',                body: null },
+    { method: 'put',    path: '/api/cliente/me',                body: {} },
 
     { method: 'post',   path: '/api/rol',                       body: {} },
     { method: 'get',    path: '/api/rol/list/any-cliente-id',   body: null },
@@ -123,11 +120,11 @@ describe('Fase 1 — Auth: 403 sin token en endpoints protegidos', () => {
   ];
 
   protectedRoutes.forEach(({ method, path, body }) => {
-    it(`${method.toUpperCase()} ${path} → 403 sin token`, async () => {
+    it(`${method.toUpperCase()} ${path} → 401 sin token`, async () => {
       const req = request(app)[method](path);
       if (body) req.send(body);
       const res = await req;
-      expect(res.status).to.equal(403);
+      expect(res.status).to.equal(401);
     });
   });
 });
@@ -136,7 +133,7 @@ describe('Fase 1 — Auth: 403 sin token en endpoints protegidos', () => {
 // Sección 2: Autenticación — 403 con token inválido
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('Fase 1 — Auth: 403 con token inválido o expirado', () => {
+describe('Fase 1 — Auth: 401 con token inválido o expirado', () => {
   before(async () => {
     if (!chai) {
       chai = await import('chai');
@@ -144,26 +141,26 @@ describe('Fase 1 — Auth: 403 con token inválido o expirado', () => {
     }
   });
 
-  it('POST /api/cliente → 403 con token malformado', async () => {
+  it('PUT /api/cliente/me → 401 con token malformado', async () => {
     const res = await request(app)
-      .post('/api/cliente')
+      .put('/api/cliente/me')
       .set('Authorization', 'Bearer token.invalido.xyz')
       .send({});
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
-  it('POST /api/rol → 403 con token firmado con secret incorrecto', async () => {
+  it('POST /api/rol → 401 con token firmado con secret incorrecto', async () => {
     const badToken = jwt.sign({ userId: 'x', role: ['admin'] }, 'wrong-secret', { expiresIn: '1h' });
     const res = await request(app)
       .post('/api/rol')
       .set('Authorization', `Bearer ${badToken}`)
       .send({ descripcion: 'test' });
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
-  it('POST /api/operaciones/abrir-caja → 403 con token expirado', async () => {
+  it('POST /api/operaciones/abrir-caja → 401 con token expirado', async () => {
     const expiredToken = jwt.sign(
-      { userId: 'x', role: ['admin'], cliente_id: 'c1' },
+      { userId: 'x', role: ['admin'], cliente_id: 1 },
       process.env.JWT_SECRET,
       { expiresIn: '-1s' }
     );
@@ -171,12 +168,12 @@ describe('Fase 1 — Auth: 403 con token inválido o expirado', () => {
       .post('/api/operaciones/abrir-caja')
       .set('Authorization', `Bearer ${expiredToken}`)
       .send({});
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
-  it('GET /api/users/tipo → 403 sin header Authorization', async () => {
+  it('GET /api/users/tipo → 401 sin header Authorization', async () => {
     const res = await request(app).get('/api/users/tipo');
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 });
 
@@ -221,9 +218,9 @@ describe('Fase 1 — Auth: token válido supera authenticateJWT (stub de servici
     expect(res.status).to.not.equal(403);
   });
 
-  it('GET /api/rol/list/test-cliente con token válido → 200', async () => {
+  it('GET /api/rol/list/1 con token válido → 200', async () => {
     const res = await request(app)
-      .get('/api/rol/list/test-cliente')
+      .get('/api/rol/list/1')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).to.equal(200);
     expect(res.body).to.be.an('array');
@@ -245,9 +242,9 @@ describe('Fase 1 — Auth: token válido supera authenticateJWT (stub de servici
     expect(res.status).to.not.equal(403);
   });
 
-  it('GET /api/users/rol/1/test-cliente con token válido → no retorna 403', async () => {
+  it('GET /api/users/rol/1/1 con token válido → no retorna 403', async () => {
     const res = await request(app)
-      .get('/api/users/rol/1/test-cliente')
+      .get('/api/users/rol/1/1')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).to.not.equal(403);
   });
@@ -273,7 +270,7 @@ describe('Fase 1 — Auth: authorizeRole bloquea roles insuficientes', () => {
 
   beforeEach(() => {
     sinon.stub(rolService, 'createRolService').resolves({ id: 'rol-id' });
-    sinon.stub(clienteService, 'createClienteService').resolves({ cliente: { id: 'c-id' } });
+    sinon.stub(clienteService, 'updateClienteService').resolves({ id: 1 });
   });
 
   afterEach(() => sinon.restore());
@@ -287,20 +284,13 @@ describe('Fase 1 — Auth: authorizeRole bloquea roles insuficientes', () => {
     expect(res.body).to.have.property('error', 'Insufficient permissions');
   });
 
-  it('POST /api/cliente con role=empleado → 403 (requiere admin)', async () => {
+  it('PUT /api/cliente/me con role=empleado → 403 (requiere admin)', async () => {
     const res = await request(app)
-      .post('/api/cliente')
+      .put('/api/cliente/me')
       .set('Authorization', `Bearer ${employeeToken}`)
-      .send({ nombre: 'test', cuit: '20-1-1' });
+      .send({ nombre: 'test' });
     expect(res.status).to.equal(403);
     expect(res.body).to.have.property('error', 'Insufficient permissions');
-  });
-
-  it('DELETE /api/cliente/any-id con role=empleado → 403', async () => {
-    const res = await request(app)
-      .delete('/api/cliente/any-id')
-      .set('Authorization', `Bearer ${employeeToken}`);
-    expect(res.status).to.equal(403);
   });
 });
 
@@ -476,19 +466,19 @@ describe('Fase 1 — Handoff: POST /sign requiere autenticación', () => {
     }
   });
 
-  it('POST /api/handoff/sign sin token → 403', async () => {
+  it('POST /api/handoff/sign sin token → 401', async () => {
     const res = await request(app)
       .post('/api/handoff/sign')
       .send({ conversationId: 'conv-1', waPhoneId: 'wa-1' });
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
-  it('POST /api/handoff/sign con token inválido → 403', async () => {
+  it('POST /api/handoff/sign con token inválido → 401', async () => {
     const res = await request(app)
       .post('/api/handoff/sign')
       .set('Authorization', 'Bearer este.no.es.valido')
       .send({ conversationId: 'conv-1', waPhoneId: 'wa-1' });
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
   it('POST /api/handoff/sign con token válido y body correcto → emite token (200)', async () => {
@@ -543,11 +533,11 @@ describe('Fase 1 — requireLimit: /crear-pedido-whatsaap tiene límite mensual'
 
   afterEach(() => sinon.restore());
 
-  it('sin token → 403 (auth antes que el límite)', async () => {
+  it('sin token → 401 (auth antes que el límite)', async () => {
     const res = await request(app)
       .post('/api/operaciones/crear-pedido-whatsaap')
       .send({});
-    expect(res.status).to.equal(403);
+    expect(res.status).to.equal(401);
   });
 
   it('con token válido pero límite alcanzado → 403 de plan', async () => {

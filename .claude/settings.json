@@ -8,7 +8,9 @@
       "Bash(npm run *)",
       "Bash(git *)",
       "Bash(node *)",
-      "Bash(npx *)"
+      "Bash(npx *)",
+      "Bash(npm test)",
+      "Bash(npm ls *)"
     ],
     "deny": [
       "Bash(rm -rf *)",

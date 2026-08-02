@@ -8,6 +8,8 @@ const { requireLimit } = require('../middleware/limitMiddleware');
 
 
 const router = express.Router();
+const { enforceParamTenant } = require('../middleware/tenantMiddleware');
+router.use(enforceParamTenant);
 const {
   createProducto,
   getProductoById,
