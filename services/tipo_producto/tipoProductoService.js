@@ -12,9 +12,9 @@ const createTipoProductoService = async (data) => {
     return result;
   }; 
 
-  const getTipoProductoByIdService = async (id) => {
-    const result = await db.getTipoProductoById(id);
-    
+  const getTipoProductoByIdService = async (id, cliente_id) => {
+    const result = await db.getTipoProductoById(id, cliente_id);
+
     return result;
   }
 
@@ -23,20 +23,23 @@ const createTipoProductoService = async (data) => {
     return result.rows;
   }
 
-  const updateTipoProductoService = async (Id,producto) => {
-    const { nombre } = producto;
+  const updateTipoProductoService = async (Id, producto) => {
+    const { nombre, cliente_id } = producto;
     if (!nombre ) {
       throw new Error('All fields are required');
     }
-    
-    const result = await db.updateTipoProducto(Id, { nombre});
+
+    const result = await db.updateTipoProducto(Id, { nombre, cliente_id });
     return result;
   }
 
-  const deleteTipoProductoService = async (id) => {
-    const result = await db.deleteTipoProducto(id);
+  const deleteTipoProductoService = async (id, cliente_id) => {
+    const result = await db.deleteTipoProducto(id, cliente_id);
     if (!result) {
-      return res.status(404).json({ error: 'TipoProducto not found' });
+      // Antes: `return res.status(...)` sin tener `res` en este scope — tiraba
+      // ReferenceError en vez de un 404 limpio. El controller ahora respeta
+      // error.status si está presente.
+      throw Object.assign(new Error('TipoProducto not found'), { status: 404 });
     }
     return result;
   }

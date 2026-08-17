@@ -30,7 +30,7 @@ const createTipoProducto = async (tp) => {
 
     const { rows, rowCount } = await pool.query(
       `UPDATE "tipo_producto"
-          SET nombre = $1, updated_at = CURRENT_TIMESTAMP
+          SET nombre = $1
         WHERE id = $2 AND cliente_id = $3::int
         RETURNING *`,
       [nombre, id, cliente_id]
