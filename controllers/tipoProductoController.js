@@ -14,8 +14,9 @@ const createTipoProducto = async (req, res) => {
 const getTipoProductoById = async (req, res) => {
     const { id } = req.params;
     try {
-      const TipoProducto = await TipoProductoService.getTipoProductoByIdService( id );
-      console.log("tipo prod",TipoProducto);
+      // req.clienteId lo setea scopeTenant a partir del JWT — la ruta no
+      // declara :cliente_id, así que esta es la única fuente confiable.
+      const TipoProducto = await TipoProductoService.getTipoProductoByIdService(id, req.clienteId);
         if (!TipoProducto) {
           return res.status(404).json({ error: 'TipoProducto not found' });
         }
@@ -40,20 +41,24 @@ const getTipoProductoById = async (req, res) => {
     const Id = req.params.id;
     const {  nombre } = req.body;
     try {
-      const result = await TipoProductoService.updateTipoProductoService(Id, { nombre});
+      // Antes se descartaba cliente_id acá y update tiraba siempre
+      // 'cliente_id requerido' en db.js. req.clienteId ya viene validado
+      // contra el JWT por scopeTenant.
+      const result = await TipoProductoService.updateTipoProductoService(Id, { nombre, cliente_id: req.clienteId });
       res.status(200).json(result);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(error.status ?? 500).json({ error: error.message });
     }
   };
-  
+
   const deleteTipoProducto = async (req, res) => {
     const { id } = req.params;
     try {
-      const result = await TipoProductoService.deleteTipoProductoService(id);
+      // Antes no se pasaba cliente_id acá y delete tiraba siempre.
+      const result = await TipoProductoService.deleteTipoProductoService(id, req.clienteId);
       res.status(200).json(result);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.status ?? 500).json({ error: err.message });
     }
   };
 
