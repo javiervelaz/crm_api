@@ -153,13 +153,12 @@ const createClienteService = async (data) => {
       const modulo = rows[0];
       modulosCliente.push(modulo);
 
-      for (const rol of rolesCliente) {
-        if (mm.codigo === 'plan' && rol.id !== rolAdmin.id) continue;
-        await client.query(
-          `INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id) VALUES ($1,$2,$3)`,
-          [rol.id, modulo.id, cliente.id]
-        );
-      }
+      // Sólo el rol admin recibe acceso a los módulos en el alta. Los demás
+      // roles quedan creados pero sin módulos/permisos: se configuran a mano.
+      await client.query(
+        `INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id) VALUES ($1,$2,$3)`,
+        [rolAdmin.id, modulo.id, cliente.id]
+      );
     }
 
     // ─── Permisos (batch: era N×M queries sueltas) ────────────────────────
