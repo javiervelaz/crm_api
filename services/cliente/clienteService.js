@@ -4,7 +4,9 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { createSubscription, createOneTimePayment, saveSubscription } =
   require('../billing/mercadoPagoService');
-const { sendWelcomeEmail } = require('../email/emailService');
+const { ESTADOS } = require('../verificacion/estados');
+const { TTL_DIAS } = require('../verificacion/config');
+const mailer = require('../email');
 
 const TZ = 'America/Argentina/Cordoba';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
@@ -84,16 +86,17 @@ const createClienteService = async (data) => {
          nombre, cuit, contacto_nombre, contacto_apellido,
          contacto_email, contacto_telefono, tier_id, canal_alta,
          tier_expiration_date, terminos_aceptados_at, terminos_version,
-         signup_ip, utm_source, utm_campaign
+         signup_ip, utm_source, utm_campaign, estado
        )
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
                CASE WHEN $9 THEN (now() AT TIME ZONE $10)::date ELSE NULL END,
-               now(), $11, $12, $13, $14)
+               now(), $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         nombre, cuitNorm, adminNombre, adminApellido, email, telefono,
         tier.id, canal_alta || 'landing', esPago, TZ,
         terminosVersion || null, signupIp || null, utmSource || null, utmCampaign || null,
+        ESTADOS.PENDIENTE,
       ]
     );
     const cliente = clienteRes.rows[0];
@@ -200,13 +203,37 @@ const createClienteService = async (data) => {
       );
     }
 
-    // Token de verificación de email (el envío es del caller)
+    // Token de verificación de email
     const verificationToken = crypto.randomBytes(32).toString('hex');
     await client.query(
       `INSERT INTO email_verification (token, cliente_id, user_id, email, expires_at)
-       VALUES ($1,$2,$3,$4, now() + interval '7 days')`,
-      [verificationToken, cliente.id, user.id, email]
+       VALUES ($1,$2,$3,$4, now() + ($5 || ' days')::interval)`,
+      [verificationToken, cliente.id, user.id, email, String(TTL_DIAS)]
     );
+
+    // El mail de bienvenida se encola DENTRO de la transacción, a propósito.
+    //
+    // Con el gate duro, si este mail no sale el usuario no puede entrar nunca:
+    // dejó de ser un "nice to have" post-registro. Encolarlo acá da la única
+    // garantía que sirve — si el COMMIT falla no queda un mail para una cuenta
+    // que no existe, y si el COMMIT sale el mail está asegurado aunque el
+    // proveedor esté caído en este instante.
+    await mailer.enqueue({
+      template: 'welcome',
+      to: email,
+      toName: adminNombre,
+      clienteId: cliente.id,
+      idempotencyKey: `welcome:${cliente.id}`,
+      data: {
+        nombreContacto: adminNombre,
+        nombreComercio: nombre,
+        plan: tier.code,
+        ttlDias: TTL_DIAS,
+        urlVerificacion: `${process.env.PLATFORM_BASE_URL}/auth/verificar?token=${verificationToken}`,
+        urlLogin: `${process.env.PLATFORM_BASE_URL}/`,
+        urlLoginTexto: String(process.env.PLATFORM_BASE_URL || '').replace(/^https?:\/\//, ''),
+      },
+    }, client);
 
     await client.query('COMMIT');
 

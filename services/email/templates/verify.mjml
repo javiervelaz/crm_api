@@ -1,0 +1,42 @@
+<mjml>
+  <mj-include path="./partials/head.mjml" />
+  <mj-body background-color="#f1f5f9" width="560px">
+    <mj-include path="./partials/header.mjml" />
+
+    <mj-section padding="32px 32px 8px 32px">
+      <mj-column>
+        <mj-text font-size="22px" line-height="30px" font-weight="700" color="#0f172a" padding="0">
+          Activá tu cuenta
+        </mj-text>
+        <mj-text padding="12px 0 0 0">
+          Pediste un enlace nuevo para <strong style="color:#0f172a">{{nombreComercio}}</strong>. Acá está:
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 32px 8px 32px">
+      <mj-column>
+        <mj-button href="{{url urlVerificacion}}" align="left">
+          Activar mi cuenta
+        </mj-button>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="8px 32px 24px 32px">
+      <mj-column>
+        <mj-text font-size="13px" color="#64748b" padding="0">
+          Vence en {{ttlDias}} días. Si el botón no funciona, copiá esta dirección en tu navegador:
+        </mj-text>
+        <mj-text font-size="13px" padding="8px 0 0 0" css-class="link-teal">
+          <a href="{{url urlVerificacion}}">{{urlVerificacion}}</a>
+        </mj-text>
+        <mj-text font-size="13px" color="#94a3b8" padding="16px 0 0 0">
+          Los enlaces que te mandamos antes ya no sirven: siempre vale el último.
+          Si no pediste esto, ignorá el mail.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./partials/footer.mjml" />
+  </mj-body>
+</mjml>

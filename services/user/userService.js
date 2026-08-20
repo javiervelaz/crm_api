@@ -11,52 +11,65 @@ const validateEmail = (email) => {
   return emailRegex.test(email);
 };  
 
-const authenticate = async (email, password) => {
-    const user = await db.auth(email);
-    if(user){
-      //const authConfig = JSON.parse(process.env.AUTH);
-      const userRole =  await userRoledb.getUserRoleByUserId(user.id,user.cliente_id);
-      const userModulo = await moduleRol.getUserModuloRolByUserId(user.id, user.cliente_id);
-      const result_permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
-      const roles =  userRole.map(role => role.descripcion)
-      // Mapeás solo el campo 'codigo'
-      const modulos = userModulo.map(item => item.codigo);
-      const permissions = {};
-      for (const row of result_permissions) {
-        if (row.es_global) {
-          if (!permissions._global) permissions._global = [];
-          permissions._global.push(row.permiso_codigo);
-        } else {
-          const mod = row.modulo_codigo || '_sin_modulo';
-          if (!permissions[mod]) permissions[mod] = [];
-          permissions[mod].push(row.permiso_codigo);
-        }
-      }
-      const userData = 
-          {
-              id: user.id,
-              username: user.email,
-              name : user.nombre + ", " + user.apellido,
-              password: bcrypt.hashSync(user.password, 8),
-              role: roles,
-              cliente_id: user.cliente_id || null,
-              modules: modulos,
-              permissions: permissions,
-          };
-          //console.log(userData)
-      if (!userData) {
-        return { error: 'Invalid username' };
-      }
-      const isPasswordValid = await bcrypt.compareSync(password, user.password);  
-      if (isPasswordValid) {
-        return userData;
-      } else {
-        return { error: 'Invalid credentials' };
-      }
-    }else{
-      return { error: 'Invalid credentials' };
+/**
+ * Arma el objeto de sesión de un usuario: roles, módulos y permisos.
+ * Es lo que consume issueToken(). Sin password: el JWT nunca la lleva.
+ */
+const buildSessionUser = async (user) => {
+  const userRole = await userRoledb.getUserRoleByUserId(user.id, user.cliente_id);
+  const userModulo = await moduleRol.getUserModuloRolByUserId(user.id, user.cliente_id);
+  const result_permissions = await permisosUser.getPermisoByUserId(user.id, user.cliente_id);
+
+  const permissions = {};
+  for (const row of result_permissions) {
+    if (row.es_global) {
+      if (!permissions._global) permissions._global = [];
+      permissions._global.push(row.permiso_codigo);
+    } else {
+      const mod = row.modulo_codigo || '_sin_modulo';
+      if (!permissions[mod]) permissions[mod] = [];
+      permissions[mod].push(row.permiso_codigo);
     }
-    
+  }
+
+  return {
+    id: user.id,
+    username: user.email,
+    name: `${user.nombre}, ${user.apellido}`,
+    role: userRole.map((r) => r.descripcion),
+    modules: userModulo.map((m) => m.codigo),
+    permissions,
+    cliente_id: user.cliente_id || null,
+    cliente_estado: user.cliente_estado || null,
+  };
+};
+
+/**
+ * Valida credenciales. Devuelve el usuario de sesión o { error }.
+ *
+ * El estado del cliente viaja en `cliente_estado` pero NO se evalúa acá: el
+ * gate vive en authController, y corre DESPUÉS de validar la contraseña. Si se
+ * rechazara antes, el login se convierte en un oráculo que confirma qué emails
+ * están registrados.
+ */
+const authenticate = async (email, password) => {
+  const user = await db.auth(email);
+  if (!user) return { error: 'Invalid credentials' };
+
+  const isPasswordValid = bcrypt.compareSync(password, user.password);
+  if (!isPasswordValid) return { error: 'Invalid credentials' };
+
+  return buildSessionUser(user);
+};
+
+/**
+ * Sesión sin contraseña, por id de usuario. La usa la activación de cuenta:
+ * el token del mail ya probó identidad.
+ */
+const buildSessionById = async (userId) => {
+  const user = await db.findForSessionById(userId);
+  if (!user) return null;
+  return buildSessionUser(user);
 };
 
 const createUserService = async (user) => {
@@ -151,6 +164,8 @@ module.exports = {
     updateUserService,
     deleteUserService,
     authenticate,
+    buildSessionUser,
+    buildSessionById,
     getUserTypeByIdService,
     getUserRolService,
     getUserByTelService,

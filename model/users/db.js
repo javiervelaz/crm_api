@@ -73,8 +73,53 @@ const getUserRol =  async (id,cliente_id) => {
   return result;
 };
 
+// Trae al usuario para el login, con el estado de su cliente.
+//
+// Cambios respecto de la version anterior:
+//  - lower(u.email): el indice uq_user_email_lower es sobre lower(email), y el
+//    login por email case-sensitive dejaba afuera a quien tipeaba con mayuscula.
+//  - u.deleted_at IS NULL: sin esto un usuario borrado logicamente seguia
+//    pudiendo iniciar sesion.
+//  - c.estado: lo necesita el gate de activacion en authController.
+//
+// OJO: NO filtrar por c.deleted_at. Esa columna tiene DEFAULT CURRENT_TIMESTAMP
+// (ver migrations/006), asi que todo cliente nace con valor y el filtro dejaria
+// a todo el mundo afuera.
 const auth = async (email) => {
-  const result = await pool.query('SELECT u.id as "id", u.email as "email" , p.password as "password", u."nombre",u."apellido", u.cliente_id as "cliente_id" FROM "user" u join "profile" p on u.id=p.id_user WHERE u.email = $1', [email]);
+  const result = await pool.query(
+    `SELECT u.id            AS "id",
+            u.email         AS "email",
+            p.password      AS "password",
+            u."nombre",
+            u."apellido",
+            u.cliente_id    AS "cliente_id",
+            c.estado        AS "cliente_estado"
+       FROM "user" u
+       JOIN profile p ON u.id = p.id_user
+       JOIN cliente c ON c.id = u.cliente_id
+      WHERE lower(u.email) = lower($1)
+        AND u.deleted_at IS NULL`,
+    [email]
+  );
+  return result.rows[0];
+};
+
+// Misma info que auth() pero por id y sin password: la usa la activacion de
+// cuenta, que ya probo identidad con el token del mail y no tiene la clave.
+const findForSessionById = async (userId) => {
+  const result = await pool.query(
+    `SELECT u.id            AS "id",
+            u.email         AS "email",
+            u."nombre",
+            u."apellido",
+            u.cliente_id    AS "cliente_id",
+            c.estado        AS "cliente_estado"
+       FROM "user" u
+       JOIN cliente c ON c.id = u.cliente_id
+      WHERE u.id = $1
+        AND u.deleted_at IS NULL`,
+    [userId]
+  );
   return result.rows[0];
 };
 
@@ -306,6 +351,7 @@ const postUserModulosPermisos = async (id,cliente_id,modulos) => {
 
 
 module.exports = {
+  findForSessionById,
     createUser,
     getUserById,
     getUsers,

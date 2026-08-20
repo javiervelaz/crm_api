@@ -23,6 +23,9 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/signup', require('./routes/signup'));
 app.use('/api/verify-email', require('./routes/verifyEmail'));
+// Drenado de la cola de emails. Autenticado con CRON_SECRET, lo dispara n8n.
+app.use('/api/cron/email-outbox', require('./routes/emailCron'));
+app.use('/api/cron/verificaciones', require('./routes/verificacionCron'));
 // ─── PÚBLICAS: no pasan por authenticateJWT ni scopeTenant ────────────────
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/saas',            require('./routes/saas'));           // alta pública

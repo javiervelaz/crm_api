@@ -5,13 +5,12 @@ const sinon = require('sinon');
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-for-tests';
 const app = require('../node');
 const ClienteService = require('../services/cliente/clienteService');
-const userService = require('../services/user/userService');
 const mpService = require('../services/billing/mercadoPagoService');
-const emailService = require('../services/email/emailService');
+const mailer = require('../services/email');
 
 const VALIDO = {
   comercioNombre: 'Kiosco Don Pepe',
-  cuit: '30712345670',            // reemplazar por un CUIT con DV válido
+  cuit: '30712345671',            // DV verificado con el algoritmo de validators/signupValidator.js
   adminNombre: 'Javier',
   adminApellido: 'Velaz',
   adminEmail: 'javi@ejemplo.com',
@@ -38,28 +37,28 @@ describe('POST /api/signup', () => {
       ...over,
     });
 
-  it('crea la cuenta y devuelve token de sesión', async () => {
+  it('crea la cuenta y NO devuelve token: primero hay que verificar el email', async () => {
     stubProvisioning();
-    sinon.stub(userService, 'authenticate').resolves({
-      id: 10, name: 'Javier, Velaz', cliente_id: 1,
-      role: ['ADMIN'], modules: ['productos'], permissions: {},
-    });
-    sinon.stub(emailService, 'sendWelcomeEmail').resolves();
+    sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
 
     const res = await request(app).post('/api/signup').send(VALIDO);
 
     expect(res.status).to.equal(201);
-    expect(res.body.token).to.be.a('string');
+    expect(res.body.token).to.equal(undefined);
+    expect(res.body.requiereVerificacion).to.equal(true);
+    expect(res.body.emailVerificacion).to.equal(VALIDO.adminEmail);
     expect(res.body.cliente.id).to.equal(1);
   });
 
-  it('devuelve 201 aunque falle el envío del email', async () => {
+  it('devuelve 201 aunque falle el drenado de la cola de emails', async () => {
     stubProvisioning();
-    sinon.stub(userService, 'authenticate').resolves({ id: 10, name: 'J', cliente_id: 1 });
-    sinon.stub(emailService, 'sendWelcomeEmail').rejects(new Error('SMTP caído'));
+    // El mail ya quedó encolado dentro de la transacción del provisioning:
+    // que el envío inmediato falle no puede romper el request, lo levanta
+    // el drenado periódico.
+    sinon.stub(mailer, 'drain').rejects(new Error('Resend caído'));
 
     const res = await request(app).post('/api/signup').send(VALIDO);
-    expect(res.status).to.equal(201);   // la cuenta existe: no puede fallar el request
+    expect(res.status).to.equal(201);
   });
 
   it('devuelve 201 con warning si MercadoPago falla', async () => {
@@ -67,15 +66,14 @@ describe('POST /api/signup', () => {
       esPago: true,
       tier: { id: 2, code: 'PREMIUM', nombre_publico: 'Premium', precio_mensual: 15000, duracion_meses: 1 },
     });
-    sinon.stub(userService, 'authenticate').resolves({ id: 10, name: 'J', cliente_id: 1 });
     sinon.stub(mpService, 'createOneTimePayment').rejects(new Error('MP 503'));
-    sinon.stub(emailService, 'sendWelcomeEmail').resolves();
+    sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
 
     const res = await request(app).post('/api/signup').send({ ...VALIDO, plan: 'PREMIUM' });
 
     expect(res.status).to.equal(201);
     expect(res.body.paymentWarning).to.be.a('string');
-    expect(res.body.token).to.be.a('string');
+    expect(res.body.token).to.equal(undefined);
   });
 
   it('rechaza CUIT con dígito verificador inválido', async () => {
@@ -111,8 +109,7 @@ describe('POST /api/signup', () => {
 
   it('no requiere autenticación', async () => {
     stubProvisioning();
-    sinon.stub(userService, 'authenticate').resolves({ id: 10, name: 'J', cliente_id: 1 });
-    sinon.stub(emailService, 'sendWelcomeEmail').resolves();
+    sinon.stub(mailer, 'drain').resolves({ sent: 0, failed: 0, retry: 0, procesados: 0 });
 
     const res = await request(app).post('/api/signup').send(VALIDO);
     expect(res.status).to.not.be.oneOf([401, 403]);
