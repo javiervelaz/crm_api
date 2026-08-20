@@ -1,10 +1,10 @@
 // controllers/signupController.js
 const ClienteService = require('../services/cliente/clienteService');
-const userService = require('../services/user/userService');
-const { issueToken, TTL } = require('../services/auth/tokenService');
-const { createSubscription, createOneTimePayment, saveSubscription } =
-  require('../services/billing/mercadoPagoService');
-const { sendWelcomeEmail } = require('../services/email/emailService');
+const {
+  createSubscription, createOneTimePayment, saveSubscription,
+} = require('../services/billing/mercadoPagoService');
+const mailer = require('../services/email');
+const { waitUntil } = require('@vercel/functions');
 
 const TERMINOS_VERSION = process.env.TERMINOS_VERSION || '2026-07';
 
@@ -17,6 +17,8 @@ const signup = async (req, res) => {
   let provisioned;
 
   // ─── Paso 1: provisioning transaccional ───────────────────────────────
+  // El mail de bienvenida se encola acá adentro (clienteService): si el COMMIT
+  // sale, el mail de activación está garantizado.
   try {
     provisioned = await ClienteService.createClienteService({
       nombre: comercioNombre,
@@ -42,20 +44,11 @@ const signup = async (req, res) => {
     return res.status(500).json({ error: 'No pudimos crear tu cuenta. Intentá de nuevo en unos minutos.' });
   }
 
-  const { cliente, tier, esPago, adminUser, verificationToken } = provisioned;
+  const { cliente, tier, esPago } = provisioned;
 
-  // ─── Paso 2: sesión inmediata ─────────────────────────────────────────
-  // A partir de acá la cuenta existe. Nada de lo que sigue puede fallar
-  // el request: el usuario ya es cliente.
-  let token = null;
-  try {
-    const authed = await userService.authenticate(adminUser.email, password);
-    if (authed && !authed.error) token = issueToken(authed);
-  } catch (err) {
-    console.error(`[signup] auto-login falló para cliente ${cliente.id}:`, err.message);
-  }
-
-  // ─── Paso 3: checkout, si el plan es pago ─────────────────────────────
+  // ─── Paso 2: checkout, si el plan es pago ─────────────────────────────
+  // A partir de acá la cuenta existe. Nada de lo que sigue puede fallar el
+  // request: el usuario ya es cliente.
   let paymentUrl = null;
   let paymentError = null;
 
@@ -79,25 +72,29 @@ const signup = async (req, res) => {
     }
   }
 
-  // ─── Paso 4: email, best-effort, sin await bloqueante ─────────────────
-  const verifyUrl = `${process.env.PLATFORM_BASE_URL}/auth/verificar?token=${verificationToken}`;
-  sendWelcomeEmail({
-    to: adminUser.email,
-    nombreComercio: cliente.nombre,
-    nombreContacto: adminUser.nombre,
-    plan: tier.code,
-    urlLogin: `${process.env.PLATFORM_BASE_URL}/`,
-    urlVerificacion: verifyUrl,
-  }).catch((err) => {
-    console.error(`[signup] email falló para cliente ${cliente.id} (${adminUser.email}):`, err.message);
-  });
+  // ─── Paso 3: drenar la cola sin bloquear la respuesta ─────────────────
+  // waitUntil le dice a Vercel que no congele la lambda hasta que la promesa
+  // resuelva. Sin esto la ejecución se corta al responder y el mail no sale:
+  // era exactamente el bug del fire-and-forget anterior.
+  //
+  // Si igual falla, la fila queda 'pending' en email_outbox y la levanta el
+  // drenado periódico. El mail no se pierde.
+  waitUntil(
+    mailer.drain({ limit: 5 }).catch((err) => {
+      console.error(`[signup] drain del outbox falló (cliente ${cliente.id}):`, err.message);
+    })
+  );
 
+  // ─── Respuesta ────────────────────────────────────────────────────────
+  // NO se devuelve token. Con el gate de activación, dar sesión a quien todavía
+  // no confirmó el mail vacía de sentido al gate: entraría igual y recién
+  // toparía con el 403 al vencerle el JWT.
   return res.status(201).json({
     cliente: { id: cliente.id, nombre: cliente.nombre, cuit: cliente.cuit },
-    adminUser,
+    adminUser: provisioned.adminUser,
     plan: { code: tier.code, nombre: tier.nombre_publico, esPago },
-    token,
-    expiresIn: TTL,
+    requiereVerificacion: true,
+    emailVerificacion: provisioned.adminUser.email,
     paymentUrl,
     ...(paymentError && { paymentWarning: paymentError }),
   });

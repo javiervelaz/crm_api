@@ -1,0 +1,14 @@
+<mj-head>
+  <mj-title>{{subject}}</mj-title>
+  <mj-preview>{{preheader}}</mj-preview>
+  <mj-attributes>
+    <mj-all font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" />
+    <mj-text font-size="15px" line-height="24px" color="#475569" />
+    <mj-button background-color="#0f766e" color="#ffffff" font-size="16px" font-weight="600" border-radius="10px" inner-padding="14px 32px" />
+    <mj-section background-color="#ffffff" padding="0px" />
+  </mj-attributes>
+  <mj-style>
+    .link-teal a { color: #0f766e !important; text-decoration: underline; }
+    .muted { color: #94a3b8 !important; }
+  </mj-style>
+</mj-head>

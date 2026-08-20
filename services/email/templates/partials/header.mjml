@@ -1,0 +1,10 @@
+<mj-section background-color="#0f172a" padding="24px 24px">
+  <mj-column>
+    <mj-text align="center" color="#ffffff" font-size="22px" font-weight="700" letter-spacing="0.5px" padding="0">
+      COUNTER
+    </mj-text>
+    <mj-text align="center" color="#94a3b8" font-size="12px" letter-spacing="2px" padding="4px 0 0 0">
+      CRM
+    </mj-text>
+  </mj-column>
+</mj-section>
