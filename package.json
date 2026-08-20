@@ -4,13 +4,20 @@
     "description": "",
     "main": "app.js",
     "scripts": {
-        "prestart": "npx eslint . --no-ignore",
+        "prestart": "npx eslint . --no-ignore && node scripts/buildEmailTemplates.js",
         "pre-copy": "cd .. && npm run  copy.lib base-baileys-memory",
         "start": "node node.js",
-        "test": "cross-env JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js --exit --timeout 10000 --require tests/setup.js"
+        "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js --exit --timeout 10000 --require tests/setup.js",
+        "email:build": "node scripts/buildEmailTemplates.js",
+        "email:preview": "node scripts/previewEmail.js",
+        "email:worker": "node scripts/emailWorker.js",
+        "email:dns": "node scripts/checkEmailDns.js",
+        "email:test": "node scripts/testEmail.js",
+        "email:schema": "node scripts/checkEmailSchema.js"
     },
     "keywords": [],
     "dependencies": {
+        "@vercel/functions": "^3.9.3",
         "axios": "^1.7.2",
         "bcrypt": "^5.1.1",
         "bcryptjs": "^2.4.3",
@@ -25,6 +32,7 @@
         "express-validator": "^7.1.0",
         "google-auth-library": "^9.10.0",
         "googleapis": "^137.1.0",
+        "handlebars": "^4.7.9",
         "helmet": "^8.3.0",
         "jsonwebtoken": "^9.0.2",
         "mercadopago": "^2.11.0",
@@ -34,6 +42,7 @@
         "nodemailer": "^7.0.11",
         "pg": "^8.12.0",
         "puppeteer": "^22.10.0",
+        "resend": "^6.20.0",
         "sinon": "^18.0.0",
         "wa-sticker-formatter": "4.4.4"
     },
@@ -42,6 +51,7 @@
         "cross-env": "^7.0.3",
         "eslint": "^8.52.0",
         "eslint-plugin-bot-whatsapp": "latest",
+        "mjml": "^5.4.0",
         "mocha": "^10.6.0",
         "supertest": "^7.0.0"
     },

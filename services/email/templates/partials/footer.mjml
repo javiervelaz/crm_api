@@ -1,0 +1,11 @@
+<mj-section background-color="#f8fafc" padding="24px 24px">
+  <mj-column>
+    <mj-text align="center" font-size="13px" color="#64748b" padding="0">
+      ¿Dudas? Respondé este mail y te contestamos.
+    </mj-text>
+    <mj-text align="center" font-size="12px" color="#94a3b8" padding="12px 0 0 0">
+      Counter CRM · Córdoba, Argentina<br />
+      <span class="muted">Recibís este mail porque creaste una cuenta en Counter.</span>
+    </mj-text>
+  </mj-column>
+</mj-section>
