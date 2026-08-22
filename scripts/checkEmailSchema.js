@@ -87,6 +87,21 @@ async function main() {
     }
   }
 
+  // ─── 007: la columna tiene que poder guardar el estado más largo ────────
+  const { rows: largo } = await pool.query(
+    `SELECT character_maximum_length AS n FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='cliente' AND column_name='estado'`
+  );
+  const necesario = 'PENDIENTE_VERIFICACION'.length;
+  if (!largo.length) {
+    falta('cliente.estado no existe');
+  } else if (largo[0].n !== null && largo[0].n < necesario) {
+    falta(`cliente.estado es varchar(${largo[0].n}) y "PENDIENTE_VERIFICACION" mide ${necesario}`);
+    bad('   Todo signup va a fallar con 22001. Aplicá 007_cliente_estado_longitud.sql');
+  } else {
+    ok(`cliente.estado admite ${largo[0].n ?? 'ilimitados'} caracteres (necesita ${necesario})`);
+  }
+
   // ─── 006: el default venenoso de deleted_at ─────────────────────────────
   console.log('\n006_cliente_deleted_at');
   const { rows: def } = await pool.query(
