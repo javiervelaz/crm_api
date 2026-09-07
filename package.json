@@ -13,7 +13,8 @@
         "email:worker": "node scripts/emailWorker.js",
         "email:dns": "node scripts/checkEmailDns.js",
         "email:test": "node scripts/testEmail.js",
-        "email:schema": "node scripts/checkEmailSchema.js"
+        "email:schema": "node scripts/checkEmailSchema.js",
+        "purga:clientes": "node scripts/purgeClientes.js"
     },
     "keywords": [],
     "dependencies": {
