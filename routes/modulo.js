@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const {
   createModulo,
   getModuloById,

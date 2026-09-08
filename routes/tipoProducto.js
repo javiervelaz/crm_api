@@ -4,8 +4,8 @@ const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 
 const router = express.Router();
-const { enforceParamTenant } = require('../middleware/tenantMiddleware');
-router.use(enforceParamTenant);
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const {
   createTipoProducto,
   getTipoProductoById,
