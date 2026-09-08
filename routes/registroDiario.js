@@ -1,8 +1,8 @@
 // routes/registroDiario.js
 const express = require('express');
 const router = express.Router();
-const { enforceParamTenant } = require('../middleware/tenantMiddleware');
-router.use(enforceParamTenant);
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const { testConnection,getRegistrosDiarios, createRegistroDiario, updateRegistroDiario, deleteRegistroDiario,reporteOperacionesDiarias } = require('../controllers/registroDiarioController');
 

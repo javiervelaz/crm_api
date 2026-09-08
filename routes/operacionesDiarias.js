@@ -1,6 +1,8 @@
 const express = require('express');
 
 const router = express.Router();
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const operacionesDiariasController = require('../controllers/operacionesDiariasController');
 const pedidosController = require("../controllers/pedidoController");
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');

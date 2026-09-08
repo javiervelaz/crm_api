@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { enforceParamTenant } = require('../middleware/tenantMiddleware');
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
 
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const pool = require('../pool');
 const { createSubscription, createOneTimePayment, saveSubscription } = require('../services/billing/mercadoPagoService');
-router.use(enforceParamTenant);
+registerTenantGuards(router);
 router.post('/checkout', authenticateJWT, async (req, res) => {
   try {
     const { tierCode } = req.body;
