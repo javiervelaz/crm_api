@@ -28,7 +28,7 @@ describe('Rol API', () => {
     );
   });
 
-  const mockRolId = 'mocked-rol-id';
+  const mockRolId = 123; // id numérico: los PK son enteros (guard :id valida entero)
   const mockClienteId = 1;
 
   beforeEach(() => {

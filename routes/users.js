@@ -4,8 +4,8 @@ const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 
 const router = express.Router();
-const { enforceParamTenant } = require('../middleware/tenantMiddleware');
-router.use(enforceParamTenant);
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const {
   createUser,
   getUsers,

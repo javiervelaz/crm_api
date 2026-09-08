@@ -2,8 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../pool');
-const { enforceParamTenant } = require('../middleware/tenantMiddleware');
-router.use(enforceParamTenant);
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 /**
  * GET /api/tiers
  * Devuelve todos los planes activos (FREE, BASIC, PREMIUM)

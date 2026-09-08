@@ -1,6 +1,8 @@
 // routes/cliente.js — el tenant sólo puede leer y editar su propia ficha
 const express = require('express');
 const router = express.Router();
+const { registerTenantGuards } = require('../middleware/tenantMiddleware');
+registerTenantGuards(router);
 const { authorizeRole } = require('../middleware/authMiddleware');
 const { getClienteById, updateCliente } = require('../controllers/clienteController');
 
