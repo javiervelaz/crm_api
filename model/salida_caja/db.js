@@ -16,7 +16,13 @@ const createSalidaCaja  = async (RegistroDiario) => {
   };
   
   const   getSalidasCajas  = async (id,cliente_id) => {
-    const result = await pool.query('SELECT * FROM "salida_caja" where DATE(created_at)  = DATE(now()) and registro_diario_id =  $1 and cliente_id =  $2::int', [id,cliente_id]);
+    const result = await pool.query(
+      `SELECT sc.*, ct.descripcion AS categoria_nombre
+       FROM "salida_caja" sc
+       LEFT JOIN "categoria_tipo" ct ON sc.categoria_salida_id = ct.id
+       WHERE sc.registro_diario_id = $1 AND sc.cliente_id = $2::int
+       ORDER BY sc.created_at DESC`,
+      [id, cliente_id]);
     return result;
   }
   
@@ -68,7 +74,7 @@ const createSalidaCaja  = async (RegistroDiario) => {
 
   const getMontoTotalDiarioGastosPorTipo  = async (RegistroDiario,categoria_salida_id, cliente_id) => {
     const result = await pool.query(
-      'select SUM(sc.monto) from salida_caja sc join categoria_tipo ct on sc.categoria_salida_id = ct.id where sc.registro_diario_id = $1 and ct.descripcion =  $2 and sc.cliente_id =  $3',
+      `select COALESCE(SUM(sc.monto),0)::float8 AS sum from salida_caja sc join categoria_tipo ct on sc.categoria_salida_id = ct.id where sc.registro_diario_id = $1 and lower(ct.descripcion) = lower($2) and sc.cliente_id = $3::int`,
       [RegistroDiario,categoria_salida_id, cliente_id]
     );
    
