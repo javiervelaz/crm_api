@@ -156,7 +156,18 @@ const createUserService = async (user) => {
   
   
 
+const isAdminService = async (id, cliente_id) => {
+  const roles = await userRoledb.getUserRoleByUserId(id, cliente_id);
+  return roles.some((r) => String(r.descripcion).toLowerCase() === 'admin');
+};
+
+const countAdminsService = async (cliente_id) => {
+  return await db.countAdmins(cliente_id);
+};
+
 module.exports = {
+    isAdminService,
+    countAdminsService,
     validateEmail,
     createUserService,
     getUserByIdService,

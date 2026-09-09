@@ -350,7 +350,19 @@ const postUserModulosPermisos = async (id,cliente_id,modulos) => {
 
 
 
+const countAdmins = async (cliente_id) => {
+  const r = await pool.query(
+    `SELECT COUNT(DISTINCT ur.id_user)::int AS n
+       FROM user_rol ur
+       JOIN "rol" r ON r.id = ur.id_rol
+      WHERE ur.cliente_id = $1 AND lower(r.descripcion) = 'admin'`,
+    [cliente_id]
+  );
+  return r.rows[0] ? r.rows[0].n : 0;
+};
+
 module.exports = {
+  countAdmins,
   findForSessionById,
     createUser,
     getUserById,
