@@ -85,7 +85,7 @@ const registrarAperturaCierreCaja = async (req, res) => {
         const registroCaja = await operacionesDiariasService.registrarAperturaCierreCaja(fecha, usuario_apertura_id, caja_inicial, sucursal_id, usuario_cierre_id, caja_final,cliente_id);
         res.status(201).json(registroCaja);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(error.status || 500).json({ message: error.message });
     }
 };
 
