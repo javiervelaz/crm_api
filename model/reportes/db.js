@@ -9,8 +9,8 @@ const getReporteVentasWithFilters = async (request) => {
     SELECT 
       DATE(p.created_at) AS fecha,
       pr.nombre AS producto,
-      SUM(pp.cantidad) AS cantidad_total,
-      SUM(pp.cantidad * pp.precio_unitario) AS total_vendido 
+      SUM(pp.cantidad)::int AS cantidad_total,
+      SUM(pp.cantidad * pp.precio_unitario)::float8 AS total_vendido 
     FROM pedido p 
     JOIN pedido_producto pp ON p.id = pp.pedido_id 
     JOIN producto pr ON pr.id = pp.producto_id 
@@ -47,9 +47,9 @@ const getReporteClientesWithFilters = async (request) => {
       COALESCE(u.nombre || ' ' || u.apellido, 'Mostrador') as cliente_nombre,
       u.email as cliente_email,
       pf.telefono as cliente_telefono,
-      COUNT(p.id) as total_pedidos,
-      SUM(p.monto_total) as monto_total,
-      AVG(p.monto_total) as promedio_pedido,
+      COUNT(p.id)::int as total_pedidos,
+      SUM(p.monto_total)::float8 as monto_total,
+      AVG(p.monto_total)::float8 as promedio_pedido,
       MAX(p.created_at) as ultima_compra,
       STRING_AGG(DISTINCT pp.producto_id || ':' || pr.nombre, ', ') as productos_comprados
     FROM pedido p
@@ -66,11 +66,9 @@ const getReporteClientesWithFilters = async (request) => {
   
   if (tipo_cliente == 'MOS') {
     query += ` AND p.user_cliente_id IS NULL `;
-    console.log("query",query);
-    //params.push(tipo_cliente);
   }
   if (tipo_cliente == 'CLI') {
-    query += ` AND ut.codigo = $3 `;
+    query += ` AND ut.codigo = $${params.length + 1} `;
     params.push(tipo_cliente);
   }
 
@@ -89,8 +87,8 @@ const getReporteGastosPorTipoCategoria = async (request) => {
   let query = `
     SELECT 
       ct.descripcion AS tipo_categoria,
-      COUNT(sc.id) AS cantidad_gastos,
-      SUM(sc.monto) AS total_gastos
+      COUNT(sc.id)::int AS cantidad_gastos,
+      SUM(sc.monto)::float8 AS total_gastos
     FROM salida_caja sc
     JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
     WHERE DATE(sc.created_at) BETWEEN $1 AND $2
@@ -106,9 +104,6 @@ const getReporteGastosPorTipoCategoria = async (request) => {
 
   query += ` GROUP BY ct.id, ct.descripcion`;
 
-  console.log("Query:", query);
-  console.log("Params:", params);
-
   const result = await pool.query(query, params);
   return result.rows;
 };
@@ -120,8 +115,8 @@ const getReporteGastosPorCategoriaSalida = async (request) => {
   let query = `
     SELECT 
       sc.descripcion AS salida,
-      COUNT(sc.id) AS cantidad_gastos,
-      SUM(sc.monto) AS total_gastos
+      COUNT(sc.id)::int AS cantidad_gastos,
+      SUM(sc.monto)::float8 AS total_gastos
     FROM salida_caja sc
     WHERE 
       DATE(sc.created_at) BETWEEN $1 AND $2
@@ -139,9 +134,6 @@ const getReporteGastosPorCategoriaSalida = async (request) => {
   query += `
     GROUP BY sc.descripcion
   `;
-
-  console.log("Query:", query);
-  console.log("Params:", params);
 
   const result = await pool.query(query, params);
   return result.rows;

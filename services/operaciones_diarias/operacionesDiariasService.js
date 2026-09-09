@@ -106,11 +106,22 @@ exports.crearPedido = async ( data) => {
                 const profileByTelefono  = await Profile.getByTelefono(cliente_telefono,cliente_id);
             if(profileByTelefono == null) {
                 const fecha = new Date();
-                let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:cliente_nombre+'@gmail.com', user_type_id : 4, cliente_id: cliente_id};
-                let newUser =  await  Users.createUser(user)
-                let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio, cliente_id:cliente_id}
-                await Profile.createProfile(profile);
-                await Pedido.updatePedido(pedidoId,{'user_cliente_id':newUser.id},cliente_id)
+                // Email determinístico por teléfono (identidad real del cliente de mostrador).
+                // Antes se usaba cliente_nombre+'@gmail.com', que chocaba con user_email_key
+                // al repetirse un nombre. Find-or-create para que sea idempotente.
+                const emailGenerado = `cli_${cliente_telefono}@counter.local`;
+                let userId;
+                const usuarioExistente = await Users.getUserByEmail(emailGenerado, cliente_id);
+                if (usuarioExistente) {
+                    userId = usuarioExistente.id;
+                } else {
+                    let user = {nombre:cliente_nombre, apellido:cliente_nombre, email:emailGenerado, user_type_id : 4, cliente_id: cliente_id};
+                    let newUser = await Users.createUser(user);
+                    userId = newUser.id;
+                    let profile = {id_user:newUser.id, dni:0,telefono:cliente_telefono,password:123456,legajo:0,fecha_ingreso:fecha.toISOString(),casa_nro:cliente_casa_nro, barrio: cliente_barrio, cliente_id:cliente_id}
+                    await Profile.createProfile(profile);
+                }
+                await Pedido.updatePedido(pedidoId,{'user_cliente_id':userId},cliente_id)
                 }
         }
         

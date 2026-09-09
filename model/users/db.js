@@ -85,6 +85,14 @@ const getUserRol =  async (id,cliente_id) => {
 // OJO: NO filtrar por c.deleted_at. Esa columna tiene DEFAULT CURRENT_TIMESTAMP
 // (ver migrations/006), asi que todo cliente nace con valor y el filtro dejaria
 // a todo el mundo afuera.
+const getUserByEmail = async (email, cliente_id) => {
+  const result = await pool.query(
+    `SELECT id FROM "user" WHERE lower(email) = lower($1) AND cliente_id = $2::int AND deleted_at IS NULL LIMIT 1`,
+    [email, cliente_id]
+  );
+  return result.rows[0] || null;
+};
+
 const auth = async (email) => {
   const result = await pool.query(
     `SELECT u.id            AS "id",
@@ -370,6 +378,7 @@ module.exports = {
     updateUser,
     deleteUser,
     auth,
+    getUserByEmail,
     getUserTypeById,
     getUserRol,
     getUserByTel,
