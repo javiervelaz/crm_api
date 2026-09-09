@@ -44,7 +44,7 @@ const getProductoById = async (req, res) => {
       const result = await ProductoService.updateProductoService(Id, { nombre,precio_unitario,tipo_producto_id,permite_mitad,cliente_id});
       res.status(200).json(result);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(error.status || 500).json({ error: error.message });
     }
   };
   
