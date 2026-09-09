@@ -49,6 +49,8 @@ describe('Rol API', () => {
       return { id: mockRolId, descripcion: 'empleado' };
     });
     sinon.stub(rolService, 'deleteRolService').returns(Promise.resolve({}));
+    // guard Tanda 1: rol sin usuarios asignados -> permite borrar
+    sinon.stub(rolService, 'countUsersWithRoleService').returns(Promise.resolve(0));
   });
 
   afterEach(() => {

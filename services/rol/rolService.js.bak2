@@ -104,15 +104,9 @@ const getRolModulosPermisosService = async (rolId, clienteId) => {
           `SELECT id, codigo FROM modulo WHERE codigo IN ('usuarios', 'roles')`
         );
         const payloadModuloIds = new Set((modulos || []).map((m) => Number(m.modulo_id)));
-        // La tabla modulo puede tener varias filas por codigo: agrupamos por
-        // codigo y exigimos que quede AL MENOS UNA de sus ids en el payload.
-        const idsPorCodigo = {};
-        for (const row of crit.rows) {
-          (idsPorCodigo[row.codigo] = idsPorCodigo[row.codigo] || []).push(Number(row.id));
-        }
-        const faltantes = Object.keys(idsPorCodigo).filter(
-          (codigo) => !idsPorCodigo[codigo].some((mid) => payloadModuloIds.has(mid))
-        );
+        const faltantes = crit.rows
+          .filter((c) => !payloadModuloIds.has(Number(c.id)))
+          .map((c) => c.codigo);
         if (faltantes.length) {
           const err = new Error(
             `No podés quitarte el acceso de administración (${faltantes.join(', ')}): quedarías sin poder gestionar usuarios ni roles.`
@@ -175,10 +169,6 @@ const getRolModulosPermisosService = async (rolId, clienteId) => {
 
 
 
-  const countUsersWithRoleService = async (id, cliente_id) => {
-    return await db.countUsersWithRole(id, cliente_id);
-  };
-
   module.exports = {
     createRolService,
     getRolByIdService,
@@ -187,5 +177,4 @@ const getRolModulosPermisosService = async (rolId, clienteId) => {
     deleteRolService,
     getRolModulosPermisosService,
     postRolModulosPermisosService,
-    countUsersWithRoleService,
 };
