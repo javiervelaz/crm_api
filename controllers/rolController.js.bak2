@@ -49,12 +49,6 @@ const getRolById = async (req, res) => {
   const deleteRol = async (req, res) => {
     const { id,cliente_id} = req.params;
     try {
-      // Guard: no eliminar un rol asignado a usuarios (dejaría usuarios sin rol
-      // -> sin módulos). Protege también al rol admin mientras esté en uso.
-      const enUso = await rolService.countUsersWithRoleService(Number(id), Number(cliente_id));
-      if (enUso > 0) {
-        return res.status(400).json({ error: 'No podés eliminar un rol asignado a usuarios.', code: 'ROLE_IN_USE' });
-      }
       const result = await rolService.deleteRolService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {

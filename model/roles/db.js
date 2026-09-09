@@ -30,6 +30,14 @@ const createRol = async (rol) => {
     return result.rows[0];
   };
 
+  const countUsersWithRole = async (id, cliente_id) => {
+    const r = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM "user_rol" WHERE id_rol = $1 AND cliente_id = $2',
+      [id, cliente_id]
+    );
+    return r.rows[0] ? r.rows[0].n : 0;
+  };
+
   const deleteRol = async (id,cliente_id) => {
     const result = await pool.query('DELETE FROM "rol" WHERE id = $1 and cliente_id =$2 RETURNING *', [id,cliente_id]);
     return result.rows[0];
@@ -40,6 +48,7 @@ const createRol = async (rol) => {
     getRolById,
     getRols,
     updateRol,
-    deleteRol
+    deleteRol,
+    countUsersWithRole
     // Exporta las otras funciones aquí...
   };

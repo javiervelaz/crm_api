@@ -54,6 +54,17 @@ const deleteUser = async (req, res) => {
   if(!cliente_id) return res.status(404).json( { error: "No se puede filtrar por cliente"});
   const { id } = req.params;
   try {
+    // Guard bug 17: no auto-eliminación.
+    if (Number(id) === Number(req.user?.userId)) {
+      return res.status(400).json({ error: 'No podés eliminar tu propio usuario.', code: 'SELF_DELETE' });
+    }
+    // Guard bug 17: no eliminar al último administrador del comercio.
+    if (await userService.isAdminService(id, cliente_id)) {
+      const admins = await userService.countAdminsService(cliente_id);
+      if (admins <= 1) {
+        return res.status(400).json({ error: 'No podés eliminar al último administrador.', code: 'LAST_ADMIN' });
+      }
+    }
     const result = await userService.deleteUserService(id,cliente_id);
     res.status(200).json(result);
   } catch (err) {
