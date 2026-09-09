@@ -133,6 +133,13 @@ exports.crearPedido = async ( data) => {
 
 // Lógica para registrar apertura y cierre de caja
 exports.registrarAperturaCierreCaja = async (fecha, usuarioAperturaId, cajaInicial, sucursalId, usuarioCierreId, cajaFinal,cliente_id) => {
+    // bug 34: validar monto inicial de caja (no negativo, requerido)
+    if (cajaInicial === null || cajaInicial === undefined || cajaInicial === '') {
+        const err = new Error('El monto inicial es requerido'); err.status = 400; throw err;
+    }
+    if (Number.isNaN(Number(cajaInicial)) || Number(cajaInicial) < 0) {
+        const err = new Error('El monto inicial no puede ser negativo'); err.status = 400; throw err;
+    }
     try {
         const registroExists = await RegistroDiario.getCajasAbiertasByCliente(cliente_id); 
         
