@@ -4,11 +4,18 @@ const { datacatalog } = require('googleapis/build/src/apis/datacatalog');
 
 const createTipoProductoService = async (data) => {
     const { nombre, cliente_id } = data;
-    // Validación de campos requeridos
-    if ( !nombre ) {
-      throw new Error('All fields are required');
+    const nombreLimpio = String(nombre ?? '').trim();
+    if (!nombreLimpio) {
+      const e = new Error('El nombre es obligatorio'); e.status = 400; throw e;
     }
-    const result = await db.createTipoProducto({ nombre, cliente_id });
+    if (nombreLimpio.length > 100) {
+      const e = new Error('El nombre no puede superar los 100 caracteres'); e.status = 400; throw e;
+    }
+    const existe = await db.getTipoProductoByNombre(nombreLimpio, cliente_id);
+    if (existe) {
+      const e = new Error('Ya existe un tipo de producto con ese nombre'); e.status = 400; throw e;
+    }
+    const result = await db.createTipoProducto({ nombre: nombreLimpio, cliente_id });
     return result;
   }; 
 
@@ -25,11 +32,18 @@ const createTipoProductoService = async (data) => {
 
   const updateTipoProductoService = async (Id, producto) => {
     const { nombre, cliente_id } = producto;
-    if (!nombre ) {
-      throw new Error('All fields are required');
+    const nombreLimpio = String(nombre ?? '').trim();
+    if (!nombreLimpio) {
+      const e = new Error('El nombre es obligatorio'); e.status = 400; throw e;
     }
-
-    const result = await db.updateTipoProducto(Id, { nombre, cliente_id });
+    if (nombreLimpio.length > 100) {
+      const e = new Error('El nombre no puede superar los 100 caracteres'); e.status = 400; throw e;
+    }
+    const existe = await db.getTipoProductoByNombre(nombreLimpio, cliente_id);
+    if (existe && Number(existe.id) !== Number(Id)) {
+      const e = new Error('Ya existe un tipo de producto con ese nombre'); e.status = 400; throw e;
+    }
+    const result = await db.updateTipoProducto(Id, { nombre: nombreLimpio, cliente_id });
     return result;
   }
 

@@ -51,7 +51,17 @@ const createTipoProducto = async (tp) => {
   };
 
   
-  module.exports = {
+  
+const getTipoProductoByNombre = async (nombre, cliente_id) => {
+  const r = await pool.query(
+    'SELECT id FROM "tipo_producto" WHERE cliente_id = $1::int AND lower(trim(nombre)) = lower(trim($2)) LIMIT 1',
+    [cliente_id, nombre]
+  );
+  return r.rows[0] || null;
+};
+
+module.exports = {
+  getTipoProductoByNombre,
     createTipoProducto,
     getTipoProductoById,
     getTipoProductos,
