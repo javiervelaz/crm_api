@@ -5,7 +5,7 @@ const PLAN_FEATURES = {
   FREE: {
     canUseReports: false,
     canUseWhatsappBot: false,
-    maxPedidosMensuales: 10,
+    maxPedidosMensuales: 50,
     maxProductos: 5,
     diasDeTrial: 14,
   },
