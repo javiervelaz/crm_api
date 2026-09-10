@@ -24,7 +24,17 @@ const signupRules = [
   body('adminNombre').trim().isLength({ min: 2, max: 60 }).withMessage('Nombre inválido'),
   body('adminApellido').trim().isLength({ min: 2, max: 60 }).withMessage('Apellido inválido'),
 
-  body('adminEmail').trim().isEmail().normalizeEmail().withMessage('Email inválido'),
+  body('adminEmail')
+    .trim()
+    .isEmail().withMessage('Email inválido')
+    // bug 42: guardar el email real que ingresa el cliente, sin manipular alias/puntos (solo lowercase)
+    .normalizeEmail({
+      gmail_remove_subaddress: false,
+      gmail_remove_dots: false,
+      outlook_remove_subaddress: false,
+      yahoo_remove_subaddress: false,
+      icloud_remove_subaddress: false,
+    }),
 
   body('password')
     .isLength({ min: 10, max: 128 }).withMessage('La contraseña debe tener al menos 10 caracteres')
