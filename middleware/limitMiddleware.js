@@ -44,8 +44,10 @@ const requireLimit = (limitKey) => {
 
       const currentCount = Number(countRes.rows[0].count);
       if (currentCount >= limitValue) {
+        const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes' };
+        const label = LABELS[limitKey] || 'recursos';
         return res.status(403).json({
-          error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + limitKey + '. Ya alcanzaste el limite.',
+          error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + label + '. Ya alcanzaste el límite.',
         });
       }
 
