@@ -12,14 +12,17 @@ const getUserRoles = async (userId, clienteId) => {
   return result.rows;
 };
 
-// Obtener módulos de un usuario a través de sus roles
+// Obtener módulos de un usuario a través de sus roles.
+// Sólo módulos activos: desactivar un módulo del tenant (status = false) o
+// borrarlo lógicamente tiene que sacarlo del JWT en el próximo login.
 const getUserModules = async (userId, clienteId) => {
   const result = await pool.query(
     `SELECT DISTINCT m.codigo
      FROM user_rol ur
      JOIN modulo_rol mr ON ur.id_rol = mr.id_rol AND ur.cliente_id = mr.cliente_id
      JOIN modulo m ON mr.id_modulo = m.id AND mr.cliente_id = m.cliente_id
-     WHERE ur.id_user = $1 AND ur.cliente_id = $2`,
+     WHERE ur.id_user = $1 AND ur.cliente_id = $2
+       AND m.status = true AND m.deleted_at IS NULL`,
     [userId, clienteId]
   );
   return result.rows.map(r => r.codigo);
