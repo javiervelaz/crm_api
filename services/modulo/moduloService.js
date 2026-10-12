@@ -2,11 +2,22 @@ const e = require('express');
 const db = require('../../model/modulos/db');
 const { emit } = require('../../node');
 
+const moduloNoDisponible = (codigo) => {
+  const err = new Error(`El módulo "${codigo}" no está disponible para el rubro de este cliente`);
+  err.status = 400;
+  err.code = 'MODULO_FUERA_DE_RUBRO';
+  return err;
+};
+
 const createModuloService = async (Modulo) => {
     const { codigo,descripcion, status,cliente_id } = Modulo;
     // Validación de campos requeridos
     if (!descripcion || !status || !codigo ) {
       throw new Error('All fields are required');
+    }
+    const permitido = await db.isCodigoEnRubroDelCliente(cliente_id, codigo);
+    if (!permitido) {
+      throw moduloNoDisponible(codigo);
     }
     const newModulo = await db.createModulo({ codigo,descripcion, status,cliente_id });
     return newModulo;
@@ -24,7 +35,10 @@ const createModuloService = async (Modulo) => {
 
   const updateModuloService = async (ModuloId,Modulo) => {
     const { codigo,descripcion,status,cliente_id } = Modulo;
-   
+    // Renombrar el código es otra forma de instalarse un módulo ajeno.
+    if (codigo != null && !(await db.isCodigoEnRubroDelCliente(cliente_id, codigo))) {
+      throw moduloNoDisponible(codigo);
+    }
     const updatedModulo = await db.updateModulo(ModuloId, { codigo,descripcion,status,cliente_id});
     return updatedModulo;
   }

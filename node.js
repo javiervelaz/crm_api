@@ -30,6 +30,7 @@ app.use('/api/cron/verificaciones', require('./routes/verificacionCron'));
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/saas',            require('./routes/saas'));           // alta pública
 app.use('/api/tiers',           require('./routes/tiers'));          // catálogo de planes
+app.use('/api/rubros',          require('./routes/rubros'));         // catálogo de rubros
 app.use('/api/billing/webhook', require('./routes/billingWebhook')); // firma HMAC propia
 app.use('/api/handoff',         require('./routes/handoff'));        // JWT de handoff propio
 //app.use('/api/cron',            require('./routes/cron'));           // CRON_SECRET

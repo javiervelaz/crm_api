@@ -54,6 +54,12 @@ const signupRules = [
   body('plan').optional().toUpperCase()
     .isIn(['FREE', 'BASIC', 'PREMIUM', 'CUSTOM']).withMessage('Plan inválido'),
 
+  // Sólo el formato: la existencia y que esté activo lo valida el service
+  // contra la tabla rubro (el catálogo crece sin tocar este archivo).
+  body('rubro').optional({ values: 'falsy' })
+    .trim().toLowerCase()
+    .matches(/^[a-z][a-z0-9_]{1,29}$/).withMessage('Rubro inválido'),
+
   body('aceptaTerminos').equals('true')
     .withMessage('Debés aceptar los términos y condiciones'),
 ];

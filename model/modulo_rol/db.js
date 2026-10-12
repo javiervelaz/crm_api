@@ -45,6 +45,7 @@ const createModuloRol = async (rol) => {
       join "modulo_rol" mr  on mr.id_rol = ur.id_rol
       join "modulo" m on m.id = mr.id_modulo
       WHERE ur.id_user= $1 and m.cliente_id =  $2
+        and m.status = true and m.deleted_at is null
       ;
       `, [user_id,cliente_id]);
     return result.rows;
