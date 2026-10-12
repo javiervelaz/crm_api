@@ -88,7 +88,8 @@ const getUserTypeById  = async (req, res) => {
 const getUserTypeList = async (req, res) => {
 
   try {
-    const result = await userService.getUserTypeListService();
+    // Sólo los tipos del rubro del tenant: una pizzería no ve "profesor".
+    const result = await userService.getUserTypeListService(req.clienteId);
       if (!result) {
         return res.status(404).json({ error: 'user type rol not found' });
       }

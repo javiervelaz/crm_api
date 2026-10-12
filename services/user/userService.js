@@ -41,6 +41,10 @@ const buildSessionUser = async (user) => {
     permissions,
     cliente_id: user.cliente_id || null,
     cliente_estado: user.cliente_estado || null,
+    // Código de user_type (ADMIN, EMP, PROF, TUT, ALU...). Define si es staff
+    // o externo (middleware/cuentaGuards.js); el nombre del rol es editable.
+    tipo: user.user_type || null,
+    debeCambiarPassword: user.debe_cambiar_password === true,
   };
 };
 
@@ -122,8 +126,8 @@ const createUserService = async (user) => {
     return result.rows[0];
   }
 
-  const getUserTypeListService  = async () => {
-    const result = await db.getUserTypeList();
+  const getUserTypeListService  = async (cliente_id) => {
+    const result = await db.getUserTypeList(cliente_id);
     return result.rows;
   }
 
