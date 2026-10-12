@@ -3,6 +3,8 @@ const router = express.Router();
 const { registerTenantGuards } = require('../middleware/tenantMiddleware');
 registerTenantGuards(router);
 const {
+  getGastosConfig,
+  getGastosPorPeriodo,
   createSalidaCaja,
   getSalidaCajaById,
   getSalidaCajaList,
@@ -11,6 +13,8 @@ const {
   getMontoGastos
 } = require('../controllers/salidaCajaController');
 
+router.get('/config', getGastosConfig);       // { requiereCaja }
+router.get('/periodo', getGastosPorPeriodo);  // ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 router.post('/', createSalidaCaja);
 router.get('/list/:id/:cliente_id', getSalidaCajaList);
 router.get('/:id/:cliente_id', getSalidaCajaById);

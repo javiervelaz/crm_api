@@ -3,10 +3,33 @@ const SalidaCajaService = require('../services/salidaCaja/salidaCajaService');
 
 const createSalidaCaja = async (req, res) => {
   try {
-    const newSalidaCaja = await SalidaCajaService.createSalidaCajaService(req.body);
+    // Tenant y usuario salen del JWT, no del body: antes el front mandaba
+    // usuario_id y se guardaba tal cual (cualquiera podía firmar por otro).
+    const items = Array.isArray(req.body)
+      ? req.body.map((item) => ({ ...item, cliente_id: req.clienteId, usuario_id: req.user?.userId }))
+      : req.body;
+    const newSalidaCaja = await SalidaCajaService.createSalidaCajaService(items);
     res.status(201).json(newSalidaCaja);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+const getGastosConfig = async (req, res, next) => {
+  try {
+    res.status(200).json(await SalidaCajaService.getGastosConfigService(req.clienteId));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getGastosPorPeriodo = async (req, res, next) => {
+  try {
+    const { desde, hasta } = req.query;
+    res.status(200).json(await SalidaCajaService.getGastosPorPeriodoService(req.clienteId, desde, hasta));
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message, code: 'RANGO_INVALIDO' });
+    next(error);
   }
 };
 
@@ -70,6 +93,8 @@ const getSalidaCajaById = async (req, res) => {
   };
 
 module.exports = {
+    getGastosConfig,
+    getGastosPorPeriodo,
     createSalidaCaja,
     getSalidaCajaById,
     getSalidaCajaList,
