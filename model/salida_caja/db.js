@@ -82,7 +82,42 @@ const createSalidaCaja  = async (RegistroDiario) => {
   };
   
   
+  // ¿El tenant trabaja con caja? Abrir caja es parte del módulo 'operaciones':
+  // sin él (rubro educación, por ejemplo) los gastos se cargan sin registro diario.
+  const tenantUsaCaja = async (cliente_id) => {
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM modulo
+          WHERE cliente_id = $1::int AND codigo = 'operaciones'
+            AND status = true AND deleted_at IS NULL
+       ) AS usa_caja`,
+      [cliente_id]
+    );
+    return result.rows[0].usa_caja === true;
+  };
+
+  // Gastos entre dos fechas (inclusive), en hora de Córdoba. created_at se
+  // guarda en UTC sin zona (default CURRENT_TIMESTAMP de la sesión de Neon).
+  const getSalidasCajasPorPeriodo = async (cliente_id, desde, hasta) => {
+    const result = await pool.query(
+      `SELECT sc.id, sc.descripcion, sc.monto, sc.categoria_salida_id,
+              sc.registro_diario_id, sc.usuario_id, sc.created_at,
+              ct.descripcion AS categoria_nombre,
+              (sc.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Cordoba')::date AS fecha
+         FROM salida_caja sc
+         LEFT JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
+        WHERE sc.cliente_id = $1::int
+          AND (sc.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Cordoba')::date
+              BETWEEN $2::date AND $3::date
+        ORDER BY sc.created_at DESC`,
+      [cliente_id, desde, hasta]
+    );
+    return result.rows;
+  };
+
   module.exports = {
+    tenantUsaCaja,
+    getSalidasCajasPorPeriodo,
     createSalidaCaja,
     getSalidaCajaById,
     getSalidasCajas,
