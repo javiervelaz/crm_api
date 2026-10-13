@@ -37,9 +37,12 @@ const createUserRol = async (rol) => {
     return result.rows[0];
   };
 
+  // Devuelve id e id_rol además de la descripción: la pantalla de edición los
+  // necesita para borrar el rol que se destilda (CP-10: sólo venía la
+  // descripción, así que nunca se borraba y cada guardado duplicaba roles).
   const getUserRoleByUserId = async (id,cliente_id) => {
     const query = `
-    SELECT r.descripcion FROM "user_rol" ur
+    SELECT ur.id, ur.id_rol, ur.id_user, r.descripcion FROM "user_rol" ur
     inner join "rol" r on r.id = ur.id_rol
     WHERE ur.id_user = $1 and  ur.cliente_id =  $2 
     order by ur."id_rol"
@@ -50,6 +53,14 @@ const createUserRol = async (rol) => {
   
   // Validaciones de pertenencia: un rol o un usuario de otro tenant no se puede
   // asignar (antes el INSERT aceptaba cualquier id).
+  const userRolExistente = async (id_user, id_rol, cliente_id) => {
+    const result = await pool.query(
+      'SELECT * FROM "user_rol" WHERE id_user = $1 AND id_rol = $2 AND cliente_id = $3 ORDER BY id LIMIT 1',
+      [id_user, id_rol, cliente_id]
+    );
+    return result.rows[0] || null;
+  };
+
   const rolDelTenant = async (id_rol, cliente_id) => {
     const result = await pool.query('SELECT id FROM rol WHERE id = $1 AND cliente_id = $2', [id_rol, cliente_id]);
     return result.rows[0] || null;
@@ -63,6 +74,7 @@ const createUserRol = async (rol) => {
   module.exports = {
     rolDelTenant,
     userDelTenant,
+    userRolExistente,
     createUserRol,
     getUserRolById,
     getUserRols,

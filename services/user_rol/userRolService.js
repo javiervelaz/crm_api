@@ -33,7 +33,9 @@ const createUserRolService = async (userRol) => {
   if (!(await db.userDelTenant(id_user, cliente_id))) {
     throw new UserRolError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
   }
-  const result = await db.createUserRol({ id_rol, id_user, cliente_id });
+  // Idempotente: el rol ya asignado no se duplica.
+  const result = (await db.userRolExistente(id_user, id_rol, cliente_id))
+    || (await db.createUserRol({ id_rol, id_user, cliente_id }));
   await tipoDb.sincronizarTipo(id_user, cliente_id);
   return result;
 };

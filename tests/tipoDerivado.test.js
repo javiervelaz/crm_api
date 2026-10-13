@@ -59,6 +59,7 @@ describe('Asignación de roles recalcula el tipo', () => {
   const stubOk = () => {
     sinon.stub(userRolDb, 'rolDelTenant').resolves({ id: 5 });
     sinon.stub(userRolDb, 'userDelTenant').resolves({ id: 90 });
+    sinon.stub(userRolDb, 'userRolExistente').resolves(null);
     const crear = sinon.stub(userRolDb, 'createUserRol').callsFake(async (r) => ({ id: 300, ...r }));
     const sync = sinon.stub(tipoDb, 'sincronizarTipo').resolves('PROF');
     return { crear, sync };
@@ -71,6 +72,19 @@ describe('Asignación de roles recalcula el tipo', () => {
     expect(res.status).to.equal(201);
     expect(crear.firstCall.args[0]).to.deep.equal({ id_rol: 5, id_user: 90, cliente_id: 40 });
     expect(sync.calledOnceWithExactly(90, 40)).to.equal(true);
+  });
+
+  it('rol ya asignado no se duplica (CP-10)', async () => {
+    sinon.stub(userRolDb, 'rolDelTenant').resolves({ id: 5 });
+    sinon.stub(userRolDb, 'userDelTenant').resolves({ id: 90 });
+    sinon.stub(userRolDb, 'userRolExistente').resolves({ id: 300, id_rol: 5, id_user: 90, cliente_id: 40 });
+    const crear = sinon.stub(userRolDb, 'createUserRol');
+    const sync = sinon.stub(tipoDb, 'sincronizarTipo').resolves('PROF');
+    const res = await request(app).post('/api/userrol').set(auth()).send({ id_rol: 5, id_user: 90 });
+    expect(res.status).to.equal(201);
+    expect(res.body.id).to.equal(300);
+    expect(crear.called).to.equal(false);
+    expect(sync.calledOnce).to.equal(true);
   });
 
   it('rol de otro tenant → 404 ROL_NOT_FOUND, sin insertar', async () => {
