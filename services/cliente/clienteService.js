@@ -194,6 +194,18 @@ const createClienteService = async (data) => {
       );
     }
 
+    // ─── Datos iniciales de módulos verticales ────────────────────────────
+    // Educación (015): tipos de clase por defecto. Se decide por el módulo y
+    // no por el rubro, así otro rubro que sume "alumnos" los recibe igual.
+    if (modulosCliente.some((m) => m.codigo === 'alumnos')) {
+      await client.query(
+        `INSERT INTO edu_tipo_clase (cliente_id, nombre, es_grupal)
+         VALUES ($1, 'Individual', false), ($1, 'Taller', true)
+         ON CONFLICT (cliente_id, nombre) DO NOTHING`,
+        [cliente.id]
+      );
+    }
+
     // ─── Permisos (batch: era N×M queries sueltas) ────────────────────────
     const acciones = (await client.query(
       `SELECT id, codigo, descripcion FROM permiso_accion ORDER BY id`

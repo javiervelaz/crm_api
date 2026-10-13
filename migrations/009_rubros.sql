@@ -50,6 +50,7 @@ INSERT INTO rubro_modulo_maestro (rubro_codigo, modulo_maestro_id)
 SELECT 'gastronomia', mm.id
   FROM modulo_maestro mm
  WHERE mm.status = true
+   AND mm.codigo <> 'alumnos'  -- de educación (015); re-correr la 009 no debe sumarlo
 ON CONFLICT DO NOTHING;
 
 -- Educación: sólo los módulos que no dependen de pedidos/productos.
