@@ -183,6 +183,7 @@ describe('edu/servicios', () => {
     } catch (e) {
       expect(e.status).to.equal(409);
       expect(e.code).to.equal('HORARIO_SUPERPUESTO');
+      expect(e.message).to.equal('El profesor ya tiene clase el lunes de 18:00 a 19:00 (Ana, Guitarra)');
       expect(crear.called).to.equal(false);
     }
   });

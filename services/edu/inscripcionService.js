@@ -19,10 +19,13 @@ const cicloDe = (v, fecha) => {
   return n;
 };
 
+const DIAS = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+const dia = (h) => `el ${DIAS[Number(h.dia_semana)] ?? `día ${h.dia_semana}`}`;
+const hhmm = (t) => String(t).slice(0, 5);
 const MENSAJES = {
-  PROFESOR_OCUPADO: (c) => `El profesor ya tiene clase el día ${c.horario.dia_semana} de ${c.con.hora_inicio} a ${c.con.hora_fin} (${c.con.alumno}, ${c.con.clase})`,
-  ALUMNO_OCUPADO: (c) => `El alumno ya tiene ${c.con.clase} el día ${c.horario.dia_semana} de ${c.con.hora_inicio} a ${c.con.hora_fin}`,
-  CUPO_COMPLETO: (c) => `El taller ya tiene el cupo completo (${c.cupo}) el día ${c.horario.dia_semana} a las ${c.horario.hora_inicio}`,
+  PROFESOR_OCUPADO: (c) => `El profesor ya tiene clase ${dia(c.horario)} de ${hhmm(c.con.hora_inicio)} a ${hhmm(c.con.hora_fin)} (${c.con.alumno}, ${c.con.clase})`,
+  ALUMNO_OCUPADO: (c) => `El alumno ya tiene ${c.con.clase} ${dia(c.horario)} de ${hhmm(c.con.hora_inicio)} a ${hhmm(c.con.hora_fin)}`,
+  CUPO_COMPLETO: (c) => `El taller ya tiene el cupo completo (${c.cupo}) ${dia(c.horario)} a las ${hhmm(c.horario.hora_inicio)}`,
 };
 
 /** Rechaza con 409 si los horarios pisan al profesor o al alumno. */
