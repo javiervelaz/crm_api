@@ -5,6 +5,7 @@
 // debe_cambiar_password = true: el primer login sólo deja cambiarla
 // (middleware/cuentaGuards.js).
 const bcrypt = require('bcrypt');
+const legajoDb = require('../../model/profile/legajo');
 const db = require('../../model/cuenta/db');
 const { errorPassword, generarPasswordTemporal } = require('../../validators/passwordPolicy');
 
@@ -59,7 +60,7 @@ const crearCredencialesService = async (cliente_id, data) => {
     dni,
     telefono,
     passwordHash,
-    legajo: `${userType.codigo}-${user.id}`,
+    legajo: await legajoDb.siguienteLegajo(cliente_id),
     cliente_id,
   });
   const rolId = await db.getOrCreateRol(cliente_id, userType);

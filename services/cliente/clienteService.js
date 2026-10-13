@@ -1,5 +1,6 @@
 // services/cliente/clienteService.js
 const pool = require('../../pool');
+const legajoDb = require('../../model/profile/legajo');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { createSubscription, createOneTimePayment, saveSubscription } =
@@ -140,7 +141,7 @@ const createClienteService = async (data) => {
       `INSERT INTO profile (id_user, dni, telefono, password, legajo, fecha_ingreso,
                             casa_nro, barrio, cliente_id)
        VALUES ($1,$2,$3,$4,$5, (now() AT TIME ZONE $7)::date, null, null, $6)`,
-      [user.id, adminDni || 0, telefono, hashedPassword, `ADMIN-${cliente.id}`, cliente.id, TZ]
+      [user.id, adminDni || 0, telefono, hashedPassword, await legajoDb.siguienteLegajo(cliente.id, client), cliente.id, TZ]
     );
 
     // ─── Roles ───────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-for-tests';
 const app = require('../node');
 const cuentaDb = require('../model/cuenta/db');
+const legajoDb = require('../model/profile/legajo');
 const cuentaService = require('../services/cuenta/cuentaService');
 const userService = require('../services/user/userService');
 const userDb = require('../model/users/db');
@@ -160,6 +161,7 @@ describe('POST /api/cuenta/credenciales', () => {
     sinon.stub(cuentaDb, 'getUserTypeDelRubro').resolves({ id: 6, codigo: 'TUT', descripcion: 'tutor' });
     sinon.stub(cuentaDb, 'emailExiste').resolves(false);
     const crearUser = sinon.stub(cuentaDb, 'crearUser').callsFake(async (u) => ({ id: 55, ...u }));
+    sinon.stub(legajoDb, 'siguienteLegajo').resolves('8');
     const crearProfile = sinon.stub(cuentaDb, 'crearProfile').resolves();
     sinon.stub(cuentaDb, 'getOrCreateRol').resolves(201);
     const asignarRol = sinon.stub(cuentaDb, 'asignarRol').resolves();
@@ -176,7 +178,7 @@ describe('POST /api/cuenta/credenciales', () => {
     expect(s.crearUser.firstCall.args[0]).to.include({ email: 'laura@ejemplo.com', user_type_id: 6, cliente_id: 40 });
     const prof = s.crearProfile.firstCall.args[0];
     expect(prof.telefono).to.equal('3515551234');
-    expect(prof.legajo).to.equal('TUT-55');
+    expect(prof.legajo).to.equal('8');
     expect(prof.passwordHash).to.not.equal(res.body.passwordTemporal); // nunca en claro
     expect(s.asignarRol.firstCall.args).to.deep.equal([55, 201, 40]);
   });
