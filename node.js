@@ -47,6 +47,7 @@ app.use('/api/whatsaap', authenticateJWT, scopeTenant, requirePasswordDefinitiva
 app.use('/api', authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, withTenantConnection);
 
 app.use('/api/cuenta',            require('./routes/cuenta'));
+app.use('/api/edu',               require('./routes/edu'));
 
 app.use('/api/registro_diario',   require('./routes/registroDiario'));
 app.use('/api/users',             require('./routes/users'));
