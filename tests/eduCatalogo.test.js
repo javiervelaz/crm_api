@@ -251,3 +251,28 @@ describe('/api/edu: acceso', () => {
     expect(r.status).to.equal(400);
   });
 });
+
+describe('/api/edu/mis/agenda: alcance propio', () => {
+  beforeEach(() => sinon.stub(catalogoDb, 'tenantTieneModulo').resolves(true));
+
+  for (const [tipo, campo] of [['TUT', 'tutor_id'], ['ALU', 'alumno_id'], ['PROF', 'profesor_id']]) {
+    it(`${tipo}: la agenda se filtra por ${campo} e ignora ?profesor_id`, async () => {
+      sinon.stub(personasDb, 'porUserId').resolves({ id: 21, activo: true });
+      const ag = sinon.stub(inscDb, 'agenda').resolves([]);
+      const r = await request(app).get('/api/edu/mis/agenda?profesor_id=999').set(auth({ tipo, role: ['x'], modules: [], permissions: {} }));
+      expect(r.status).to.equal(200);
+      const filtros = ag.firstCall.args[1];
+      expect(filtros[campo]).to.equal(21);
+      for (const otro of ['profesor_id', 'tutor_id', 'alumno_id'].filter((c) => c !== campo)) {
+        expect(filtros[otro] ?? null).to.equal(null);
+      }
+    });
+  }
+
+  it('admin: /agenda sin alcance usa el filtro del query', async () => {
+    const ag = sinon.stub(inscDb, 'agenda').resolves([]);
+    const r = await request(app).get('/api/edu/agenda?profesor_id=5').set(auth());
+    expect(r.status).to.equal(200);
+    expect(ag.firstCall.args[1].profesor_id).to.equal(5);
+  });
+});

@@ -157,13 +157,20 @@ const actualizarHorarios = async (cliente_id, id, body = {}) => {
   return get(cliente_id, id);
 };
 
-const agenda = (cliente_id, q = {}, alcance = {}) => {
+/**
+ * Agenda semanal. Con `alcance` (vista propia) filtra SIEMPRE por la persona
+ * —profesor, tutor o alumno— e ignora los filtros del query; antes un tutor o
+ * un alumno recibía la agenda de toda la academia.
+ */
+const agenda = (cliente_id, q = {}, alcance = null) => {
   const fecha = hoy();
-  return db.agenda(cliente_id, {
-    ciclo: q.ciclo ? Number(q.ciclo) || -1 : Number(fecha.slice(0, 4)),
-    fecha,
-    profesor_id: alcance.profesor_id ?? (q.profesor_id ? Number(q.profesor_id) || -1 : null),
-  });
+  const ciclo = q.ciclo ? Number(q.ciclo) || -1 : Number(fecha.slice(0, 4));
+  if (alcance) {
+    const { profesor_id = null, tutor_id = null, alumno_id = null } = alcance;
+    if (!profesor_id && !tutor_id && !alumno_id) throw new EduError('Sin alcance', { status: 403, code: 'SIN_FICHA' });
+    return db.agenda(cliente_id, { ciclo, fecha, profesor_id, tutor_id, alumno_id });
+  }
+  return db.agenda(cliente_id, { ciclo, fecha, profesor_id: q.profesor_id ? Number(q.profesor_id) || -1 : null });
 };
 
 module.exports = { listar, listarPropias, get, crear, actualizar, darDeBaja, actualizarHorarios, agenda, verificarDisponibilidad };
