@@ -51,6 +51,7 @@ function fakeClient({ rubroActivo = true, userTypes, modulosMaestro } = {}) {
       }
       if (s.includes('INSERT INTO "user"')) return { rows: [{ id: 10, nombre: params[0], apellido: params[1], email: params[2] }] };
       if (s.includes('INSERT INTO rol ')) return { rows: [{ id: nextId++, descripcion: params[0] }] };
+      if (s.includes('INSERT INTO legajo_secuencia')) return { rows: [{ ultimo: 1 }] };
       if (s.includes('FROM modulo_maestro')) {
         return {
           rows: modulosMaestro ?? [

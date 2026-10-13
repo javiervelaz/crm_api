@@ -2,14 +2,26 @@
 const profileService = require('../services/profile/profileService');
 
 
+// El tenant sale del JWT y el legajo lo asigna la API.
 const createProfile = async (req, res) => {
-  const {  id_user,dni, telefono, password, legajo, fecha_ingreso ,cliente_id } = req.body;
+  const { id_user, dni, telefono, password, fecha_ingreso } = req.body || {};
 
   try {
-    const result = await profileService.createProfileService({  id_user,dni, telefono, password, legajo, fecha_ingreso ,cliente_id });
+    const result = await profileService.createProfileService({
+      id_user, dni, telefono, password, fecha_ingreso, cliente_id: req.clienteId,
+    });
     res.status(201).json(result);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    const status = error instanceof profileService.ProfileError ? error.status : 400;
+    res.status(status).json({ error: error.message, code: error.code });
+  }
+};
+
+const getProximoLegajo = async (req, res) => {
+  try {
+    res.status(200).json(await profileService.getProximoLegajoService(req.clienteId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -53,11 +65,11 @@ const getProfiles = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   const profileId = req.params.id;
-  console.log("body",req.body)
-  const {  dni, telefono,password, legajo, fecha_ingreso ,cliente_id} = req.body;
-  
+  // Sin console.log del body: traía la contraseña en texto plano a los logs.
+  const { dni, telefono, password, fecha_ingreso } = req.body || {};
+
   try {
-    const result = await profileService.updateProfileService(profileId, {  dni, telefono,password, legajo, fecha_ingreso,cliente_id  });
+    const result = await profileService.updateProfileService(profileId, { dni, telefono, password, fecha_ingreso, cliente_id: req.clienteId });
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -75,6 +87,7 @@ const deleteProfile = async (req, res) => {
 };
 
 module.exports = {
+    getProximoLegajo,
     createProfile,
     getProfileById,
     getProfiles,

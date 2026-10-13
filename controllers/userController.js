@@ -2,11 +2,13 @@
 const userService = require('../services/user/userService');
 
 
+// El tipo de usuario no viene del body: se deriva de los roles que se asignan
+// después (model/users/tipo.js). El tenant sale del JWT.
 const createUser = async (req, res) => {
-  const { nombre, apellido, email ,user_type_id , cliente_id} = req.body;
+  const { nombre, apellido, email } = req.body || {};
 
   try {
-    const newUser = await userService.createUserService({  nombre, apellido, email ,user_type_id ,cliente_id });
+    const newUser = await userService.createUserService({ nombre, apellido, email, cliente_id: req.clienteId });
     res.status(201).json(newUser);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -40,9 +42,10 @@ const getUsers = async (req, res) => {
 
 const updateUser = async (req, res) => {
   const userId = req.params.id;
-  const { nombre, apellido, email ,user_type_id  } = req.body;
+  const { nombre, apellido, email } = req.body || {};
   try {
-    const updatedUser = await userService.updateUserService(userId, {  nombre, apellido, email ,user_type_id  });
+    const updatedUser = await userService.updateUserService(userId, { nombre, apellido, email }, req.clienteId);
+    if (!updatedUser) return res.status(404).json({ error: 'User not found' });
     res.status(200).json(updatedUser);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -88,7 +91,8 @@ const getUserTypeById  = async (req, res) => {
 const getUserTypeList = async (req, res) => {
 
   try {
-    const result = await userService.getUserTypeListService();
+    // Sólo los tipos del rubro del tenant: una pizzería no ve "profesor".
+    const result = await userService.getUserTypeListService(req.clienteId);
       if (!result) {
         return res.status(404).json({ error: 'user type rol not found' });
       }

@@ -22,17 +22,31 @@ const getUsers = async (cliente_id) => {
   return result;
 }
 
-const getUserTypeList = async () => {
-  const result = await pool.query('SELECT id, descripcion, codigo FROM "user_type"  ', []);
-  return result;
+// Tipos de usuario del rubro del tenant (rubro_user_type). Sin cliente,
+// el catálogo completo (comportamiento anterior).
+const getUserTypeList = async (cliente_id) => {
+  if (!cliente_id) {
+    return pool.query('SELECT id, descripcion, codigo FROM "user_type" ORDER BY id', []);
+  }
+  return pool.query(
+    `SELECT ut.id, ut.descripcion, ut.codigo
+       FROM user_type ut
+       JOIN rubro_user_type rut ON rut.user_type_id = ut.id
+       JOIN cliente c           ON c.rubro_codigo = rut.rubro_codigo
+      WHERE c.id = $1
+      ORDER BY ut.id`,
+    [cliente_id]
+  );
 }
 
 
-const updateUser = async (id, user) => {
-  const { nombre, apellido, email, user_type_id } = user;
+// Sin user_type_id (se deriva de los roles) y filtrando por tenant: antes el
+// UPDATE iba sólo por id.
+const updateUser = async (id, user, cliente_id) => {
+  const { nombre, apellido, email } = user;
   const result = await pool.query(
-    'UPDATE "user" SET nombre = $1, apellido = $2, email = $3, user_type_id = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
-    [nombre, apellido, email, user_type_id, id]
+    'UPDATE "user" SET nombre = $1, apellido = $2, email = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND cliente_id = $5 RETURNING *',
+    [nombre, apellido, email, id, cliente_id]
   );
   return result.rows[0];
 };
@@ -101,10 +115,13 @@ const auth = async (email) => {
             u."nombre",
             u."apellido",
             u.cliente_id    AS "cliente_id",
-            c.estado        AS "cliente_estado"
+            c.estado        AS "cliente_estado",
+            ut.codigo       AS "user_type",
+            p.debe_cambiar_password AS "debe_cambiar_password"
        FROM "user" u
        JOIN profile p ON u.id = p.id_user
        JOIN cliente c ON c.id = u.cliente_id
+       LEFT JOIN user_type ut ON ut.id = u.user_type_id
       WHERE lower(u.email) = lower($1)
         AND u.deleted_at IS NULL`,
     [email]
@@ -121,9 +138,13 @@ const findForSessionById = async (userId) => {
             u."nombre",
             u."apellido",
             u.cliente_id    AS "cliente_id",
-            c.estado        AS "cliente_estado"
+            c.estado        AS "cliente_estado",
+            ut.codigo       AS "user_type",
+            COALESCE(p.debe_cambiar_password, false) AS "debe_cambiar_password"
        FROM "user" u
        JOIN cliente c ON c.id = u.cliente_id
+       LEFT JOIN user_type ut ON ut.id = u.user_type_id
+       LEFT JOIN profile p    ON p.id_user = u.id
       WHERE u.id = $1
         AND u.deleted_at IS NULL`,
     [userId]
