@@ -58,15 +58,29 @@ const crearProfile = async ({ id_user, dni, telefono, passwordHash, legajo, clie
 };
 
 /** Rol del tenant para un tipo de usuario; lo crea si el admin lo borró. */
-const getOrCreateRol = async (cliente_id, descripcion) => {
-  const { rows } = await pool.query(
-    `SELECT id FROM rol WHERE cliente_id = $1 AND lower(descripcion) = lower($2) ORDER BY id LIMIT 1`,
-    [cliente_id, descripcion]
+// Rol del tenant para ese tipo de usuario. Se busca por rol.user_type_id (el
+// admin puede renombrar el rol); si no hay, por descripción (roles anteriores a
+// la migración 012) y se lo marca; si tampoco, se crea.
+const getOrCreateRol = async (cliente_id, userType) => {
+  const porTipo = await pool.query(
+    `SELECT id FROM rol WHERE cliente_id = $1 AND user_type_id = $2 ORDER BY id LIMIT 1`,
+    [cliente_id, userType.id]
   );
-  if (rows[0]) return rows[0].id;
+  if (porTipo.rows[0]) return porTipo.rows[0].id;
+
+  const porNombre = await pool.query(
+    `UPDATE rol SET user_type_id = $3
+      WHERE id = (SELECT id FROM rol
+                   WHERE cliente_id = $1 AND user_type_id IS NULL AND lower(descripcion) = lower($2)
+                   ORDER BY id LIMIT 1)
+      RETURNING id`,
+    [cliente_id, userType.descripcion, userType.id]
+  );
+  if (porNombre.rows[0]) return porNombre.rows[0].id;
+
   const ins = await pool.query(
-    `INSERT INTO rol (descripcion, cliente_id) VALUES ($1, $2) RETURNING id`,
-    [descripcion, cliente_id]
+    `INSERT INTO rol (descripcion, cliente_id, user_type_id) VALUES ($1, $2, $3) RETURNING id`,
+    [userType.descripcion, cliente_id, userType.id]
   );
   return ins.rows[0].id;
 };

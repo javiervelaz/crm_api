@@ -62,7 +62,7 @@ const crearCredencialesService = async (cliente_id, data) => {
     legajo: `${userType.codigo}-${user.id}`,
     cliente_id,
   });
-  const rolId = await db.getOrCreateRol(cliente_id, userType.descripcion);
+  const rolId = await db.getOrCreateRol(cliente_id, userType);
   await db.asignarRol(user.id, rolId, cliente_id);
 
   return {

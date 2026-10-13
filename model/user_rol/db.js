@@ -1,5 +1,4 @@
 // db.js
-const e = require('express');
 const pool = require('../../pool');
 
 const createUserRol = async (rol) => {
@@ -49,7 +48,21 @@ const createUserRol = async (rol) => {
     return result.rows;
   };
   
+  // Validaciones de pertenencia: un rol o un usuario de otro tenant no se puede
+  // asignar (antes el INSERT aceptaba cualquier id).
+  const rolDelTenant = async (id_rol, cliente_id) => {
+    const result = await pool.query('SELECT id FROM rol WHERE id = $1 AND cliente_id = $2', [id_rol, cliente_id]);
+    return result.rows[0] || null;
+  };
+
+  const userDelTenant = async (id_user, cliente_id) => {
+    const result = await pool.query('SELECT id FROM "user" WHERE id = $1 AND cliente_id = $2', [id_user, cliente_id]);
+    return result.rows[0] || null;
+  };
+
   module.exports = {
+    rolDelTenant,
+    userDelTenant,
     createUserRol,
     getUserRolById,
     getUserRols,

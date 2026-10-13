@@ -148,8 +148,8 @@ const createClienteService = async (data) => {
     let rolAdmin = null;
     for (const ut of userTypes) {
       const { rows } = await client.query(
-        `INSERT INTO rol (descripcion, cliente_id) VALUES ($1,$2) RETURNING *`,
-        [ut.descripcion || ut.codigo, cliente.id]
+        `INSERT INTO rol (descripcion, cliente_id, user_type_id) VALUES ($1,$2,$3) RETURNING *`,
+        [ut.descripcion || ut.codigo, cliente.id, ut.id]
       );
       rolesCliente.push(rows[0]);
       if (ut.codigo === 'ADMIN') rolAdmin = rows[0];

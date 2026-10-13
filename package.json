@@ -7,7 +7,7 @@
     "prestart": "npx eslint . --no-ignore && node scripts/buildEmailTemplates.js",
     "pre-copy": "cd .. && npm run  copy.lib base-baileys-memory",
     "start": "node node.js",
-    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js --exit --timeout 10000 --require tests/setup.js",
+    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js tests/tipoDerivado.test.js --exit --timeout 10000 --require tests/setup.js",
     "email:build": "node scripts/buildEmailTemplates.js",
     "email:preview": "node scripts/previewEmail.js",
     "email:worker": "node scripts/emailWorker.js",

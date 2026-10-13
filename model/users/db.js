@@ -40,11 +40,13 @@ const getUserTypeList = async (cliente_id) => {
 }
 
 
-const updateUser = async (id, user) => {
-  const { nombre, apellido, email, user_type_id } = user;
+// Sin user_type_id (se deriva de los roles) y filtrando por tenant: antes el
+// UPDATE iba sólo por id.
+const updateUser = async (id, user, cliente_id) => {
+  const { nombre, apellido, email } = user;
   const result = await pool.query(
-    'UPDATE "user" SET nombre = $1, apellido = $2, email = $3, user_type_id = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
-    [nombre, apellido, email, user_type_id, id]
+    'UPDATE "user" SET nombre = $1, apellido = $2, email = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND cliente_id = $5 RETURNING *',
+    [nombre, apellido, email, id, cliente_id]
   );
   return result.rows[0];
 };
