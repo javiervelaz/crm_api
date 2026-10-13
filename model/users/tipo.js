@@ -16,11 +16,27 @@ const ORDEN_TIPO = `
 
 const EMP_ID = `(SELECT id FROM user_type WHERE codigo = 'EMP' ORDER BY id LIMIT 1)`;
 
+const marcarRolesSinTipo = async (cliente_id) => {
+  await pool.query(
+    `UPDATE rol r
+        SET user_type_id = ut.id
+       FROM user_type ut
+      WHERE r.cliente_id = $1
+        AND r.user_type_id IS NULL
+        AND lower(trim(r.descripcion)) = lower(ut.descripcion)`,
+    [cliente_id]
+  );
+};
+
 /**
  * Recalcula el tipo del usuario a partir de sus roles. Sin roles no lo toca
  * (por ejemplo, los clientes de pedidos). Devuelve el código resultante o null.
  */
 const sincronizarTipo = async (id_user, cliente_id) => {
+  // Roles del tenant que todavía no tienen tipo pero se llaman como uno
+  // (creados antes de la 012, por una API vieja o a mano como "profesor"):
+  // se marcan acá. Sin esto un profesor quedaba como empleado (bug CP-07).
+  await marcarRolesSinTipo(cliente_id);
   const { rows } = await pool.query(
     `WITH derivado AS (
        SELECT ut.id, ut.codigo
@@ -52,4 +68,4 @@ const getUserTypeIdPorCodigo = async (codigo) => {
   return rows[0]?.id ?? null;
 };
 
-module.exports = { sincronizarTipo, getUserTypeIdPorCodigo, ORDEN_TIPO };
+module.exports = { sincronizarTipo, marcarRolesSinTipo, getUserTypeIdPorCodigo, ORDEN_TIPO };

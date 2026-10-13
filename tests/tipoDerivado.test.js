@@ -128,3 +128,19 @@ describe('Asignación de roles recalcula el tipo', () => {
     expect(crear.called).to.equal(false);
   });
 });
+
+describe('sincronizarTipo (CP-07)', () => {
+  it('antes de derivar marca los roles del tenant que no tienen tipo', async () => {
+    const pool = require('../pool');
+    const sqls = [];
+    sinon.stub(pool, 'query').callsFake(async (sql, params) => {
+      sqls.push({ sql, params });
+      return { rows: sqls.length === 2 ? [{ codigo: 'PROF' }] : [] };
+    });
+    const codigo = await tipoDb.sincronizarTipo(90, 40);
+    expect(codigo).to.equal('PROF');
+    expect(sqls[0].sql).to.match(/UPDATE rol r[\s\S]*user_type_id IS NULL/);
+    expect(sqls[0].params).to.deep.equal([40]);
+    expect(sqls[1].params).to.deep.equal([90, 40]);
+  });
+});
