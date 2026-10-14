@@ -188,6 +188,31 @@ describe('edu/servicios', () => {
     }
   });
 
+  it('ciclo lejano al alta → 400 en ciclo (2099 con alta 2026); el siguiente se acepta', async () => {
+    const crear = sinon.stub(inscDb, 'crear');
+    const base = { alumno_id: 3, clase_id: 9, profesor_id: 1, fecha_alta: '2026-10-13', horarios: [{ dia_semana: 1, hora_inicio: '18:00', hora_fin: '19:00' }] };
+    for (const ciclo of [2099, 2025]) {
+      try {
+        await inscripcionService.crear(40, { ...base, ciclo });
+        expect.fail('debía rechazar');
+      } catch (e) {
+        expect(e.status).to.equal(400);
+        expect(e.field).to.equal('ciclo');
+        expect(e.message).to.equal('El ciclo tiene que ser 2026 o 2027 (según la fecha de alta)');
+      }
+    }
+    expect(crear.called).to.equal(false);
+    sinon.stub(personasDb, 'get').resolves({ id: 1, activo: true });
+    sinon.stub(catalogoDb, 'getClase').resolves({ id: 9, activa: true, es_grupal: false, cupo: null });
+    sinon.stub(inscDb, 'existeDuplicada').resolves(null);
+    sinon.stub(inscDb, 'ocupados').resolves([]);
+    crear.resolves({ id: 77 });
+    sinon.stub(inscDb, 'reemplazarHorarios').resolves();
+    sinon.stub(inscDb, 'get').resolves({ id: 77, ciclo: 2027 });
+    await inscripcionService.crear(40, { ...base, ciclo: 2027 });
+    expect(crear.firstCall.args[1].ciclo).to.equal(2027);
+  });
+
   it('baja anterior al alta → 400', async () => {
     sinon.stub(inscDb, 'get').resolves({ id: 5, profesor_id: 1, fecha_alta: '2026-10-05', fecha_baja: null, horarios: [] });
     try {

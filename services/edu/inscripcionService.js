@@ -15,7 +15,12 @@ const idDe = (v, field) => {
 const cicloDe = (v, fecha) => {
   if (v === undefined || v === null || v === '') return Number(fecha.slice(0, 4));
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 2000 || n > 2100) throw new EduError('Ciclo inválido (año)', { field: 'ciclo' });
+  // El ciclo es el año del alta o el siguiente (inscripción anticipada). Un año
+  // lejano deja la inscripción fuera de Mis clases y de la agenda sin aviso.
+  const anio = Number(fecha.slice(0, 4));
+  if (!Number.isInteger(n) || n < anio || n > anio + 1) {
+    throw new EduError(`El ciclo tiene que ser ${anio} o ${anio + 1} (según la fecha de alta)`, { field: 'ciclo' });
+  }
   return n;
 };
 
