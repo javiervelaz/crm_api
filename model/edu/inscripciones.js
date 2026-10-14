@@ -128,8 +128,11 @@ const contarActivas = async (cliente_id, campo, id, fecha) => {
   )).rows[0].n;
 };
 
-/** Agenda semanal: turnos de inscripciones activas, opcionalmente de un profesor. */
-const agenda = async (cliente_id, { ciclo, fecha, profesor_id = null }) => (await pool.query(
+/**
+ * Agenda semanal: turnos de inscripciones activas. Filtros opcionales por
+ * profesor, tutor (alumnos a su cargo) o alumno: los usa la vista propia.
+ */
+const agenda = async (cliente_id, { ciclo, fecha, profesor_id = null, tutor_id = null, alumno_id = null }) => (await pool.query(
   `SELECT h.dia_semana, ${H('h.hora_inicio')} AS hora_inicio, ${H('h.hora_fin')} AS hora_fin,
           i.id AS inscripcion_id, i.profesor_id, p.nombre || ' ' || p.apellido AS profesor,
           i.alumno_id, a.nombre || ' ' || a.apellido AS alumno,
@@ -142,8 +145,10 @@ const agenda = async (cliente_id, { ciclo, fecha, profesor_id = null }) => (awai
      JOIN edu_tipo_clase t ON t.id = c.tipo_clase_id
     WHERE i.cliente_id = $1 AND i.ciclo = $2 AND ${ACTIVA('i', '$3')}
       AND ($4::int IS NULL OR i.profesor_id = $4)
+      AND ($5::int IS NULL OR a.tutor_id = $5)
+      AND ($6::int IS NULL OR i.alumno_id = $6)
     ORDER BY h.dia_semana, h.hora_inicio, p.apellido, a.apellido`,
-  [cliente_id, ciclo, fecha, profesor_id]
+  [cliente_id, ciclo, fecha, profesor_id, tutor_id, alumno_id]
 )).rows;
 
 module.exports = { listar, get, existeDuplicada, crear, actualizar, reemplazarHorarios, ocupados, contarActivas, agenda };
