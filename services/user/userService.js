@@ -7,6 +7,16 @@ const permisosUser = require("../../model/permisos/db");
 const bcrypt = require('bcrypt');
 
 
+const errorCon = (message, status, code) => Object.assign(new Error(message), { status, code });
+
+// Profesores, tutores y alumnos se editan y dan de baja desde Academia: si se
+// tocaran acá, el email del usuario y el de la ficha quedarían distintos.
+const noExterno = async (userId, cliente_id) => {
+  if (await tipoDb.userEsExterno(userId, cliente_id)) {
+    throw errorCon('Este usuario es de la academia (profesor, tutor o alumno): se gestiona desde Academia', 400, 'USUARIO_EXTERNO');
+  }
+};
+
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
@@ -107,20 +117,23 @@ const createUserService = async (user) => {
   const updateUserService = async (userId, user, cliente_id) => {
     const { nombre, apellido, email } = user;
     if (!nombre || !apellido ||  !email ) {
-      throw new Error('All fields are required');
+      throw errorCon('All fields are required', 400, 'FALTAN_DATOS');
     }
     // Validación de formato de email
     if (!validateEmail(email)) {
-      throw new Error('Invalid email format');
+      throw errorCon('Invalid email format', 400, 'EMAIL_INVALIDO');
     }
+    await noExterno(userId, cliente_id);
     const updatedUser = await db.updateUser(userId, { nombre, apellido, email }, cliente_id);
     return updatedUser;
   }
 
   const deleteUserService = async (id,cliente_id) => {
+    await noExterno(id, cliente_id);
     const result = await db.deleteUser(id,cliente_id);
     if (!result) {
-      return res.status(404).json({ error: 'User not found' });
+      // Antes: `return res.status(404)...` con `res` inexistente → 500.
+      throw errorCon('User not found', 404, 'NOT_FOUND');
     }
     return result;
   }

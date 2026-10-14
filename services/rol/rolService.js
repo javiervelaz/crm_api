@@ -1,12 +1,27 @@
 const e = require('express');
 const db = require('../../model/roles/db');
 const pool = require('../../pool');
+const tipoDb = require('../../model/users/tipo');
+
+const errorCon = (message, status, code) => Object.assign(new Error(message), { status, code });
+
+// Profesor, tutor y alumno son roles del sistema que maneja Academia: no se
+// renombran, borran ni se les cambian permisos (y no se crea otro con su nombre,
+// que lo volvería externo y a sus usuarios también).
+const noExterno = async (rolId, cliente_id) => {
+  if (await tipoDb.rolEsExterno(rolId, cliente_id)) {
+    throw errorCon('Los roles de profesor, tutor y alumno son del sistema: se gestionan desde Academia', 400, 'ROL_EXTERNO');
+  }
+};
 
 const createRolService = async (rol) => {
     const { descripcion,cliente_id } = rol;
     // Validación de campos requeridos
     if (!descripcion ) {
       throw new Error('All fields are required');
+    }
+    if (await tipoDb.nombreDeTipoExterno(descripcion)) {
+      throw errorCon(`"${String(descripcion).trim()}" es un rol del sistema: elegí otro nombre`, 400, 'ROL_EXTERNO');
     }
     const newRol = await db.createRol({ descripcion,cliente_id });
     return newRol;
@@ -25,17 +40,21 @@ const createRolService = async (rol) => {
   const updateRolService = async (rolId,rol) => {
     const { descripcion ,cliente_id} = rol;
     if (!descripcion  ) {
-      throw new Error('All fields are required');
+      throw errorCon('All fields are required', 400, 'FALTAN_DATOS');
     }
-    
+    await noExterno(rolId, cliente_id);
+    if (await tipoDb.nombreDeTipoExterno(descripcion)) {
+      throw errorCon(`"${String(descripcion).trim()}" es un rol del sistema: elegí otro nombre`, 400, 'ROL_EXTERNO');
+    }
     const updatedRol = await db.updateRol(rolId, { descripcion,cliente_id});
     return updatedRol;
   }
 
   const deleteRolService = async (id,cliente_id) => {
+    await noExterno(id, cliente_id);
     const result = await db.deleteRol(id,cliente_id);
     if (!result) {
-      return res.status(404).json({ error: 'Rol not found' });
+      throw errorCon('Rol not found', 404, 'NOT_FOUND'); // antes: `res` inexistente → 500
     }
     return result;
   }
@@ -92,6 +111,7 @@ const getRolModulosPermisosService = async (rolId, clienteId) => {
    * La función limpiará (DELETE) y volverá a insertar las relaciones para el rol dado.
    */
   const   postRolModulosPermisosService = async (rolId, clienteId, modulos, requestingUserId = null) => {
+    await noExterno(rolId, clienteId);
     // Guard bug 15 (ROL-06): si el usuario que edita TIENE este rol, no puede
     // quitarse los módulos de administración (usuarios/roles) -> se autobloquea.
     if (requestingUserId) {
