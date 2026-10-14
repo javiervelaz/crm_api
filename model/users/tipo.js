@@ -68,4 +68,52 @@ const getUserTypeIdPorCodigo = async (codigo) => {
   return rows[0]?.id ?? null;
 };
 
-module.exports = { sincronizarTipo, marcarRolesSinTipo, getUserTypeIdPorCodigo, ORDEN_TIPO };
+// ─── Usuarios externos (profesor, tutor, alumno) ─────────────────────────────
+// Se gestionan desde Academia (crm_api /api/edu), nunca desde Usuarios/Roles:
+// ahí no se les asigna ni se les quita rol, ni se editan o borran.
+const TIPOS_EXTERNOS = ['PROF', 'TUT', 'ALU'];
+
+// Código de tipo de un rol: el de su user_type_id o, si no tiene (rol viejo o
+// creado a mano), el del tipo con el mismo nombre. Igual criterio que
+// marcarRolesSinTipo, pero sin escribir.
+const CODIGO_ROL = (r) => `COALESCE(
+  (SELECT codigo FROM user_type WHERE id = ${r}.user_type_id),
+  (SELECT codigo FROM user_type WHERE ${r}.user_type_id IS NULL AND lower(descripcion) = lower(trim(${r}.descripcion)) ORDER BY id LIMIT 1)
+)`;
+
+const rolEsExterno = async (id_rol, cliente_id) => {
+  const { rows } = await pool.query(
+    `SELECT ${CODIGO_ROL('r')} AS codigo FROM rol r WHERE r.id = $1 AND r.cliente_id = $2`,
+    [id_rol, cliente_id]
+  );
+  return TIPOS_EXTERNOS.includes(rows[0]?.codigo);
+};
+
+/** El usuario es de la academia: su tipo es externo o tiene algún rol externo. */
+const userEsExterno = async (id_user, cliente_id) => {
+  const { rows } = await pool.query(
+    `SELECT (ut.codigo = ANY($3::text[])) OR EXISTS (
+              SELECT 1 FROM user_rol ur JOIN rol r ON r.id = ur.id_rol AND r.cliente_id = ur.cliente_id
+               WHERE ur.id_user = u.id AND ur.cliente_id = u.cliente_id
+                 AND ${CODIGO_ROL('r')} = ANY($3::text[])
+            ) AS externo
+       FROM "user" u LEFT JOIN user_type ut ON ut.id = u.user_type_id
+      WHERE u.id = $1 AND u.cliente_id = $2`,
+    [id_user, cliente_id, TIPOS_EXTERNOS]
+  );
+  return rows[0]?.externo === true;
+};
+
+/** ¿El nombre coincide con un tipo externo? (crear un rol "Profesor" a mano lo volvería externo). */
+const nombreDeTipoExterno = async (descripcion) => {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM user_type WHERE lower(descripcion) = lower(trim($1)) AND codigo = ANY($2::text[]) LIMIT 1`,
+    [String(descripcion ?? ''), TIPOS_EXTERNOS]
+  );
+  return rows.length > 0;
+};
+
+module.exports = {
+  sincronizarTipo, marcarRolesSinTipo, getUserTypeIdPorCodigo, ORDEN_TIPO,
+  TIPOS_EXTERNOS, CODIGO_ROL, rolEsExterno, userEsExterno, nombreDeTipoExterno,
+};
