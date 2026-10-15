@@ -167,6 +167,40 @@ const rechazar = async (cliente_id, id, usuario, body = {}) => {
   return db.getPago(cliente_id, id);
 };
 
+// ─── Vista previa del cálculo (no escribe) ────────────────────────────────
+/**
+ * Cuánto sería el pago a una fecha: la UI lo usa antes de registrar o aprobar
+ * para mostrar el recargo sin duplicar las reglas. Acepta `cuota_ids` (cuotas
+ * impagas) o `pago_id` (las cuotas de un pago pendiente).
+ */
+const calcular = async (cliente_id, body = {}) => {
+  const fecha_pago = fechaDe(body.fecha_pago);
+  let cuotas;
+  if (body.pago_id !== undefined && body.pago_id !== null && body.pago_id !== '') {
+    const pid = Number(body.pago_id);
+    if (!Number.isInteger(pid) || pid <= 0) throw new EduError('pago_id inválido', { field: 'pago_id' });
+    if (!(await db.getPago(cliente_id, pid))) throw noEncontrado();
+    cuotas = await db.cuotasDePago(cliente_id, pid, false);
+  } else {
+    const ids = idsDe(body.cuota_ids);
+    cuotas = await db.cuotasPorIds(cliente_id, ids, {}, false);
+    if (cuotas.length !== ids.length) {
+      throw new EduError('Alguna cuota no existe', { status: 404, code: 'CUOTA_NO_ENCONTRADA', field: 'cuota_ids' });
+    }
+    if (cuotas.some((c) => c.estado === 'pagada')) {
+      throw new EduError('Una cuota ya está paga', { status: 409, code: 'CUOTA_NO_PAGABLE', field: 'cuota_ids' });
+    }
+  }
+  const cfg = await cuotasService.configDe(cliente_id);
+  const { lineas, total } = R.calcularLineas(cuotas, fecha_pago, cfg);
+  const porId = new Map(cuotas.map((c) => [c.id, c]));
+  return {
+    fecha_pago,
+    total,
+    lineas: lineas.map((l) => ({ ...l, periodo: porId.get(l.cuota_id).periodo, vence: porId.get(l.cuota_id).vence })),
+  };
+};
+
 // ─── Consultas ────────────────────────────────────────────────────────────
 const ESTADOS_PAGO = ['pendiente', 'aprobado', 'rechazado'];
 
@@ -191,6 +225,6 @@ const comprobante = async (cliente_id, id, pagador_user_id = null) => {
 const resumen = async (cliente_id) => ({ pendientes_revision: await db.contarPendientes(cliente_id) });
 
 module.exports = {
-  registrarAdmin, crearPortal, aprobar, rechazar, listar, get, comprobante, resumen,
+  registrarAdmin, crearPortal, aprobar, rechazar, calcular, listar, get, comprobante, resumen,
   MAX_COMPROBANTE,
 };

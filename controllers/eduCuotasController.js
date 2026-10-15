@@ -43,6 +43,7 @@ const listarPagos = h((req) => pagos.listar(cid(req), req.query));
 const resumenPagos = h((req) => pagos.resumen(cid(req)));
 const getPago = h((req) => pagos.get(cid(req), pagoId(req)));
 const comprobante = h((req) => pagos.comprobante(cid(req), pagoId(req)));
+const calcularPago = h((req) => pagos.calcular(cid(req), req.body));
 const registrarPago = h((req) => pagos.registrarAdmin(cid(req), staff(req), req.body), 201);
 const aprobarPago = h((req) => pagos.aprobar(cid(req), pagoId(req), staff(req), req.body));
 const rechazarPago = h((req) => pagos.rechazar(cid(req), pagoId(req), staff(req), req.body));
@@ -66,7 +67,7 @@ const cronAvisados = h((req) => cron.marcarAvisados(req.body?.ids));
 
 module.exports = {
   responderError,
-  listarCuotas, generarCuotas, listarPagos, resumenPagos, getPago, comprobante, registrarPago, aprobarPago, rechazarPago,
+  listarCuotas, generarCuotas, listarPagos, resumenPagos, getPago, comprobante, calcularPago, registrarPago, aprobarPago, rechazarPago,
   misCuotas, misPagos, miComprobante, crearMiPago,
   cronGenerar, cronPendientes, cronAvisados,
 };

@@ -589,6 +589,48 @@ describe('edu/pagosService: revisión del admin', () => {
   });
 });
 
+describe('edu/pagosService: vista previa del cálculo', () => {
+  const cuota = (id, extra = {}) => ({ id, alumno_id: 10, periodo: '2026-10-01', importe: '10000.00', vence: '2026-10-10', estado: 'pendiente', ...extra });
+  beforeEach(() => sinon.stub(db, 'configAlumnos').resolves(null));
+
+  it('por cuota_ids: calcula el recargo a la fecha pedida y no escribe nada', async () => {
+    sinon.stub(db, 'cuotasPorIds').resolves([cuota(1)]);
+    const ins = sinon.stub(db, 'insertarPago');
+    const r = await pagosService.calcular(40, { cuota_ids: [1], fecha_pago: '2026-10-12' });
+    expect(r.total).to.equal(11500);
+    expect(r.lineas[0]).to.include({ cuota_id: 1, recargo_pct: 15, periodo: '2026-10-01', vence: '2026-10-10' });
+    expect(db.cuotasPorIds.firstCall.args[3]).to.equal(false); // sin FOR UPDATE
+    expect(ins.called).to.equal(false);
+  });
+
+  it('por pago_id: usa las cuotas del pago (en revisión) sin bloquearlas', async () => {
+    sinon.stub(db, 'getPago').resolves({ id: 8 });
+    const c = sinon.stub(db, 'cuotasDePago').resolves([cuota(1, { estado: 'en_revision' })]);
+    const r = await pagosService.calcular(40, { pago_id: 8, fecha_pago: '2026-10-09' });
+    expect(r.total).to.equal(10000);
+    expect(c.firstCall.args).to.deep.equal([40, 8, false]);
+  });
+
+  it('pago de otro tenant → 404; cuota paga → 409; cuota inexistente → 404', async () => {
+    sinon.stub(db, 'getPago').resolves(null);
+    let e1; let e2; let e3;
+    try { await pagosService.calcular(40, { pago_id: 99 }); } catch (e) { e1 = e; }
+    sinon.stub(db, 'cuotasPorIds').resolves([cuota(1, { estado: 'pagada' })]);
+    try { await pagosService.calcular(40, { cuota_ids: [1] }); } catch (e) { e2 = e; }
+    db.cuotasPorIds.resolves([]);
+    try { await pagosService.calcular(40, { cuota_ids: [5] }); } catch (e) { e3 = e; }
+    expect([e1.status, e2.status, e3.status]).to.deep.equal([404, 409, 404]);
+  });
+
+  it('HTTP: lo puede pedir quien lista (alumnos.list); un alumno no (403)', async () => {
+    sinon.stub(catalogoDb, 'tenantTieneModulo').resolves(true);
+    sinon.stub(pagosService, 'calcular').resolves({ total: 1, lineas: [], fecha_pago: '2026-10-01' });
+    const ok = await request(app).post('/api/edu/pagos/calcular').set(auth({ role: ['empleado'], tipo: 'EMP', permissions: { alumnos: ['alumnos.list'] } })).send({ cuota_ids: [1] });
+    expect(ok.status).to.equal(200);
+    expect((await request(app).post('/api/edu/pagos/calcular').set(comoAlumno()).send({ cuota_ids: [1] })).status).to.equal(403);
+  });
+});
+
 // ─── Storage genérico ─────────────────────────────────────────────────────
 describe('services/storage', () => {
   it('sube por el proveedor activo y devuelve provider + key + meta para guardar en la base', async () => {

@@ -85,6 +85,7 @@ router.get('/cuotas', LIST, cc.listarCuotas);
 router.post('/cuotas/generar', CREATE, cc.generarCuotas);
 router.get('/pagos', LIST, cc.listarPagos);
 router.get('/pagos/resumen', LIST, cc.resumenPagos);
+router.post('/pagos/calcular', LIST, cc.calcularPago); // vista previa, no escribe
 router.post('/pagos', CREATE, cc.registrarPago);
 router.get('/pagos/:id', LIST, cc.getPago);
 router.get('/pagos/:id/comprobante', LIST, cc.comprobante);

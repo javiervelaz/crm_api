@@ -184,12 +184,12 @@ const getComprobante = async (cliente_id, id, pagador_user_id = null) => (await 
   [cliente_id, id, pagador_user_id]
 )).rows[0] || null;
 
-const cuotasDePago = async (cliente_id, pago_id) => (await pool.query(
+const cuotasDePago = async (cliente_id, pago_id, bloquear = true) => (await pool.query(
   `SELECT q.id, q.alumno_id, ${D('q.periodo')} AS periodo, q.importe, ${D('q.vence')} AS vence, q.estado
      FROM edu_pago_cuota pc JOIN edu_cuota q ON q.id = pc.cuota_id
     WHERE pc.cliente_id = $1 AND pc.pago_id = $2
     ORDER BY q.id
-    FOR UPDATE OF q`,
+    ${bloquear ? 'FOR UPDATE OF q' : ''}`,
   [cliente_id, pago_id]
 )).rows;
 
