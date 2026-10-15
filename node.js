@@ -27,6 +27,7 @@ app.use('/api/verify-email', require('./routes/verifyEmail'));
 // Drenado de la cola de emails. Autenticado con CRON_SECRET, lo dispara n8n.
 app.use('/api/cron/email-outbox', require('./routes/emailCron'));
 app.use('/api/cron/verificaciones', require('./routes/verificacionCron'));
+app.use('/api/cron/edu-cuotas', require('./routes/eduCuotasCron'));
 // ─── PÚBLICAS: no pasan por authenticateJWT ni scopeTenant ────────────────
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/saas',            require('./routes/saas'));           // alta pública
