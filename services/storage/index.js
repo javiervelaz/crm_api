@@ -48,6 +48,8 @@ const subir = async ({ buffer, folder, nombre }) => {
     const r = await proveedor.upload({ buffer, folder, filename: nombre || crypto.randomUUID() });
     return { provider: proveedor.nombre, key: r.key, meta: r.meta ?? null, bytes: r.bytes ?? buffer.length };
   } catch (err) {
+    // El cliente recibe un mensaje genérico; el motivo real queda en el log del servidor.
+    console.error('[storage] no se pudo subir', proveedor.nombre, folder, err?.http_code ?? '', err?.message ?? err);
     throw new StorageError('No se pudo guardar el archivo', { cause: err });
   }
 };
