@@ -1,6 +1,7 @@
 // db.js
 const e = require('express');
 const pool = require('../../pool');
+const { TIPOS_EXTERNOS } = require('./tipo');
 
 const createUser = async (user) => {
   const { nombre, apellido, email, user_type_id,cliente_id } = user;
@@ -17,8 +18,18 @@ const getUserById = async (id,cliente_id) => {
 };
 
 
+// Sólo staff (y clientes de pedidos): profesores, tutores y alumnos se
+// gestionan desde Academia (ver model/users/tipo.js, TIPOS_EXTERNOS).
 const getUsers = async (cliente_id) => {
-  const result = await pool.query('SELECT  u.*,ut.codigo as user_type_codigo,ut.descripcion as user_type_descripcion, p.telefono as telefono  FROM "user" u left join "user_type" ut on u.user_type_id=ut.id left join "profile" p on p.id_user =u.id where u.cliente_id =  $1' , [cliente_id]);
+  const result = await pool.query(
+    `SELECT u.*, ut.codigo AS user_type_codigo, ut.descripcion AS user_type_descripcion, p.telefono AS telefono
+       FROM "user" u
+       LEFT JOIN "user_type" ut ON u.user_type_id = ut.id
+       LEFT JOIN "profile" p    ON p.id_user = u.id
+      WHERE u.cliente_id = $1
+        AND (ut.codigo IS NULL OR ut.codigo <> ALL($2::text[]))`,
+    [cliente_id, TIPOS_EXTERNOS]
+  );
   return result;
 }
 

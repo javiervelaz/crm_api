@@ -10,12 +10,17 @@ const {
     deleteUserRol,
     getUserRoleByUserId
 } = require('../controllers/userRolController');
+const { authorizeRole } = require('../middleware/authMiddleware');
 
-router.post('/', createUserRol);
+// Asignar o quitar roles es de admin: antes cualquier usuario del staff podía
+// darse el rol admin a sí mismo.
+const soloAdmin = authorizeRole(['admin']);
+
+router.post('/', soloAdmin, createUserRol);
 router.get('/list/:cliente_id', getUserRolList);
 router.get('/:id/:cliente_id', getUserRolById);
-router.put('/:id', updateUserRol);
-router.delete('/:id/:cliente_id', deleteUserRol);
+router.put('/:id', soloAdmin, updateUserRol);
+router.delete('/:id/:cliente_id', soloAdmin, deleteUserRol);
 router.get('/user/:id/:cliente_id', getUserRoleByUserId);
 
 module.exports = router;

@@ -20,6 +20,21 @@ const validarRol = async (id_rol, cliente_id) => {
   }
 };
 
+// Profesores, tutores y alumnos se gestionan desde Academia: acá no se les
+// asigna, cambia ni quita rol, y un rol externo no se asigna a nadie. Así no
+// quedan usuarios externos sin ficha ni externos con rol de staff (un profesor
+// con rol admin pasaba a tener permisos de administración).
+const MSG_ROL_EXTERNO = 'Los roles de profesor, tutor y alumno se asignan desde Academia';
+const MSG_USER_EXTERNO = 'Este usuario es de la academia (profesor, tutor o alumno): se gestiona desde Academia';
+const noExterno = async ({ id_rol = null, id_user = null }, cliente_id) => {
+  if (id_rol && (await tipoDb.rolEsExterno(id_rol, cliente_id))) {
+    throw new UserRolError(MSG_ROL_EXTERNO, 400, 'ROL_EXTERNO');
+  }
+  if (id_user && (await tipoDb.userEsExterno(id_user, cliente_id))) {
+    throw new UserRolError(MSG_USER_EXTERNO, 400, 'USUARIO_EXTERNO');
+  }
+};
+
 // Cada alta, cambio o baja de rol recalcula el tipo del usuario
 // (model/users/tipo.js): el tipo ya no se elige a mano.
 const createUserRolService = async (userRol) => {
@@ -33,6 +48,7 @@ const createUserRolService = async (userRol) => {
   if (!(await db.userDelTenant(id_user, cliente_id))) {
     throw new UserRolError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
   }
+  await noExterno({ id_rol, id_user }, cliente_id);
   // Idempotente: el rol ya asignado no se duplica.
   const result = (await db.userRolExistente(id_user, id_rol, cliente_id))
     || (await db.createUserRol({ id_rol, id_user, cliente_id }));
@@ -57,6 +73,10 @@ const updateUserRolService = async (id, data) => {
     throw new UserRolError('All fields are required');
   }
   await validarRol(id_rol, cliente_id);
+  const actual = await db.getUserRolById(id, cliente_id);
+  if (!actual) throw new UserRolError('User rol not found', 404, 'NOT_FOUND');
+  await noExterno({ id_rol: actual.id_rol }, cliente_id);
+  await noExterno({ id_rol, id_user: actual.id_user }, cliente_id);
   const result = await db.updateUserRol(id, { id_rol, cliente_id });
   if (!result) throw new UserRolError('User rol not found', 404, 'NOT_FOUND');
   await tipoDb.sincronizarTipo(result.id_user, cliente_id);
@@ -64,6 +84,10 @@ const updateUserRolService = async (id, data) => {
 };
 
 const deleteUserRolService = async (id, cliente_id) => {
+  // Se puede limpiar un rol de staff mal asignado, pero no quitar el rol
+  // externo (rompería el acceso que maneja Academia).
+  const actual = await db.getUserRolById(id, cliente_id);
+  if (actual) await noExterno({ id_rol: actual.id_rol }, cliente_id);
   const result = await db.deleteUserRol(id, cliente_id);
   if (!result) {
     throw new UserRolError('User rol not found', 404, 'NOT_FOUND');

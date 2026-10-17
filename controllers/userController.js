@@ -48,7 +48,7 @@ const updateUser = async (req, res) => {
     if (!updatedUser) return res.status(404).json({ error: 'User not found' });
     res.status(200).json(updatedUser);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message, code: error.code });
   }
 };
 
@@ -71,7 +71,7 @@ const deleteUser = async (req, res) => {
     const result = await userService.deleteUserService(id,cliente_id);
     res.status(200).json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message, code: err.code });
   }
 };
 
