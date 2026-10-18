@@ -12,9 +12,12 @@ const {
     getProfiles,
     updateProfile,
     deleteProfile,
-    getProfileByUserId
+    getProfileByUserId,
+    getProximoLegajo
 } = require('../controllers/profileController');
 
+// Antes de '/:id/:cliente_id', que si no la captura.
+router.get('/legajo/proximo', getProximoLegajo);
 router.post('/', createProfile);
 router.get('/list/:cliente_id', getProfiles);
 router.get('/:id/:cliente_id', getProfileById);

@@ -1,5 +1,6 @@
 // services/cliente/clienteService.js
 const pool = require('../../pool');
+const legajoDb = require('../../model/profile/legajo');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { createSubscription, createOneTimePayment, saveSubscription } =
@@ -9,6 +10,7 @@ const { TTL_DIAS } = require('../verificacion/config');
 const mailer = require('../email');
 
 const TZ = 'America/Argentina/Cordoba';
+const RUBRO_DEFAULT = 'gastronomia';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
 class SignupError extends Error {
@@ -29,12 +31,16 @@ const createClienteService = async (data) => {
   const {
     nombre, cuit, adminNombre, adminApellido, adminEmail, adminDni,
     plan, telefono, adminPassword, canal_alta,
-    terminosVersion, signupIp, utmSource, utmCampaign,
+    terminosVersion, signupIp, utmSource, utmCampaign, rubro,
   } = data;
 
   if (!adminPassword) {
     throw new SignupError('La contraseña es obligatoria', { field: 'password' });
   }
+
+  // El rubro define la plantilla del alta: qué módulos y tipos de usuario
+  // se instancian. Sin rubro explícito, gastronomía (comportamiento histórico).
+  const rubroCodigo = String(rubro || RUBRO_DEFAULT).trim().toLowerCase();
 
   const email = String(adminEmail).trim().toLowerCase();
   const cuitNorm = String(cuit).replace(/\D/g, '');
@@ -76,6 +82,15 @@ const createClienteService = async (data) => {
 
     const esPago = Number(tier.precio_mensual) > 0;
 
+    const rubroRes = await client.query(
+      `SELECT codigo, nombre FROM rubro WHERE codigo = $1 AND activo = true`,
+      [rubroCodigo]
+    );
+    const rubroRow = rubroRes.rows[0];
+    if (!rubroRow) {
+      throw new SignupError('El rubro elegido no es válido', { code: 'RUBRO_INVALIDO', field: 'rubro' });
+    }
+
     // El plan pago arranca vencido: se activa cuando el webhook confirma.
     // Los días de trial del FREE definen su ventana.
     // $9/$10 siempre se referencian en la query (aunque esPago sea false):
@@ -86,26 +101,33 @@ const createClienteService = async (data) => {
          nombre, cuit, contacto_nombre, contacto_apellido,
          contacto_email, contacto_telefono, tier_id, canal_alta,
          tier_expiration_date, terminos_aceptados_at, terminos_version,
-         signup_ip, utm_source, utm_campaign, estado
+         signup_ip, utm_source, utm_campaign, estado, rubro_codigo
        )
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
                CASE WHEN $9 THEN (now() AT TIME ZONE $10)::date ELSE NULL END,
-               now(), $11, $12, $13, $14, $15)
+               now(), $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         nombre, cuitNorm, adminNombre, adminApellido, email, telefono,
         tier.id, canal_alta || 'landing', esPago, TZ,
         terminosVersion || null, signupIp || null, utmSource || null, utmCampaign || null,
-        ESTADOS.PENDIENTE,
+        ESTADOS.PENDIENTE, rubroRow.codigo,
       ]
     );
     const cliente = clienteRes.rows[0];
 
     // ─── Provisioning: user_type → user → profile ────────────────────────
-    const userTypes = (await client.query('SELECT * FROM "user_type"')).rows;
+    const userTypes = (await client.query(
+      `SELECT ut.*
+         FROM user_type ut
+         JOIN rubro_user_type rut ON rut.user_type_id = ut.id
+        WHERE rut.rubro_codigo = $1
+        ORDER BY ut.id`,
+      [rubroRow.codigo]
+    )).rows;
     const adminUserType = userTypes.find((ut) => ut.codigo === 'ADMIN');
     if (!adminUserType) {
-      throw new SignupError('user_type "ADMIN" no está configurado', { status: 500 });
+      throw new SignupError(`user_type "ADMIN" no está configurado para el rubro ${rubroRow.codigo}`, { status: 500 });
     }
 
     const userRes = await client.query(
@@ -119,7 +141,7 @@ const createClienteService = async (data) => {
       `INSERT INTO profile (id_user, dni, telefono, password, legajo, fecha_ingreso,
                             casa_nro, barrio, cliente_id)
        VALUES ($1,$2,$3,$4,$5, (now() AT TIME ZONE $7)::date, null, null, $6)`,
-      [user.id, adminDni || 0, telefono, hashedPassword, `ADMIN-${cliente.id}`, cliente.id, TZ]
+      [user.id, adminDni || 0, telefono, hashedPassword, await legajoDb.siguienteLegajo(cliente.id, client), cliente.id, TZ]
     );
 
     // ─── Roles ───────────────────────────────────────────────────────────
@@ -127,8 +149,8 @@ const createClienteService = async (data) => {
     let rolAdmin = null;
     for (const ut of userTypes) {
       const { rows } = await client.query(
-        `INSERT INTO rol (descripcion, cliente_id) VALUES ($1,$2) RETURNING *`,
-        [ut.descripcion || ut.codigo, cliente.id]
+        `INSERT INTO rol (descripcion, cliente_id, user_type_id) VALUES ($1,$2,$3) RETURNING *`,
+        [ut.descripcion || ut.codigo, cliente.id, ut.id]
       );
       rolesCliente.push(rows[0]);
       if (ut.codigo === 'ADMIN') rolAdmin = rows[0];
@@ -143,15 +165,23 @@ const createClienteService = async (data) => {
 
     // ─── Módulos ─────────────────────────────────────────────────────────
     const modulosMaestro = (await client.query(
-      `SELECT codigo, descripcion, status FROM modulo_maestro WHERE status = true`
+      `SELECT mm.codigo, mm.descripcion, mm.status, rmm.config_default
+         FROM modulo_maestro mm
+         JOIN rubro_modulo_maestro rmm ON rmm.modulo_maestro_id = mm.id
+        WHERE rmm.rubro_codigo = $1 AND mm.status = true
+        ORDER BY mm.id`,
+      [rubroRow.codigo]
     )).rows;
+    if (!modulosMaestro.length) {
+      throw new SignupError(`El rubro ${rubroRow.codigo} no tiene módulos configurados`, { status: 500 });
+    }
 
     const modulosCliente = [];
     for (const mm of modulosMaestro) {
       const { rows } = await client.query(
-        `INSERT INTO modulo (codigo, descripcion, status, cliente_id)
-         VALUES ($1,$2,$3,$4) RETURNING *`,
-        [mm.codigo, mm.descripcion, mm.status, cliente.id]
+        `INSERT INTO modulo (codigo, descripcion, status, cliente_id, config)
+         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+        [mm.codigo, mm.descripcion, mm.status, cliente.id, mm.config_default || {}]
       );
       const modulo = rows[0];
       modulosCliente.push(modulo);
@@ -161,6 +191,18 @@ const createClienteService = async (data) => {
       await client.query(
         `INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id) VALUES ($1,$2,$3)`,
         [rolAdmin.id, modulo.id, cliente.id]
+      );
+    }
+
+    // ─── Datos iniciales de módulos verticales ────────────────────────────
+    // Educación (015): tipos de clase por defecto. Se decide por el módulo y
+    // no por el rubro, así otro rubro que sume "alumnos" los recibe igual.
+    if (modulosCliente.some((m) => m.codigo === 'alumnos')) {
+      await client.query(
+        `INSERT INTO edu_tipo_clase (cliente_id, nombre, es_grupal)
+         VALUES ($1, 'Individual', false), ($1, 'Taller', true)
+         ON CONFLICT (cliente_id, nombre) DO NOTHING`,
+        [cliente.id]
       );
     }
 
@@ -240,6 +282,7 @@ const createClienteService = async (data) => {
     return {
       cliente,
       tier,
+      rubro: rubroRow,
       esPago,
       verificationToken,
       adminUser: {
@@ -277,9 +320,12 @@ const createClienteService = async (data) => {
  */
 const getClienteByIdService = async (id) => {
   const { rows } = await pool.query(
-    `SELECT id, nombre, cuit, contacto_nombre, contacto_apellido, contacto_email,
-            contacto_telefono, tier_id, canal_alta, tier_expiration_date, created_at
-       FROM cliente WHERE id = $1`,
+    `SELECT c.id, c.nombre, c.cuit, c.contacto_nombre, c.contacto_apellido, c.contacto_email,
+            c.contacto_telefono, c.tier_id, c.canal_alta, c.tier_expiration_date, c.created_at,
+            c.rubro_codigo, r.nombre AS rubro_nombre
+       FROM cliente c
+       JOIN rubro r ON r.codigo = c.rubro_codigo
+      WHERE c.id = $1`,
     [id]
   );
   return rows[0] || null;

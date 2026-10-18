@@ -13,6 +13,7 @@ const app = express();
 const { authenticateJWT } = require('./middleware/authMiddleware');
 const { scopeTenant } = require('./middleware/tenantMiddleware');
 const { withTenantConnection} = require('./middleware/tenantConnection');
+const { requirePasswordDefinitiva, restringirExternos } = require('./middleware/cuentaGuards');
 
 app.set('trust proxy', 1);
 app.use(helmet());
@@ -26,10 +27,12 @@ app.use('/api/verify-email', require('./routes/verifyEmail'));
 // Drenado de la cola de emails. Autenticado con CRON_SECRET, lo dispara n8n.
 app.use('/api/cron/email-outbox', require('./routes/emailCron'));
 app.use('/api/cron/verificaciones', require('./routes/verificacionCron'));
+app.use('/api/cron/edu-cuotas', require('./routes/eduCuotasCron'));
 // ─── PÚBLICAS: no pasan por authenticateJWT ni scopeTenant ────────────────
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/saas',            require('./routes/saas'));           // alta pública
 app.use('/api/tiers',           require('./routes/tiers'));          // catálogo de planes
+app.use('/api/rubros',          require('./routes/rubros'));         // catálogo de rubros
 app.use('/api/billing/webhook', require('./routes/billingWebhook')); // firma HMAC propia
 app.use('/api/handoff',         require('./routes/handoff'));        // JWT de handoff propio
 //app.use('/api/cron',            require('./routes/cron'));           // CRON_SECRET
@@ -37,10 +40,15 @@ app.use('/api/handoff',         require('./routes/handoff'));        // JWT de h
 // ─── PLATAFORMA: cross-tenant por diseño, token separado ──────────────────
 app.use('/api/platform',        require('./routes/platform'));
 // Estas montan ANTES del withTenantConnection: llaman a MP y a Meta
-app.use('/api/billing',  authenticateJWT, scopeTenant, require('./routes/billing'));
-app.use('/api/whatsaap', authenticateJWT, scopeTenant, require('./routes/whatsaap'));
+app.use('/api/billing',  authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, require('./routes/billing'));
+app.use('/api/whatsaap', authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, require('./routes/whatsaap'));
 // ─── TENANT: todo lo demás. Auth + scope obligatorios, sin excepciones ────
-app.use('/api', authenticateJWT, scopeTenant, withTenantConnection);
+// Contraseña temporal y usuarios externos (profesor, tutor, alumno): ver
+// middleware/cuentaGuards.js. Van ANTES de cualquier router de tenant.
+app.use('/api', authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, withTenantConnection);
+
+app.use('/api/cuenta',            require('./routes/cuenta'));
+app.use('/api/edu',               require('./routes/edu'));
 
 app.use('/api/registro_diario',   require('./routes/registroDiario'));
 app.use('/api/users',             require('./routes/users'));

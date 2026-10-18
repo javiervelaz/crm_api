@@ -16,6 +16,8 @@ function buildTokenPayload(user) {
     modules: user.modules || [],
     permissions: user.permissions || {},
     sucursal: user.sucursal ?? 1,
+    tipo: user.tipo ?? null,
+    debeCambiarPassword: user.debeCambiarPassword === true,
   };
 }
 

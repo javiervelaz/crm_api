@@ -55,7 +55,7 @@ const updateProfile = async (id, Profile) => {
       legajo= COALESCE($4, legajo),
       fecha_ingreso   = COALESCE($5, fecha_ingreso),
       casa_nro = COALESCE($6, casa_nro),
-      barrio = COALESCE($7, casa_nro),
+      barrio = COALESCE($7, barrio),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = $9 AND cliente_id = $8
     RETURNING *;
@@ -85,8 +85,6 @@ const deleteProfile = async (id,cliente_id) => {
 };
 
 const getProfileByUserId = async (id,cliente_id) => {
-  console.log("user id" ,id)
-  console.log("client id",cliente_id)
   const result = await pool.query('SELECT * FROM "profile" WHERE "id_user" = $1 and "cliente_id" = $2', [id,cliente_id]);
   return result.rows[0];
 };

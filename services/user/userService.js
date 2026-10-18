@@ -1,10 +1,21 @@
 const e = require('express');
 const db = require('../../model/users/db');
+const tipoDb = require('../../model/users/tipo');
 const userRoledb  = require("../../model/user_rol/db");
 const moduleRol =  require("../../model/modulo_rol/db");
 const permisosUser = require("../../model/permisos/db");
 const bcrypt = require('bcrypt');
 
+
+const errorCon = (message, status, code) => Object.assign(new Error(message), { status, code });
+
+// Profesores, tutores y alumnos se editan y dan de baja desde Academia: si se
+// tocaran acá, el email del usuario y el de la ficha quedarían distintos.
+const noExterno = async (userId, cliente_id) => {
+  if (await tipoDb.userEsExterno(userId, cliente_id)) {
+    throw errorCon('Este usuario es de la academia (profesor, tutor o alumno): se gestiona desde Academia', 400, 'USUARIO_EXTERNO');
+  }
+};
 
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +52,10 @@ const buildSessionUser = async (user) => {
     permissions,
     cliente_id: user.cliente_id || null,
     cliente_estado: user.cliente_estado || null,
+    // Código de user_type (ADMIN, EMP, PROF, TUT, ALU...). Define si es staff
+    // o externo (middleware/cuentaGuards.js); el nombre del rol es editable.
+    tipo: user.user_type || null,
+    debeCambiarPassword: user.debe_cambiar_password === true,
   };
 };
 
@@ -73,7 +88,7 @@ const buildSessionById = async (userId) => {
 };
 
 const createUserService = async (user) => {
-    const { nombre, apellido, email,user_type_id,cliente_id } = user;
+    const { nombre, apellido, email, cliente_id } = user;
     // Validación de campos requeridos
     if (!nombre || !apellido ||  !email ) {
       throw new Error('All fields are required');
@@ -82,6 +97,8 @@ const createUserService = async (user) => {
     if (!validateEmail(email)) {
       throw new Error('Invalid email format');
     }
+    // Arranca como empleado; al asignarle roles se recalcula el tipo.
+    const user_type_id = await tipoDb.getUserTypeIdPorCodigo('EMP');
     const newUser = await db.createUser({ nombre, apellido,  email, user_type_id,cliente_id });
     return newUser;
   };
@@ -96,23 +113,27 @@ const createUserService = async (user) => {
     return result.rows;
   }
 
-  const updateUserService = async (userId,user) => {
-    const { nombre, apellido,  email,user_type_id } = user;
+  // El tipo no se edita: se deriva de los roles.
+  const updateUserService = async (userId, user, cliente_id) => {
+    const { nombre, apellido, email } = user;
     if (!nombre || !apellido ||  !email ) {
-      throw new Error('All fields are required');
+      throw errorCon('All fields are required', 400, 'FALTAN_DATOS');
     }
     // Validación de formato de email
     if (!validateEmail(email)) {
-      throw new Error('Invalid email format');
+      throw errorCon('Invalid email format', 400, 'EMAIL_INVALIDO');
     }
-    const updatedUser = await db.updateUser(userId, { nombre, apellido,  email ,user_type_id});
+    await noExterno(userId, cliente_id);
+    const updatedUser = await db.updateUser(userId, { nombre, apellido, email }, cliente_id);
     return updatedUser;
   }
 
   const deleteUserService = async (id,cliente_id) => {
+    await noExterno(id, cliente_id);
     const result = await db.deleteUser(id,cliente_id);
     if (!result) {
-      return res.status(404).json({ error: 'User not found' });
+      // Antes: `return res.status(404)...` con `res` inexistente → 500.
+      throw errorCon('User not found', 404, 'NOT_FOUND');
     }
     return result;
   }
@@ -122,8 +143,8 @@ const createUserService = async (user) => {
     return result.rows[0];
   }
 
-  const getUserTypeListService  = async () => {
-    const result = await db.getUserTypeList();
+  const getUserTypeListService  = async (cliente_id) => {
+    const result = await db.getUserTypeList(cliente_id);
     return result.rows;
   }
 

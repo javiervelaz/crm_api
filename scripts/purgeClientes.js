@@ -23,8 +23,14 @@ const c = { rojo: '\x1b[31m', verde: '\x1b[32m', amar: '\x1b[33m', gris: '\x1b[9
 
 // Criterio de candidatos. TIENE que coincidir con el de
 // migrations/008_purga_clientes_sin_actividad.sql — si tocás uno, tocá el otro.
+//
+// Sólo gastronomía: "sin actividad" se mide con tablas de ese rubro (pedidos,
+// caja, productos). Una academia nunca tiene pedidos ni productos y caería
+// acá aunque esté usando el sistema todos los días. Cuando otro rubro tenga
+// su propio criterio de actividad, se agrega como rama propia.
 const WHERE_CANDIDATOS = `
       c.id <> 1
+  AND c.rubro_codigo = 'gastronomia'
   AND c.created_at < now() - ($1 || ' days')::interval
   AND NOT EXISTS (SELECT 1 FROM pedido               t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM registro_diario      t WHERE t.cliente_id = c.id)
@@ -117,7 +123,7 @@ async function aplicar(client, ids) {
 async function main() {
   console.log(`\n${c.neg}Purga de clientes sin actividad${c.off}`);
   console.log(`${c.gris}Antigüedad mínima: ${MIN_DIAS} días · Modo: ${APLICAR ? 'APLICAR' : 'dry-run'}${c.off}`);
-  console.log(`${c.gris}Se borra sólo si NO tiene: pedidos, caja, gastos, compras, productos ni bot.`);
+  console.log(`${c.gris}Sólo rubro gastronomía. Se borra sólo si NO tiene: pedidos, caja, gastos, compras, productos ni bot.`);
   console.log(`Nunca se borra el cliente 1 ni nadie con suscripción distinta de pending/cancelled.${c.off}`);
 
   const client = await pool.connect();

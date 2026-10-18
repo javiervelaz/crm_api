@@ -30,7 +30,9 @@ const login = async (req, res) => {
       return res.status(403).json(rechazo);
     }
 
-    res.json({ token: issueToken(user), expiresIn: TTL });
+    // debeCambiarPassword: cuenta entregada con contraseña temporal. El front
+    // lleva directo al cambio; la API igual bloquea todo lo demás.
+    res.json({ token: issueToken(user), expiresIn: TTL, debeCambiarPassword: user.debeCambiarPassword === true });
   } catch (err) {
     console.error('[login]', err);
     res.status(500).json({ error: 'Error al iniciar sesión' });

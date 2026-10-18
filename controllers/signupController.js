@@ -11,7 +11,7 @@ const TERMINOS_VERSION = process.env.TERMINOS_VERSION || '2026-07';
 const signup = async (req, res) => {
   const {
     comercioNombre, cuit, adminNombre, adminApellido, adminEmail,
-    adminDni, telefono, password, plan, utmSource, utmCampaign,
+    adminDni, telefono, password, plan, utmSource, utmCampaign, rubro,
   } = req.body;
 
   let provisioned;
@@ -30,6 +30,7 @@ const signup = async (req, res) => {
       telefono,
       adminPassword: password,
       plan,
+      rubro,
       canal_alta: 'landing',
       terminosVersion: TERMINOS_VERSION,
       signupIp: req.ip,

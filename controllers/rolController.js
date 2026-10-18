@@ -8,7 +8,7 @@ const createRol = async (req, res) => {
     const newRol = await rolService.createRolService({ descripcion,cliente_id });
     res.status(201).json(newRol);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message, code: error.code });
   }
 };
 
@@ -42,7 +42,7 @@ const getRolById = async (req, res) => {
       const updatedRol = await rolService.updateRolService(rooId, {descripcion,cliente_id});
       res.status(200).json(updatedRol);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(error.status || 500).json({ error: error.message, code: error.code });
     }
   };
   
@@ -58,7 +58,7 @@ const getRolById = async (req, res) => {
       const result = await rolService.deleteRolService(id,cliente_id);
       res.status(200).json(result);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.status || 500).json({ error: err.message, code: err.code });
     }
   };
 

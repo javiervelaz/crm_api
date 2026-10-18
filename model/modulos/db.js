@@ -58,7 +58,23 @@ const createModulo = async (Modulo) => {
     return pool.query(query, [id_modulo, cliente_id]);
   };
   
+  // ¿El código pertenece a la plantilla del rubro del tenant?
+  // Evita que un tenant se "instale" un módulo de otro rubro creando la fila
+  // a mano (ej. una pizzería creando 'alumnos' y asignándoselo a un rol).
+  const isCodigoEnRubroDelCliente = async (cliente_id, codigo) => {
+    const result = await pool.query(
+      `SELECT 1
+         FROM cliente c
+         JOIN rubro_modulo_maestro rmm ON rmm.rubro_codigo = c.rubro_codigo
+         JOIN modulo_maestro mm        ON mm.id = rmm.modulo_maestro_id
+        WHERE c.id = $1 AND mm.codigo = $2 AND mm.status = true`,
+      [cliente_id, codigo]
+    );
+    return result.rowCount > 0;
+  };
+
   module.exports = {
+    isCodigoEnRubroDelCliente,
     createModulo,
     getModuloById,
     getModulos,

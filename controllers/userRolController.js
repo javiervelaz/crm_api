@@ -1,14 +1,20 @@
 const UserRolService = require('../services/user_rol/userRolService');
 
 
+// El tenant sale del JWT (req.clienteId), nunca del body: sin cliente_id en el
+// body el INSERT caía en el DEFAULT 1 de user_rol.cliente_id.
+const responderError = (res, error, statusPorDefecto) =>
+  res.status(error instanceof UserRolService.UserRolError ? error.status : statusPorDefecto)
+    .json({ error: error.message, code: error.code });
+
 const createUserRol = async (req, res) => {
-  const { id_rol, id_user, cliente_id } = req.body;
+  const { id_rol, id_user } = req.body || {};
 
   try {
-    const result = await UserRolService.createUserRolService({ id_rol, id_user, cliente_id });
+    const result = await UserRolService.createUserRolService({ id_rol, id_user, cliente_id: req.clienteId });
     res.status(201).json(result);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    responderError(res, error, 400);
   }
 };
 
@@ -38,22 +44,22 @@ const getUserRolById = async (req, res) => {
   
   const updateUserRol = async (req, res) => {
     const moduloId = req.params.id;
-    const {id_rol, cliente_id } = req.body;
+    const { id_rol } = req.body || {};
     try {
-      const result = await UserRolService.updateUserRolService(moduloId, {id_rol, cliente_id});
+      const result = await UserRolService.updateUserRolService(moduloId, { id_rol, cliente_id: req.clienteId });
       res.status(200).json(result);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      responderError(res, error, 500);
     }
   };
-  
+
   const deleteUserRol = async (req, res) => {
-    const { id,cliente_id } = req.params;
+    const { id } = req.params;
     try {
-      const result = await UserRolService.deleteUserRolService(id,cliente_id);
+      const result = await UserRolService.deleteUserRolService(id, req.clienteId);
       res.status(200).json(result);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      responderError(res, err, 500);
     }
   };
 
