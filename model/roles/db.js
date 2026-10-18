@@ -1,6 +1,7 @@
 // db.js
 const e = require('express');
 const pool = require('../../pool');
+const { CODIGO_ROL, TIPOS_EXTERNOS } = require('../users/tipo');
 
 const createRol = async (rol) => {
     const { descripcion,cliente_id } = rol;
@@ -16,8 +17,17 @@ const createRol = async (rol) => {
     return result.rows[0];
   }
   
+  // `externo`: rol de profesor, tutor o alumno (lo maneja Academia). La UI no
+  // lo ofrece al asignar roles y lo muestra de sólo lectura en Roles.
   const getRols = async (cliente_id) => {
-    const result = await pool.query('SELECT * FROM "rol" where cliente_id = $1', [cliente_id]);
+    const result = await pool.query(
+      `SELECT r.*, ${CODIGO_ROL('r')} AS user_type_codigo,
+              COALESCE(${CODIGO_ROL('r')} = ANY($2::text[]), false) AS externo
+         FROM "rol" r
+        WHERE r.cliente_id = $1
+        ORDER BY r.id`,
+      [cliente_id, TIPOS_EXTERNOS]
+    );
     return result;
   }
   

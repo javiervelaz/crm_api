@@ -23,6 +23,7 @@ const token = (over = {}) => jwt.sign({
 const auth = (over) => ({ Authorization: `Bearer ${token(over)}` });
 
 describe('Alta y edición de usuario sin tipo', () => {
+  beforeEach(() => sinon.stub(tipoDb, 'userEsExterno').resolves(false));
   it('POST /api/users ignora user_type_id del body: arranca como empleado y con el tenant del JWT', async () => {
     sinon.stub(tipoDb, 'getUserTypeIdPorCodigo').withArgs('EMP').resolves(2);
     const crear = sinon.stub(userDb, 'createUser').callsFake(async (u) => ({ id: 90, ...u }));
@@ -56,6 +57,12 @@ describe('Alta y edición de usuario sin tipo', () => {
 });
 
 describe('Asignación de roles recalcula el tipo', () => {
+  // Roles y usuarios de staff (lo externo se prueba en usuariosSoloStaff.test.js).
+  beforeEach(() => {
+    sinon.stub(tipoDb, 'rolEsExterno').resolves(false);
+    sinon.stub(tipoDb, 'userEsExterno').resolves(false);
+    sinon.stub(userRolDb, 'getUserRolById').resolves({ id: 300, id_rol: 5, id_user: 90, cliente_id: 40 });
+  });
   const stubOk = () => {
     sinon.stub(userRolDb, 'rolDelTenant').resolves({ id: 5 });
     sinon.stub(userRolDb, 'userDelTenant').resolves({ id: 90 });

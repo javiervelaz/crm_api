@@ -22,8 +22,11 @@ const withTenantConnection = (req, res, next) => {
   const store = {
     clienteId: req.clienteId,
     client: null,
+    cerrado: false,
     _initPromise: null,
     getClient() {
+      // Request ya cerrado: no abrir otra conexión ni devolver la que volvió al pool.
+      if (this.cerrado) return Promise.reject(new Error('Request cerrado: sin conexión de tenant'));
       if (this.client) return Promise.resolve(this.client);
       if (!this._initPromise) {
         this._initPromise = (async () => {
@@ -44,17 +47,26 @@ const withTenantConnection = (req, res, next) => {
     },
   };
 
-  let settled = false;
   const settle = async (commit) => {
-    if (settled) return;
-    settled = true;
-    if (!store.client) return; // nunca se conectó: nada que cerrar
+    if (store.cerrado) return;
+    store.cerrado = true;
+    if (!store._initPromise) return; // nunca se conectó: nada que cerrar
+    // Si el cierre llega mientras la conexión se está abriendo (cliente que
+    // abortó con el pool ocupado), esperarla para liberarla: si no, queda
+    // tomada para siempre con la transacción abierta.
+    let client;
     try {
-      await store.client.query(commit ? 'COMMIT' : 'ROLLBACK');
+      client = await store._initPromise;
+    } catch {
+      return; // la apertura falló y ya liberó
+    }
+    store.client = null;
+    try {
+      await client.query(commit ? 'COMMIT' : 'ROLLBACK');
     } catch (err) {
       console.error('[tenantConnection] cierre:', err.message);
     } finally {
-      store.client.release();
+      client.release();
     }
   };
 
