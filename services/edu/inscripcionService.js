@@ -2,6 +2,7 @@
 const db = require('../../model/edu/inscripciones');
 const catalogoDb = require('../../model/edu/catalogo');
 const personasDb = require('../../model/edu/personas');
+const cuotasService = require('./cuotasService');
 const { EduError, hoy, esFecha, validarHorarios, buscarConflictos } = require('./reglas');
 
 const noEncontrada = () => new EduError('Inscripción no encontrada', { status: 404, code: 'NOT_FOUND' });
@@ -112,6 +113,8 @@ const crear = async (cliente_id, body = {}) => {
 
   const { id } = await db.crear(cliente_id, { alumno_id, clase_id, profesor_id, ciclo, fecha_alta });
   await db.reemplazarHorarios(cliente_id, id, horarios);
+  // Cuotas desde el mes de alta (proporcional) hasta el mes actual
+  await cuotasService.generarParaAlta(cliente_id, { alumno_id, fecha_alta });
   return get(cliente_id, id);
 };
 

@@ -10,6 +10,8 @@ const { authorizePermission } = require('../middleware/permissionMiddleware');
 const { registerTenantGuards } = require('../middleware/tenantMiddleware');
 const { requireModuloTenant, soloStaff, cargarPersonaEdu } = require('../middleware/eduAcceso');
 const c = require('../controllers/eduController');
+const cc = require('../controllers/eduCuotasController');
+const upload = require('../middleware/uploadMiddleware');
 
 const router = express.Router();
 registerTenantGuards(router);
@@ -20,6 +22,19 @@ router.get('/mis/perfil', cargarPersonaEdu, c.miPerfil);
 router.get('/mis/inscripciones', cargarPersonaEdu, c.misInscripciones);
 router.get('/mis/inscripciones/:id', cargarPersonaEdu, c.miInscripcion);
 router.get('/mis/agenda', cargarPersonaEdu, c.miAgenda);
+
+// Cuotas y pagos propios: sólo alumno y tutor (el profesor no paga).
+const soloPagadores = (req, res, next) => (['TUT', 'ALU'].includes(req.user?.tipo)
+  ? next()
+  : res.status(403).json({ error: 'Esta sección es para alumnos y tutores', code: 'ROL_SIN_ACCESO' }));
+// multer (memoria, 5 MB): sus errores salen como 400 con el formato de la API
+const subirComprobante = (req, res, next) => upload.single('comprobante')(req, res, (err) => (
+  err ? cc.responderError(res, next, err) : next()));
+
+router.get('/mis/cuotas', cargarPersonaEdu, soloPagadores, cc.misCuotas);
+router.get('/mis/pagos', cargarPersonaEdu, soloPagadores, cc.misPagos);
+router.post('/mis/pagos', cargarPersonaEdu, soloPagadores, subirComprobante, cc.crearMiPago);
+router.get('/mis/pagos/:id/comprobante', cargarPersonaEdu, soloPagadores, cc.miComprobante);
 
 // ─── Administración ───────────────────────────────────────────────────────
 const admin = (accion) => [
@@ -64,5 +79,17 @@ router.post('/inscripciones/:id/baja', UPDATE, c.bajaInscripcion);
 router.put('/inscripciones/:id/horarios', UPDATE, c.horariosInscripcion);
 
 router.get('/agenda', LIST, c.agenda);
+
+// ─── Cuotas y pagos ───────────────────────────────────────────────────────
+router.get('/cuotas', LIST, cc.listarCuotas);
+router.post('/cuotas/generar', CREATE, cc.generarCuotas);
+router.get('/pagos', LIST, cc.listarPagos);
+router.get('/pagos/resumen', LIST, cc.resumenPagos);
+router.post('/pagos/calcular', LIST, cc.calcularPago); // vista previa, no escribe
+router.post('/pagos', CREATE, cc.registrarPago);
+router.get('/pagos/:id', LIST, cc.getPago);
+router.get('/pagos/:id/comprobante', LIST, cc.comprobante);
+router.post('/pagos/:id/aprobar', UPDATE, cc.aprobarPago);
+router.post('/pagos/:id/rechazar', UPDATE, cc.rechazarPago);
 
 module.exports = router;
