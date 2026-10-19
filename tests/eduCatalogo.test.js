@@ -15,6 +15,7 @@ const inscDb = require('../model/edu/inscripciones');
 const personasService = require('../services/edu/personasService');
 const catalogoService = require('../services/edu/catalogoService');
 const inscripcionService = require('../services/edu/inscripcionService');
+const cuotasService = require('../services/edu/cuotasService');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -209,6 +210,7 @@ describe('edu/servicios', () => {
     crear.resolves({ id: 77 });
     sinon.stub(inscDb, 'reemplazarHorarios').resolves();
     sinon.stub(inscDb, 'get').resolves({ id: 77, ciclo: 2027 });
+    sinon.stub(cuotasService, 'generarParaAlta').resolves([]);
     await inscripcionService.crear(40, { ...base, ciclo: 2027 });
     expect(crear.firstCall.args[1].ciclo).to.equal(2027);
   });
