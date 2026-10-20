@@ -1,12 +1,17 @@
 // services/micrositio/micrositioService.js
 //
-// Lógica del micrositio de pedidos por WhatsApp. El tenant, el teléfono y la
-// conversación salen del token de handoff; sucursal y usuario los resuelve el
+// Lógica del micrositio de pedidos (link público, Telegram o WhatsApp). El
+// tenant, el canal y la conversación salen del token de handoff; el teléfono
+// también cuando el canal lo trae (WhatsApp) y si no, lo pide el checkout; sucursal y usuario los resuelve el
 // servidor desde la caja abierta. El total lo calcula el servidor con los
 // precios de la DB: el browser del cliente final no decide precios.
 const db = require('../../model/micrositio/db');
 const productoService = require('../producto/productoService');
 const operacionesDiariasService = require('../operaciones_diarias/operacionesDiariasService');
+const canalesService = require('../canales/canalesService');
+
+const TELEFONO_RE = /^\d{8,15}$/;
+const ETIQUETA_CANAL = { link: 'Pedido online', telegram: 'Telegram', whatsapp: 'WhatsApp' };
 
 const MAX_ITEMS = 50;
 const MAX_CANTIDAD = 99;
@@ -51,9 +56,16 @@ const estadoCaja = async (clienteId) => {
  * Body: { nombre, tipo_entrega: 'delivery'|'pickup', direccion?, observaciones?,
  *         medio_pago_id, paga_efectivo?, items: [{ producto_id, cantidad, observaciones? }] }
  */
-const crearPedido = async (clienteId, handoff, body = {}) => {
+const crearPedido = async (clienteId, handoff, body = {}, { plan } = {}) => {
   const nombre = texto(body.nombre, 100);
   if (!nombre) throw badRequest('Ingresá tu nombre');
+
+  // Teléfono: el del canal manda (WhatsApp); si el canal no lo trae, el del form
+  let telefono = handoff.userPhoneE164 ? String(handoff.userPhoneE164) : null;
+  if (!telefono) {
+    telefono = String(body.telefono ?? '').replace(/\D/g, '');
+    if (!TELEFONO_RE.test(telefono)) throw badRequest('Ingresá un teléfono válido (con código de área)');
+  }
 
   const tipoEntrega = body.tipo_entrega === 'delivery' ? 'delivery' : body.tipo_entrega === 'pickup' ? 'pickup' : null;
   if (!tipoEntrega) throw badRequest('Elegí delivery o retiro en el local');
@@ -105,6 +117,15 @@ const crearPedido = async (clienteId, handoff, body = {}) => {
     vuelto = redondear(pagaEfectivo - total);
   }
 
+  // Límite mensual del plan (FREE entra por el link público)
+  const maxPedidos = plan && plan.features ? plan.features.maxPedidosMensuales : null;
+  if (maxPedidos != null && (await db.contarPedidosDelMes(clienteId)) >= maxPedidos) {
+    const err = new Error('El comercio no está tomando más pedidos online este mes');
+    err.status = 409;
+    err.code = 'LIMITE_PEDIDOS';
+    throw err;
+  }
+
   // Caja abierta → sucursal y usuario del pedido
   const caja = await db.getCajaAbierta(clienteId);
   if (!caja) {
@@ -121,10 +142,10 @@ const crearPedido = async (clienteId, handoff, body = {}) => {
     monto_total: total,
     medio_pago_id: medio.id,
     cliente_nombre: nombre,
-    cliente_telefono: handoff.userPhoneE164,
+    cliente_telefono: telefono,
     cliente_casa_nro: tipoEntrega === 'delivery' ? direccion : '',
     cliente_barrio: '',
-    pedido_obs: [tipoEntrega === 'delivery' ? 'Delivery' : 'Retiro en local', 'WhatsApp', observaciones]
+    pedido_obs: [tipoEntrega === 'delivery' ? 'Delivery' : 'Retiro en local', ETIQUETA_CANAL[handoff.canal] || 'WhatsApp', observaciones]
       .filter(Boolean).join(' - '),
     productos: lineas,
     user_cliente_id: null,
@@ -135,7 +156,27 @@ const crearPedido = async (clienteId, handoff, body = {}) => {
     conversation_id: handoff.conversationId ?? null,
   });
 
-  return { idPedido, total, vuelto };
+  // Aviso al dueño por Telegram: se arma acá (dentro de la conexión de tenant)
+  // y se manda después de responder. Si falla, el pedido igual quedó.
+  let enviarAvisos = async () => 0;
+  try {
+    const nombrePorId = new Map(productos.map((p) => [Number(p.id), p.nombre]));
+    enviarAvisos = await canalesService.prepararAvisos(clienteId, {
+      comandaNro: await db.getComandaNro(clienteId, idPedido),
+      total,
+      nombre,
+      tipoEntrega,
+      direccion,
+      telefono,
+      canal: handoff.canal,
+      observaciones,
+      items: lineas.map((l, i) => ({ cantidad: l.cantidad, nombre: nombrePorId.get(l.producto_id), observaciones: normalizados[i].observaciones })),
+    });
+  } catch (err) {
+    console.warn(`[micrositio] avisos del pedido ${idPedido}: ${err.message}`);
+  }
+
+  return { idPedido, total, vuelto, enviarAvisos };
 };
 
 module.exports = { listarProductos, obtenerProducto, listarMediosPago, estadoCaja, crearPedido };

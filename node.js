@@ -16,7 +16,7 @@ const { withTenantConnection} = require('./middleware/tenantConnection');
 const { requirePasswordDefinitiva, restringirExternos } = require('./middleware/cuentaGuards');
 const { authenticateService } = require('./middleware/serviceAuth');
 const { authenticateHandoff } = require('./middleware/handoffAuth');
-const { requireFeature } = require('./middleware/featureMiddleware');
+const { requireCanalActivo } = require('./middleware/canalMiddleware');
 
 app.set('trust proxy', 1);
 app.use(helmet());
@@ -42,9 +42,13 @@ app.use('/api/handoff',         require('./routes/handoff'));        // JWT de h
 // ─── WHATSAPP: credenciales propias, sin JWT de usuario ───────────────────
 // n8n (handoff-ingreso) → token de servicio x-internal-token
 app.use('/api/internal/whatsapp', authenticateService, require('./routes/internalWhatsapp'));
-// Micrositio de pedidos → token de handoff; tenant del token + RLS + plan
+// Canales: webhooks de bots (secret propio) y link público del micrositio
+const canalesPublico = require('./routes/canalesPublico');
+app.use('/api/canales',  canalesPublico.webhooks);
+app.use('/api/publico',  canalesPublico.publico);
+// Micrositio de pedidos → token de handoff; tenant del token + RLS + plan del canal
 app.use('/api/micrositio', authenticateHandoff, withTenantConnection,
-  requireFeature('canUseWhatsappBot'), require('./routes/micrositio'));
+  requireCanalActivo, require('./routes/micrositio'));
 //app.use('/api/cron',            require('./routes/cron'));           // CRON_SECRET
 
 // ─── PLATAFORMA: cross-tenant por diseño, token separado ──────────────────
@@ -81,6 +85,7 @@ app.use('/api/cliente',           require('./routes/cliente'));
 app.use('/api/cliente-plan',      require('./routes/clientePlan'));
 app.use('/api/billing',           require('./routes/billing'));
 app.use('/api/whatsaap',          require('./routes/whatsaap'));   // panel: tenant + RLS + plan
+app.use('/api/canales',           require('./routes/canales'));    // panel de canales
 
 // ─── Health, 404, errores ─────────────────────────────────────────────────
 const pool = require('./pool');

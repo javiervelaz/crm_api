@@ -5,6 +5,8 @@ const PLAN_FEATURES = {
   FREE: {
     canUseReports: false,
     canUseWhatsappBot: false,
+    canUseBot: false,             // bots de Telegram / WhatsApp
+    canUsePedidosOnline: true,    // link público del micrositio
     maxPedidosMensuales: 50,
     maxProductos: 5,
     diasDeTrial: 14,
@@ -12,12 +14,16 @@ const PLAN_FEATURES = {
   BASIC: {
     canUseReports: false,
     canUseWhatsappBot: false,
+    canUseBot: false,
+    canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
   },
   PREMIUM: {
     canUseReports: true,
     canUseWhatsappBot: true,
+    canUseBot: true,
+    canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
   },

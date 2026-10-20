@@ -18,6 +18,9 @@ const sesion = (req, res) => {
     clienteId: req.clienteId,
     userPhoneE164: req.handoff.userPhoneE164 ?? null,
     conversationId: req.handoff.conversationId ?? null,
+    canal: req.handoff.canal,
+    comercio: req.planCliente?.clienteNombre ?? null,
+    pideTelefono: !req.handoff.userPhoneE164,
     exp,
     expiresIn: exp ? exp - now : null,
   });
@@ -45,8 +48,11 @@ const caja = async (req, res) => {
 
 const crearPedido = async (req, res) => {
   try {
-    const r = await svc.crearPedido(req.clienteId, req.handoff, req.body);
-    return res.status(201).json({ status: 'OK', ...r });
+    const { enviarAvisos, ...r } = await svc.crearPedido(req.clienteId, req.handoff, req.body, { plan: req.planCliente });
+    res.status(201).json({ status: 'OK', ...r });
+    // Después de responder: no hace esperar al cliente ni toca la DB
+    enviarAvisos().catch((err) => console.warn('[micrositio] avisos:', err.message));
+    return undefined;
   } catch (err) { return fail(res, err, 'crearPedido'); }
 };
 

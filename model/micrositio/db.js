@@ -32,4 +32,21 @@ const getMediosPago = async () => {
   return result.rows;
 };
 
-module.exports = { getProductosPorIds, getCajaAbierta, getMediosPago };
+const contarPedidosDelMes = async (cliente_id) => {
+  const result = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM pedido
+      WHERE cliente_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)`,
+    [cliente_id]
+  );
+  return result.rows[0].n;
+};
+
+const getComandaNro = async (cliente_id, pedido_id) => {
+  const result = await pool.query(
+    'SELECT comanda_nro FROM pedido WHERE cliente_id = $1 AND id = $2',
+    [cliente_id, pedido_id]
+  );
+  return result.rows[0] ? result.rows[0].comanda_nro : null;
+};
+
+module.exports = { getProductosPorIds, getCajaAbierta, getMediosPago, contarPedidosDelMes, getComandaNro };

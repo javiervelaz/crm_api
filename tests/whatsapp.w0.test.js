@@ -10,6 +10,7 @@ const sinon = require('sinon');
 const jwt = require('jsonwebtoken');
 
 process.env.N8N_INTERNAL_TOKEN = 'test-internal-token-de-al-menos-24-chars';
+process.env.CANAL_WHATSAPP_ENABLED = 'true';
 
 const app = require('../node');
 const pool = require('../pool');

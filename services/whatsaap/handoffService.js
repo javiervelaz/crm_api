@@ -19,11 +19,28 @@ const ttlSeconds = () => {
   return Number.isInteger(n) && n > 0 ? n : 3600;
 };
 
-const signHandoff = ({ clienteId, conversationId, waPhoneId, userPhoneE164 }) => {
+const CANALES = ['whatsapp', 'telegram', 'link'];
+
+/**
+ * Token del micrositio. `canal` decide el gating (link = pedidos online en
+ * todos los planes; telegram/whatsapp = bot, planes pagos). userPhoneE164 es
+ * opcional: Telegram y el link público no traen teléfono y el checkout lo pide.
+ */
+const signHandoff = ({
+  clienteId,
+  conversationId = null,
+  waPhoneId = null,
+  userPhoneE164 = null,
+  canal = 'whatsapp',
+  canalCuentaId = null,
+  externalUserId = null,
+  ttl = null,
+}) => {
   if (!Number.isInteger(clienteId) || clienteId <= 0) throw new Error('clienteId inválido');
-  const expiresIn = ttlSeconds();
+  if (!CANALES.includes(canal)) throw new Error('canal inválido');
+  const expiresIn = Number.isInteger(ttl) && ttl > 0 ? ttl : ttlSeconds();
   const token = jwt.sign(
-    { clienteId, conversationId, waPhoneId, userPhoneE164 },
+    { clienteId, conversationId, waPhoneId, userPhoneE164, canal, canalCuentaId, externalUserId },
     secret(),
     { expiresIn, issuer: ISSUER, audience: AUDIENCE }
   );
@@ -35,7 +52,9 @@ const verifyHandoff = (token) => {
   const payload = jwt.verify(token, secret(), { issuer: ISSUER, audience: AUDIENCE });
   const clienteId = Number(payload.clienteId);
   if (!Number.isInteger(clienteId) || clienteId <= 0) throw new Error('Token sin tenant');
-  return { ...payload, clienteId };
+  // Tokens emitidos antes de la capa de canales: eran todos de WhatsApp
+  const canal = CANALES.includes(payload.canal) ? payload.canal : 'whatsapp';
+  return { ...payload, clienteId, canal };
 };
 
 const micrositioUrl = (token) => {
@@ -43,4 +62,4 @@ const micrositioUrl = (token) => {
   return `${base}?c=${encodeURIComponent(token)}`;
 };
 
-module.exports = { signHandoff, verifyHandoff, micrositioUrl, ISSUER, AUDIENCE };
+module.exports = { signHandoff, verifyHandoff, micrositioUrl, ISSUER, AUDIENCE, CANALES };

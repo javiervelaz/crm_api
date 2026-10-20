@@ -67,6 +67,10 @@ const resolve = async (req, res) => {
  */
 const sign = async (req, res) => {
   try {
+    // WhatsApp queda implementado y apagado hasta tener la verificación de Meta
+    if (process.env.CANAL_WHATSAPP_ENABLED !== 'true') {
+      return res.json({ enviar: false, motivo: 'CANAL_DESHABILITADO' });
+    }
     const c = req.waCuenta;
     if (c.status !== 'active') {
       return res.status(403).json({ error: `Número ${c.status}`, code: 'WA_NUMBER_INACTIVE', enviar: false });
@@ -94,6 +98,7 @@ const sign = async (req, res) => {
     });
 
     const { token, expiresIn } = signHandoff({
+      canal: 'whatsapp',
       clienteId: req.clienteId,
       conversationId: Number(conversationId),
       waPhoneId: c.wa_phone_id,
