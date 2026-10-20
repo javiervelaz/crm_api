@@ -1,221 +1,109 @@
 const db = require('../../model/whatsaap/db');
 
-const META_API_VERSION  = 'v22.0';
-const META_BASE_URL     = `https://graph.facebook.com/${META_API_VERSION}`;
-const META_WABA_ID      = process.env.META_WABA_ID;
-const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+// El flujo viejo de alta por SMS sobre la WABA de Counter (request_code /
+// verify_code / register + template MARKETING) se retiró en W0 (WA-12/WA-16).
+// El alta nueva es Embedded Signup v4 + Coexistence (W2).
 
-// ─── Helpers Meta API ─────────────────────────────────────────────────────────
+const graphBase = () => `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || 'v22.0'}`;
 
-const metaPost = async (url, body, token = META_ACCESS_TOKEN) => {
-  const res = await fetch(`${META_BASE_URL}${url}`, {
+const httpError = (status, message, code, meta) => {
+  const err = new Error(message);
+  err.status = status;
+  if (code) err.code = code;
+  if (meta) err.meta = meta;
+  return err;
+};
+
+const metaPost = async (path, body, token) => {
+  if (!token) throw httpError(500, 'Sin token de Meta para este número', 'NO_META_TOKEN');
+  const res = await fetch(`${graphBase()}${path}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-    },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!res.ok) throw { status: res.status, meta: data };
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) {
+    // Del error de Meta sólo devolvemos el mensaje; el objeto entero puede
+    // traer fbtrace_id y detalles internos.
+    throw httpError(502, data?.error?.message || `Meta respondió ${res.status}`, 'META_ERROR');
+  }
   return data;
 };
 
-const metaGet = async (url, token = META_ACCESS_TOKEN) => {
-  const res = await fetch(`${META_BASE_URL}${url}`, {
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw { status: res.status, meta: data };
-  return data;
-};
-
-// ─── Alta de número ───────────────────────────────────────────────────────────
+// ─── Credenciales por tenant ──────────────────────────────────────────────────
 
 /**
- * Paso 1 — Pedir SMS a Meta.
- * Devuelve { id: phone_number_id, ... }
+ * El número tiene que ser del tenant y estar activo (WA-07). Devuelve el token
+ * a usar: el de la cuenta (W2, cada comercio el suyo) o, mientras tanto, el
+ * global de Counter. El token jamás sale de este service.
  */
-const requestVerificationCode = async ({ cc, phone_number, verified_name, method = 'SMS' }) => {
-  try {
-    // Intenta agregar el número (caso nuevo)
-    return await metaPost(`/${META_WABA_ID}/phone_numbers`, {
-      cc, phone_number, verified_name, method,
-    });
-  } catch (err) {
-    // Si ya existe, reenvía el código al número existente
-    const existingId = err?.meta?.error?.error_data?.phone_number_id;
-    if (existingId) {
-      await metaPost(`/${existingId}/request_code`, {
-        code_method: method,
-        language: 'es',
-      });
-      return { id: existingId };
-    }
-    throw err;
-  }
-};
-
-/**
- * Paso 2 — Verificar el código SMS.
- */
-const verifyCode = async (wa_phone_id, code) => {
-  return metaPost(`/${wa_phone_id}/verify_code`, { code });
-};
-
-/**
- * Paso 3 — Registrar en Cloud API + guardar en DB + crear template.
- * Llamar luego de verify_code exitoso.
- */
-const activateWhatsappNumber = async ({
-  cliente_id,
-  wa_phone_id,
-  verified_name,
-  wa_display,
-  pin = '000000',
-}) => {
-  // Registrar en Cloud API
-  await metaPost(`/${wa_phone_id}/register`, {
-    messaging_product: 'whatsapp',
-    pin,
-  });
-
-  // Guardar en whatsapp_bot_cliente
-  const account = await db.createWhatsappAccount({
-    cliente_id,
-    waba_id:       META_WABA_ID,
-    wa_phone_id,
-    wa_display,
-    verified_name,
-    access_token:  META_ACCESS_TOKEN,
-  });
-
-  // Crear template mostrar_catalogo automáticamente
-  await createMostrarCatalogoTemplate(cliente_id, META_WABA_ID);
-
-  return account;
-};
-
-// ─── Templates ───────────────────────────────────────────────────────────────
-
-const MOSTRAR_CATALOGO_TEMPLATE = {
-  name: 'mostrar_catalogo',
-  language: 'es',
-  category: 'MARKETING',
-  components: [
-    {
-      type: 'HEADER',
-      format: 'TEXT',
-      text: 'Pedidos por Whatsaap',
-    },
-    {
-      type: 'BODY',
-      text: 'Hola, estas listo para hacer tu pedido?',
-    },
-    {
-      type: 'FOOTER',
-      text: 'Counter CRM',
-    },
-    {
-      type: 'BUTTONS',
-      buttons: [
-        {
-          type: 'URL',
-          text: 'Visit website',
-          url: 'https://crm-ui-omega-swart.vercel.app/catalogo?c={{1}}',
-          example: ['https://crm-ui-omega-swart.vercel.app/catalogo?c=TOKEN_EJEMPLO'],
-        },
-      ],
-    },
-  ],
-};
-
-const createMostrarCatalogoTemplate = async (cliente_id, waba_id) => {
-  try {
-    const data = await metaPost(`/${waba_id}/message_templates`, MOSTRAR_CATALOGO_TEMPLATE);
-    await db.createTemplate({
-      cliente_id,
-      waba_id,
-      template_name: 'mostrar_catalogo',
-      template_id:   data.id,
-    });
-    return data;
-  } catch (err) {
-    // Template ya existente no es error crítico
-    console.warn('[WA] Template ya existe:', err?.meta?.error?.message);
-    return null;
-  }
-};
-
-const getTemplatesFromMeta = async (waba_id) => {
-  return metaGet(`/${waba_id}/message_templates`);
+const getCredencialesEnvio = async (cliente_id, wa_phone_id) => {
+  if (!wa_phone_id) throw httpError(400, 'phone_number_id es requerido', 'INVALID_PARAM');
+  const cuenta = await db.getSendCredentials(cliente_id, String(wa_phone_id));
+  if (!cuenta) throw httpError(403, 'El número no pertenece a este comercio o no está activo', 'WA_NUMBER_FORBIDDEN');
+  return { wa_phone_id: cuenta.wa_phone_id, token: cuenta.access_token || process.env.META_ACCESS_TOKEN };
 };
 
 // ─── Envío de mensajes ────────────────────────────────────────────────────────
 
-const sendTextMessage = async ({ wa_phone_id, to, body }) => {
-  return metaPost(`/${wa_phone_id}/messages`, {
+const sendTextMessage = async ({ cliente_id, wa_phone_id, to, body }) => {
+  const cred = await getCredencialesEnvio(cliente_id, wa_phone_id);
+  return metaPost(`/${cred.wa_phone_id}/messages`, {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
     type: 'text',
     text: { body },
-  });
+  }, cred.token);
 };
 
-const sendTemplateMessage = async ({
-  wa_phone_id,
-  to,
-  template_name,
-  language   = 'es',
-  components = [],
-}) => {
-  return metaPost(`/${wa_phone_id}/messages`, {
+const sendTemplateMessage = async ({ cliente_id, wa_phone_id, to, template_name, language = 'es', components = [] }) => {
+  const cred = await getCredencialesEnvio(cliente_id, wa_phone_id);
+  return metaPost(`/${cred.wa_phone_id}/messages`, {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
     type: 'template',
-    template: {
-      name: template_name,
-      language: { code: language },
-      components,
-    },
-  });
+    template: { name: template_name, language: { code: language }, components },
+  }, cred.token);
 };
 
-// ─── Resolución de cliente por wa_phone_id (para n8n) ────────────────────────
+/**
+ * Mensaje interactivo con botón a URL. Dentro de la ventana de 24 h es gratis
+ * y no necesita template aprobado (WA-13). display_text: máx. 20 caracteres.
+ */
+const buildCtaUrlPayload = ({ to, body, url, button = 'Hacer mi pedido', footer = 'Counter CRM' }) => ({
+  messaging_product: 'whatsapp',
+  recipient_type: 'individual',
+  to,
+  type: 'interactive',
+  interactive: {
+    type: 'cta_url',
+    body: { text: body },
+    footer: { text: footer },
+    action: { name: 'cta_url', parameters: { display_text: button.slice(0, 20), url } },
+  },
+});
 
-const resolveClienteByPhoneId = async (wa_phone_id) => {
-  const account = await db.getWhatsappByPhoneId(wa_phone_id);
-  if (!account) return null;
-  return {
-    cliente_id:     account.cliente_id,
-    cliente_nombre: account.cliente_nombre,
-    waba_id:        account.waba_id,
-    wa_phone_id:    account.wa_phone_id,
-    wa_display:     account.wa_display,
-    access_token:   account.access_token,
-  };
+const sendCtaUrlMessage = async ({ cliente_id, wa_phone_id, ...rest }) => {
+  const cred = await getCredencialesEnvio(cliente_id, wa_phone_id);
+  return metaPost(`/${cred.wa_phone_id}/messages`, buildCtaUrlPayload(rest), cred.token);
 };
 
-// ─── Listados ─────────────────────────────────────────────────────────────────
+// ─── Listados (siempre del tenant del request) ───────────────────────────────
 
-const getAccountsByClienteId       = (cliente_id)             => db.getWhatsappByClienteId(cliente_id);
-const getTemplatesByClienteId      = (cliente_id)             => db.getTemplatesByClienteId(cliente_id);
-const getConversationsByClienteId  = (cliente_id, opts)       => db.getConversationsByClienteId(cliente_id, opts);
-const getMessagesByConversationId  = (conversation_id, opts)  => db.getMessagesByConversationId(conversation_id, opts);
+const getAccountsByClienteId = (cliente_id) => db.getWhatsappByClienteId(cliente_id);
+const getTemplatesByClienteId = (cliente_id) => db.getTemplatesByClienteId(cliente_id);
+const getConversationsByClienteId = (cliente_id, opts) => db.getConversationsByClienteId(cliente_id, opts);
 
 module.exports = {
-  requestVerificationCode,
-  verifyCode,
-  activateWhatsappNumber,
-  createMostrarCatalogoTemplate,
-  getTemplatesFromMeta,
+  getCredencialesEnvio,
   sendTextMessage,
   sendTemplateMessage,
-  resolveClienteByPhoneId,
+  sendCtaUrlMessage,
+  buildCtaUrlPayload,
   getAccountsByClienteId,
   getTemplatesByClienteId,
   getConversationsByClienteId,
-  getMessagesByConversationId,
 };

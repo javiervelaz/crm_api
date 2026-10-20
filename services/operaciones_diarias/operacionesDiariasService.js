@@ -122,6 +122,11 @@ exports.crearPedido = async ( data) => {
                     await Profile.createProfile(profile);
                 }
                 await Pedido.updatePedido(pedidoId,{'user_cliente_id':userId},cliente_id)
+                } else {
+                // Cliente que ya pidió antes: vincular el pedido a su usuario
+                // (antes quedaba con user_cliente_id NULL y sin nombre en la lista).
+                const existente = await Users.getUserByEmail(`cli_${cliente_telefono}@counter.local`, cliente_id);
+                if (existente) await Pedido.updatePedido(pedidoId, { user_cliente_id: existente.id }, cliente_id);
                 }
         }
         
