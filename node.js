@@ -86,6 +86,7 @@ app.use('/api/cliente-plan',      require('./routes/clientePlan'));
 app.use('/api/billing',           require('./routes/billing'));
 app.use('/api/whatsaap',          require('./routes/whatsaap'));   // panel: tenant + RLS + plan
 app.use('/api/canales',           require('./routes/canales'));    // panel de canales
+app.use('/api/mi-telegram',       require('./routes/miTelegram')); // vínculo de cada usuario con el bot
 
 // ─── Health, 404, errores ─────────────────────────────────────────────────
 const pool = require('./pool');
