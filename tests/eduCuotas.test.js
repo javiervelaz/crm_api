@@ -17,6 +17,7 @@ const personasDb = require('../model/edu/personas');
 const cuotasService = require('../services/edu/cuotasService');
 const pagosService = require('../services/edu/pagosService');
 const cuotasCron = require('../services/edu/cuotasCron');
+const mailer = require('../services/email');
 const storage = require('../services/storage');
 const cloudinaryProvider = require('../services/storage/providers/cloudinary');
 
@@ -852,6 +853,7 @@ describe('/api/cron/edu-cuotas', () => {
     expect((await request(app).post('/api/cron/edu-cuotas/generar')).status).to.equal(401);
     expect((await request(app).get('/api/cron/edu-cuotas/pendientes-revision')).status).to.equal(401);
     expect((await request(app).post('/api/cron/edu-cuotas/pendientes-revision/avisados').send({ ids: [1] })).status).to.equal(401);
+    expect((await request(app).post('/api/cron/edu-cuotas/avisar-pendientes')).status).to.equal(401);
   });
 
   it('un JWT de usuario no sirve como secreto de cron', async () => {
@@ -903,6 +905,85 @@ describe('/api/cron/edu-cuotas', () => {
     expect(r.body).to.deep.equal({ marcados: 2 });
     expect(m.firstCall.args[0]).to.deep.equal([1, 2]);
     expect((await request(app).post('/api/cron/edu-cuotas/pendientes-revision/avisados').set(cron).send({})).body).to.deep.equal({ marcados: 0 });
+  });
+
+  describe('avisar-pendientes', () => {
+    const fila = (id, cliente_id, extra = {}) => ({
+      id, cliente_id, fuera_de_termino: false, fecha_pago: '2026-10-12', created_at: 't', alumnos: 'Ana Pérez', importe: '10000.00', ...extra,
+    });
+
+    it('sin pagos pendientes no manda nada', async () => {
+      sinon.stub(db, 'pendientesSinNotificar').resolves([]);
+      const enq = sinon.stub(mailer, 'enqueue');
+      const r = await request(app).post('/api/cron/edu-cuotas/avisar-pendientes').set(cron);
+      expect(r.status).to.equal(200);
+      expect(r.body).to.deep.equal({ academias: 0, avisadas: 0, pagos: 0, sin_email: [], con_error: 0 });
+      expect(enq.called).to.equal(false);
+    });
+
+    it('un mail por academia al contacto, y marca como avisados sólo sus pagos', async () => {
+      sinon.stub(db, 'pendientesSinNotificar').resolves([fila(1, 40, { fuera_de_termino: true }), fila(2, 40), fila(3, 41)]);
+      sinon.stub(db, 'contactosAcademias').resolves([
+        { id: 40, nombre: 'Academia Sol', contacto_nombre: 'Marta', contacto_email: 'marta@sol.com' },
+        { id: 41, nombre: 'Academia Luna', contacto_nombre: null, contacto_email: 'luna@luna.com' },
+      ]);
+      const enq = sinon.stub(mailer, 'enqueue').resolves();
+      const marcar = sinon.stub(db, 'marcarNotificados').resolves(1);
+      const r = await request(app).post('/api/cron/edu-cuotas/avisar-pendientes').set(cron);
+      expect(r.body).to.deep.equal({ academias: 2, avisadas: 2, pagos: 3, sin_email: [], con_error: 0 });
+      expect(enq.callCount).to.equal(2);
+      const m = enq.firstCall.args[0];
+      expect(m).to.include({ template: 'edu-pagos-pendientes', to: 'marta@sol.com', clienteId: 40 });
+      expect(m.idempotencyKey).to.match(/^edu-pagos-pendientes:40:[0-9a-f]{16}$/);
+      expect(m.data).to.include({ cantidad: 2, uno: false, nombreComercio: 'Academia Sol' });
+      expect(m.data.pagos[0]).to.include({ alumnos: 'Ana Pérez', fecha: '12/10/2026', fueraDeTermino: true });
+      expect(marcar.getCalls().map((c) => c.args[0])).to.deep.equal([[1, 2], [3]]);
+    });
+
+    it('la misma lista de pagos genera la misma idempotencyKey', async () => {
+      sinon.stub(db, 'pendientesSinNotificar').resolves([fila(1, 40), fila(2, 40)]);
+      sinon.stub(db, 'contactosAcademias').resolves([{ id: 40, nombre: 'A', contacto_nombre: 'M', contacto_email: 'a@a.com' }]);
+      const enq = sinon.stub(mailer, 'enqueue').resolves();
+      sinon.stub(db, 'marcarNotificados').resolves(2);
+      await cuotasCron.avisarPendientes();
+      await cuotasCron.avisarPendientes();
+      expect(enq.firstCall.args[0].idempotencyKey).to.equal(enq.secondCall.args[0].idempotencyKey);
+    });
+
+    it('sin email de contacto: no manda, no marca, y lo informa', async () => {
+      sinon.stub(db, 'pendientesSinNotificar').resolves([fila(1, 40)]);
+      sinon.stub(db, 'contactosAcademias').resolves([{ id: 40, nombre: 'A', contacto_nombre: 'M', contacto_email: null }]);
+      const enq = sinon.stub(mailer, 'enqueue');
+      const marcar = sinon.stub(db, 'marcarNotificados');
+      const r = await cuotasCron.avisarPendientes();
+      expect(r.sin_email).to.deep.equal([40]);
+      expect(r.avisadas).to.equal(0);
+      expect(enq.called || marcar.called).to.equal(false);
+    });
+
+    it('si falla el encolado de una academia no la marca y sigue con las demás', async () => {
+      sinon.stub(db, 'pendientesSinNotificar').resolves([fila(1, 40), fila(2, 41)]);
+      sinon.stub(db, 'contactosAcademias').resolves([
+        { id: 40, nombre: 'A', contacto_nombre: 'M', contacto_email: 'a@a.com' },
+        { id: 41, nombre: 'B', contacto_nombre: 'N', contacto_email: 'b@b.com' },
+      ]);
+      sinon.stub(console, 'error');
+      sinon.stub(mailer, 'enqueue').callsFake(async (p) => { if (p.clienteId === 40) throw new Error('db caída'); });
+      const marcar = sinon.stub(db, 'marcarNotificados').resolves(1);
+      const r = await cuotasCron.avisarPendientes();
+      expect(r).to.include({ avisadas: 1, con_error: 1, pagos: 1 });
+      expect(marcar.calledOnceWithExactly([2])).to.equal(true);
+    });
+
+    it('el template renderiza con asunto, html y texto', () => {
+      const out = mailer.render('edu-pagos-pendientes', {
+        nombreContacto: 'Marta', nombreComercio: 'Academia Sol', cantidad: 1, uno: true, urlPagos: 'https://app.test/dashboard/academia/pagos',
+        pagos: [{ alumnos: 'Ana Pérez', importe: '$10.000,00', fecha: '12/10/2026', fueraDeTermino: true }],
+      });
+      expect(out.subject).to.equal('Tenés 1 pago para revisar en Academia Sol');
+      expect(out.html).to.contain('Ana Pérez').and.to.contain('https://app.test/dashboard/academia/pagos');
+      expect(out.text).to.contain('fuera de término');
+    });
   });
 
   it('conTenant revierte y libera la conexión si la tarea falla', async () => {

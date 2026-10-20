@@ -64,10 +64,11 @@ const periodoCron = (v) => {
 const cronGenerar = h((req) => cron.generarTodas(periodoCron(req.body?.periodo)));
 const cronPendientes = h(() => cron.pendientesDeAviso());
 const cronAvisados = h((req) => cron.marcarAvisados(req.body?.ids));
+const cronAvisar = h(() => cron.avisarPendientes());
 
 module.exports = {
   responderError,
   listarCuotas, generarCuotas, listarPagos, resumenPagos, getPago, comprobante, calcularPago, registrarPago, aprobarPago, rechazarPago,
   misCuotas, misPagos, miComprobante, crearMiPago,
-  cronGenerar, cronPendientes, cronAvisados,
+  cronGenerar, cronPendientes, cronAvisados, cronAvisar,
 };
