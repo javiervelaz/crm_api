@@ -8,6 +8,8 @@
 // Cada comercio conecta SU bot de Telegram (lo crea con @BotFather): el cliente
 // final ve el nombre del comercio y cada bot queda aislado.
 const db = require('../../model/canales/db');
+const usuariosDb = require('../../model/canales/usuarios');
+const mensajesInternos = require('./mensajesInternos');
 const waDb = require('../../model/whatsaap/db');
 const telegram = require('./telegramApi');
 const cripto = require('./cripto');
@@ -15,7 +17,7 @@ const { generarSlug } = require('./slug');
 const { signHandoff, micrositioUrl } = require('../whatsaap/handoffService');
 
 const TOKEN_BOT_RE = /^\d{5,20}:[A-Za-z0-9_-]{30,60}$/;
-const MAX_CHATS_AVISOS = 10;
+const VINCULACION_TTL_SEGUNDOS = 600;
 
 const httpError = (status, message, code) => {
   const err = new Error(message);
@@ -37,13 +39,7 @@ const presentarCuenta = (c) => {
   }
   if (c.provider === 'telegram') {
     const username = String(c.nombre || '').replace(/^@/, '');
-    const config = c.config || {};
-    return {
-      ...base,
-      url_bot: username ? `https://t.me/${username}` : null,
-      url_avisos: username && config.avisos_code ? `https://t.me/${username}?start=avisos_${config.avisos_code}` : null,
-      chats_avisos: Array.isArray(config.avisos_chat_ids) ? config.avisos_chat_ids.length : 0,
-    };
+    return { ...base, url_bot: username ? `https://t.me/${username}` : null };
   }
   return base;
 };
@@ -54,7 +50,13 @@ const listarCanales = async (clienteId) => {
   const link = cuentas.find((c) => c.provider === 'link');
   return {
     link: link ? presentarCuenta(link) : null,
-    telegram: cuentas.filter((c) => c.provider === 'telegram').map(presentarCuenta),
+    telegram: await Promise.all(cuentas.filter((c) => c.provider === 'telegram').map(async (c) => ({
+      ...presentarCuenta(c),
+      vinculados: (await usuariosDb.listarVinculados(clienteId, c.id)).map((v) => ({
+        id: v.id, user_id: v.user_id, nombre: v.nombre, avisos: v.avisos, created_at: v.created_at, ultimo_uso_at: v.ultimo_uso_at,
+        recibe_avisos: v.avisos && v.acceso_pedidos === true,
+      })),
+    }))),
     whatsapp: {
       habilitado: whatsappHabilitado(),
       cuentas: wa.map((w) => ({ id: w.id, nombre: w.wa_display, status: w.status })),
@@ -110,7 +112,6 @@ const conectarTelegram = async (clienteId, tokenBot) => {
     nombre: `@${bot.username}`,
     credencialesEnc,
     webhookSecretHash: cripto.sha256(secret),
-    config: { avisos_code: cripto.secretoAleatorio(12) },
   });
   if (!cuenta) throw httpError(409, 'Ese bot ya está conectado a otro comercio', 'TELEGRAM_BOT_EN_USO');
 
@@ -163,31 +164,43 @@ const procesarUpdateTelegram = async ({ cuenta, update, plan }) => {
   const token = cripto.desencriptar(cuenta.credenciales_enc);
   const chatId = msg.chat.id;
   const texto = String(msg.text || '').trim();
-  const config = cuenta.config || {};
-  const avisos = Array.isArray(config.avisos_chat_ids) ? config.avisos_chat_ids.map(String) : [];
   const comercio = plan.clienteNombre || 'el local';
 
-  // Dueño o cocina registrándose para los avisos de pedidos
-  const m = texto.match(/^\/start\s+avisos_([a-f0-9]{24})$/);
+  // 1) Vinculación de un usuario de Counter: /start v_<código de un solo uso>
+  const m = texto.match(/^\/start\s+v_([a-f0-9]{32})$/);
   if (m) {
-    if (!config.avisos_code || !cripto.coincideHash(m[1], cripto.sha256(config.avisos_code))) {
-      return { accion: 'codigo_invalido' };
+    const v = await usuariosDb.consumirVinculacion(cripto.sha256(m[1]), cuenta.id);
+    if (!v || Number(v.cliente_id) !== Number(cuenta.cliente_id)) {
+      await telegram.sendMessage(token, chatId,
+        'Ese link de vinculación ya se usó o venció. Generá uno nuevo desde Counter → Mi Telegram.');
+      return { accion: 'vinculacion_invalida' };
     }
-    if (!avisos.includes(String(chatId))) {
-      if (avisos.length >= MAX_CHATS_AVISOS) {
-        await telegram.sendMessage(token, chatId, `Ya hay ${MAX_CHATS_AVISOS} chats recibiendo avisos de ${comercio}.`);
-        return { accion: 'avisos_lleno' };
-      }
-      await db.mergeConfig(cuenta.id, { avisos_chat_ids: [...avisos, String(chatId)] });
-    }
-    await telegram.sendMessage(token, chatId, `Listo. Desde ahora vas a recibir acá los pedidos nuevos de ${comercio}.`);
-    return { accion: 'avisos_registrado' };
+    await usuariosDb.vincular({ clienteId: Number(cuenta.cliente_id), userId: Number(v.user_id), canalCuentaId: cuenta.id, chatId: String(chatId) });
+    const u = await usuariosDb.getUsuarioDelChat(cuenta.id, String(chatId));
+    await telegram.sendMessage(token, chatId, mensajesInternos.textoBienvenida({ nombre: u?.nombre, comercio, recibeAvisos: puedeRecibirAvisos(u) }));
+    return { accion: 'vinculado', userId: Number(v.user_id) };
   }
 
-  if (avisos.includes(String(chatId)) && texto !== '/pedir') {
-    await telegram.sendMessage(token, chatId,
-      `Este chat recibe los avisos de pedidos de ${comercio}. Escribí /pedir para ver el link como lo ve un cliente.`);
-    return { accion: 'chat_de_avisos' };
+  // 2) Chat vinculado a un usuario: el bot habla con el comercio, no con un cliente
+  const usuario = await usuariosDb.getUsuarioDelChat(cuenta.id, String(chatId));
+  if (usuario) {
+    if (!esStaffActivo(usuario)) {
+      // Baja o pasó a externo: se corta el vínculo y el chat vuelve a ser anónimo
+      await usuariosDb.desvincularPorId(Number(cuenta.cliente_id), usuario.vinculo_id);
+    } else {
+      await usuariosDb.tocarUso(usuario.vinculo_id);
+      if (texto === '/desvincular') {
+        await usuariosDb.desvincularPorId(Number(cuenta.cliente_id), usuario.vinculo_id);
+        await telegram.sendMessage(token, chatId, `Listo, desvinculé este chat de tu usuario de ${comercio}. Ya no vas a recibir avisos acá.`);
+        return { accion: 'desvinculado' };
+      }
+      if (texto !== '/pedir') {
+        const respuesta = await mensajesInternos.responder({ usuario, comercio, texto, plan });
+        await telegram.sendMessage(token, chatId, respuesta.texto, respuesta.extra || {});
+        return { accion: 'interno', intent: respuesta.intent };
+      }
+      // /pedir: el dueño ve el link tal cual lo recibe un cliente (sigue abajo)
+    }
   }
 
   // El cliente compartió su teléfono con el botón de contacto
@@ -240,15 +253,27 @@ const textoAviso = ({ comandaNro, total, nombre, tipoEntrega, direccion, telefon
  * devuelve una función que los manda SIN tocar la DB: se llama después de
  * responder al cliente, cuando la conexión de tenant ya se cerró.
  */
+/** Puede recibir avisos de pedidos: staff activo con el módulo de pedidos. */
+const esStaffActivo = (u) => Boolean(u) && !u.deleted_at && !usuariosDb.TIPOS_EXTERNOS.includes(u.tipo);
+const puedeRecibirAvisos = (u) => esStaffActivo(u) && (u.modulos || []).includes('operaciones');
+
+/**
+ * Prepara los envíos dentro del contexto de tenant (lee y desencripta) y
+ * devuelve una función que los manda SIN tocar la DB: se llama después de
+ * responder al cliente, cuando la conexión de tenant ya se cerró.
+ */
 const prepararAvisos = async (clienteId, datosPedido) => {
-  const cuentas = await db.getCuentasAvisos(clienteId);
-  if (!cuentas.length) return async () => 0;
+  const destinatarios = await usuariosDb.getDestinatariosAvisos(clienteId);
+  if (!destinatarios.length) return async () => 0;
   const texto = textoAviso(datosPedido);
+  const tokens = new Map();
   const envios = [];
-  for (const c of cuentas) {
-    let token;
-    try { token = cripto.desencriptar(c.credenciales_enc); } catch { continue; }
-    for (const chatId of c.config.avisos_chat_ids || []) envios.push({ token, chatId });
+  for (const d of destinatarios) {
+    if (!tokens.has(d.canal_cuenta_id)) {
+      try { tokens.set(d.canal_cuenta_id, cripto.desencriptar(d.credenciales_enc)); } catch { tokens.set(d.canal_cuenta_id, null); }
+    }
+    const token = tokens.get(d.canal_cuenta_id);
+    if (token) envios.push({ token, chatId: d.chat_id });
   }
   return async () => {
     const r = await Promise.allSettled(envios.map((e) => telegram.sendMessage(e.token, e.chatId, texto)));
@@ -256,6 +281,52 @@ const prepararAvisos = async (clienteId, datosPedido) => {
     if (fallidos.length) console.warn(`[canales] ${fallidos.length} aviso(s) de pedido no enviados (cliente ${clienteId})`);
     return r.length - fallidos.length;
   };
+};
+
+// ─── "Mi Telegram": vinculación de cada usuario ───────────────────────────────
+
+const botDelComercio = async (clienteId) => {
+  const bot = await db.getTelegramActivo(clienteId);
+  if (!bot) throw httpError(404, 'El comercio no tiene un bot de Telegram conectado', 'SIN_BOT');
+  return bot;
+};
+
+const miTelegram = async (clienteId, userId) => {
+  const bot = await db.getTelegramActivo(clienteId);
+  if (!bot) return { bot: null, vinculo: null };
+  const vinculo = await usuariosDb.getVinculoDeUsuario(clienteId, userId, bot.id);
+  return { bot: presentarCuenta(bot), vinculo };
+};
+
+const generarVinculacion = async (clienteId, userId) => {
+  const bot = await botDelComercio(clienteId);
+  const username = String(bot.nombre || '').replace(/^@/, '');
+  const codigo = cripto.secretoAleatorio(16); // 32 hex: entra en el start param de Telegram (64)
+  await usuariosDb.crearVinculacion({
+    codigoHash: cripto.sha256(codigo), clienteId, userId, canalCuentaId: bot.id, ttlSegundos: VINCULACION_TTL_SEGUNDOS,
+  });
+  return { url: `https://t.me/${username}?start=v_${codigo}`, expira_en: VINCULACION_TTL_SEGUNDOS, bot: bot.nombre };
+};
+
+const setMisAvisos = async (clienteId, userId, avisos) => {
+  const bot = await botDelComercio(clienteId);
+  const v = await usuariosDb.setAvisos(clienteId, userId, bot.id, Boolean(avisos));
+  if (!v) throw httpError(404, 'Tu Telegram no está vinculado', 'SIN_VINCULO');
+  return v;
+};
+
+const desvincularme = async (clienteId, userId) => {
+  const bot = await botDelComercio(clienteId);
+  if (!(await usuariosDb.desvincularUsuario(clienteId, userId, bot.id))) {
+    throw httpError(404, 'Tu Telegram no está vinculado', 'SIN_VINCULO');
+  }
+  return { ok: true };
+};
+
+/** El admin le saca el vínculo a cualquiera de su comercio. */
+const quitarVinculado = async (clienteId, vinculoId) => {
+  if (!(await usuariosDb.desvincularPorId(clienteId, vinculoId))) throw httpError(404, 'Vínculo no encontrado', 'NOT_FOUND');
+  return { ok: true };
 };
 
 module.exports = {
@@ -268,5 +339,11 @@ module.exports = {
   procesarUpdateTelegram,
   prepararAvisos,
   textoAviso,
+  miTelegram,
+  generarVinculacion,
+  setMisAvisos,
+  desvincularme,
+  quitarVinculado,
+  VINCULACION_TTL_SEGUNDOS,
   TOKEN_BOT_RE,
 };
