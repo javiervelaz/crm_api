@@ -92,16 +92,15 @@ const mergeConfig = async (id, patch) => {
   return r.rows[0] || null;
 };
 
-/** Cuentas de avisos al dueño (Telegram con chats registrados) del comercio. */
-const getCuentasAvisos = async (clienteId) => {
+/** Bot de Telegram activo del comercio (hoy uno por comercio). */
+const getTelegramActivo = async (clienteId) => {
   const r = await pool.query(
-    `SELECT cc.id, cc.credenciales_enc, cc.config
-       FROM canal_cuenta cc
+    `SELECT ${COLS} FROM canal_cuenta cc
       WHERE cc.cliente_id = $1 AND cc.provider = 'telegram' AND cc.status = 'active'
-        AND jsonb_array_length(COALESCE(cc.config->'avisos_chat_ids', '[]'::jsonb)) > 0`,
+      ORDER BY cc.updated_at DESC LIMIT 1`,
     [clienteId]
   );
-  return r.rows;
+  return r.rows[0] || null;
 };
 
 /** Conversación por (cuenta de canal, usuario externo). */
@@ -136,6 +135,6 @@ module.exports = {
   upsertCuenta,
   setStatus,
   mergeConfig,
-  getCuentasAvisos,
+  getTelegramActivo,
   findOrCreateConversacion,
 };

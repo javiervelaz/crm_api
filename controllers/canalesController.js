@@ -35,6 +35,12 @@ const conectarTelegram = async (req, res) => {
   } catch (err) { return fail(res, err, 'conectarTelegram'); }
 };
 
+const quitarVinculado = async (req, res) => {
+  const vinculoId = Number(req.params.vinculoId);
+  if (!Number.isInteger(vinculoId) || vinculoId <= 0) return res.status(400).json({ error: 'id inválido', code: 'INVALID_PARAM' });
+  try { return res.json(await svc.quitarVinculado(req.clienteId, vinculoId)); } catch (err) { return fail(res, err, 'quitarVinculado'); }
+};
+
 const desconectar = async (req, res) => {
   try { return res.json(await svc.desconectar(req.clienteId, Number(req.params.id))); } catch (err) { return fail(res, err, 'desconectar'); }
 };
@@ -106,7 +112,7 @@ const sesionLink = async (req, res) => {
 };
 
 module.exports = {
-  listar, crearLink, conectarTelegram, desconectar,
+  listar, crearLink, conectarTelegram, desconectar, quitarVinculado,
   cargarCuentaTelegram, webhookTelegram,
   cargarLink, sesionLink,
 };

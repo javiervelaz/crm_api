@@ -2,7 +2,8 @@
  * canales.test.js — capa de canales del micrositio
  *   C0: cripto, slug, gating por canal, WhatsApp apagado por flag
  *   C1: link público (todos los planes, límite mensual, teléfono del form)
- *   C2: Telegram (alta con token de @BotFather, webhook con secret, avisos al dueño)
+ *   C2: Telegram (alta con token de @BotFather, webhook con secret)
+ *   (los avisos y la vinculación por usuario están en tests/canalUsuario.test.js)
  */
 const request = require('supertest');
 const sinon = require('sinon');
@@ -16,6 +17,7 @@ process.env.MICROSITIO_URL = 'https://app.test.local/catalogo';
 const app = require('../node');
 const planService = require('../services/cliente/planService');
 const canalesDb = require('../model/canales/db');
+const usuariosDb = require('../model/canales/usuarios');
 const waDb = require('../model/whatsaap/db');
 const micrositioDb = require('../model/micrositio/db');
 const telegram = require('../services/canales/telegramApi');
@@ -45,7 +47,7 @@ const handoff = (payload = {}) => jwt.sign(
 );
 const cuentaTelegram = (over = {}) => ({
   id: 40, cliente_id: 7, provider: 'telegram', external_id: '123456789', nombre: '@pizzeria_test_bot',
-  status: 'active', config: { avisos_code: 'c'.repeat(24), avisos_chat_ids: [] },
+  status: 'active', config: {},
   credenciales_enc: cripto.encriptar(BOT_TOKEN), webhook_secret_hash: cripto.sha256(SECRET), ...over,
 });
 const cuentaLink = (over = {}) => ({ id: 30, cliente_id: 7, provider: 'link', external_id: 'pizzeria-test-a1b2c3', nombre: 'pizzeria-test-a1b2c3', status: 'active', config: {}, ...over });
@@ -206,7 +208,7 @@ describe('C1 — link público', () => {
       sinon.stub(micrositioDb, 'contarPedidosDelMes').resolves(pedidosDelMes);
       sinon.stub(micrositioDb, 'getCajaAbierta').resolves({ id: 300, sucursal_id: 4, usuario_apertura_id: 21 });
       sinon.stub(micrositioDb, 'getComandaNro').resolves(5);
-      sinon.stub(canalesDb, 'getCuentasAvisos').resolves([]);
+      sinon.stub(usuariosDb, 'getDestinatariosAvisos').resolves([]);
       return sinon.stub(operacionesDiariasService, 'crearPedido').resolves(777);
     };
 
@@ -273,7 +275,7 @@ describe('C2 — Telegram: alta', () => {
     expect(url).to.equal('https://api.test.local/api/canales/telegram/webhook/40');
     expect(cripto.sha256(secretToken)).to.equal(a.webhookSecretHash);
     expect(JSON.stringify(res.body)).to.not.include('AAHdq');
-    expect(res.body.url_avisos).to.match(/^https:\/\/t\.me\/pizzeria_test_bot\?start=avisos_[a-f0-9]{24}$/);
+    expect(res.body).to.not.have.property('url_avisos');
   });
 
   it('bot ya conectado a otro comercio → 409', async () => {
@@ -305,12 +307,21 @@ describe('C2 — Telegram: alta', () => {
   it('GET /api/canales no expone credenciales ni hashes', async () => {
     sinon.stub(canalesDb, 'listarPorCliente').resolves([cuentaLink(), cuentaTelegram()]);
     sinon.stub(waDb, 'getWhatsappByClienteId').resolves([]);
+    sinon.stub(usuariosDb, 'listarVinculados').resolves([
+      { id: 3, user_id: 21, nombre: 'Ana Torres', avisos: true, created_at: 'x', ultimo_uso_at: null, acceso_pedidos: true },
+      { id: 4, user_id: 22, nombre: 'Lu Stock', avisos: true, created_at: 'y', ultimo_uso_at: null, acceso_pedidos: false },
+    ]);
     const res = await request(app).get('/api/canales').set('Authorization', `Bearer ${userJwt()}`);
     expect(res.status).to.equal(200);
     const txt = JSON.stringify(res.body);
     expect(txt).to.not.match(/credenciales|webhook_secret|v1\./);
     expect(res.body.telegram[0]).to.include({ nombre: '@pizzeria_test_bot', url_bot: 'https://t.me/pizzeria_test_bot' });
     expect(res.body.whatsapp).to.have.property('habilitado');
+    expect(res.body.telegram[0].vinculados).to.deep.equal([
+      { id: 3, user_id: 21, nombre: 'Ana Torres', avisos: true, created_at: 'x', ultimo_uso_at: null, recibe_avisos: true },
+      { id: 4, user_id: 22, nombre: 'Lu Stock', avisos: true, created_at: 'y', ultimo_uso_at: null, recibe_avisos: false },
+    ]);
+    expect(txt).to.not.include('chat_id');
   });
 });
 
@@ -321,6 +332,8 @@ describe('C2 — Telegram: webhook', () => {
   });
   const hook = (body, secret = SECRET) => request(app).post('/api/canales/telegram/webhook/40')
     .set('X-Telegram-Bot-Api-Secret-Token', secret).send(body);
+  // Por defecto el chat es de un cliente final (no vinculado a un usuario)
+  beforeEach(() => { sinon.stub(usuariosDb, 'getUsuarioDelChat').resolves(null); });
 
   it('secret incorrecto → 401 sin procesar', async () => {
     sinon.stub(canalesDb, 'getCuentaInterna').resolves(cuentaTelegram());
@@ -385,27 +398,6 @@ describe('C2 — Telegram: webhook', () => {
     expect(send.called).to.equal(false);
   });
 
-  it('/start avisos_<code> registra el chat del dueño', async () => {
-    sinon.stub(canalesDb, 'getCuentaInterna').resolves(cuentaTelegram());
-    sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
-    sinon.stub(waDb, 'registrarMensajeEntrante').resolves(true);
-    const merge = sinon.stub(canalesDb, 'mergeConfig').resolves({});
-    sinon.stub(telegram, 'sendMessage').resolves({});
-    const res = await hook(update({ text: `/start avisos_${'c'.repeat(24)}` }));
-    expect(res.body.accion).to.equal('avisos_registrado');
-    expect(merge.firstCall.args).to.deep.equal([40, { avisos_chat_ids: ['555'] }]);
-  });
-
-  it('/start avisos con código equivocado → no registra', async () => {
-    sinon.stub(canalesDb, 'getCuentaInterna').resolves(cuentaTelegram());
-    sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
-    sinon.stub(waDb, 'registrarMensajeEntrante').resolves(true);
-    const merge = sinon.stub(canalesDb, 'mergeConfig');
-    const res = await hook(update({ text: `/start avisos_${'d'.repeat(24)}` }));
-    expect(res.body.accion).to.equal('codigo_invalido');
-    expect(merge.called).to.equal(false);
-  });
-
   it('el contacto compartido por el propio usuario se guarda como teléfono', async () => {
     sinon.stub(canalesDb, 'getCuentaInterna').resolves(cuentaTelegram());
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
@@ -414,45 +406,5 @@ describe('C2 — Telegram: webhook', () => {
     sinon.stub(telegram, 'sendMessage').resolves({});
     await hook(update({ text: undefined, contact: { user_id: 555, phone_number: '+54 9 351 555-1234' } }));
     expect(conv.firstCall.args[0].telefono).to.equal('5493515551234');
-  });
-});
-
-describe('C2 — avisos de pedido nuevo', () => {
-  it('arma el texto y lo manda a cada chat registrado, sin DB al enviar', async () => {
-    sinon.stub(canalesDb, 'getCuentasAvisos').resolves([
-      { id: 40, credenciales_enc: cripto.encriptar(BOT_TOKEN), config: { avisos_chat_ids: ['555', '777'] } },
-    ]);
-    const send = sinon.stub(telegram, 'sendMessage').resolves({});
-    const enviar = await canalesService.prepararAvisos(7, {
-      comandaNro: 12, total: 17000, nombre: 'Ana', tipoEntrega: 'delivery', direccion: 'Belgrano 123',
-      telefono: '3515551234', canal: 'link', observaciones: 'timbre 2',
-      items: [{ cantidad: 2, nombre: 'Muzza', observaciones: '' }],
-    });
-    canalesDb.getCuentasAvisos.restore();
-    const n = await enviar();
-    expect(n).to.equal(2);
-    const texto = send.firstCall.args[2];
-    expect(texto).to.include('#12').and.include('$17.000').and.include('2 × Muzza').and.include('Delivery a Belgrano 123');
-    expect(send.secondCall.args[1]).to.equal('777');
-  });
-
-  it('pedido creado → avisa después de responder', async () => {
-    sinon.stub(canalesDb, 'getCuentaInterna').resolves(cuentaLink());
-    sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
-    sinon.stub(micrositioDb, 'getProductosPorIds').resolves([{ id: 10, nombre: 'Muzza', precio_unitario: '8500.00' }]);
-    sinon.stub(micrositioDb, 'getMediosPago').resolves([{ id: 2, descripcion: 'Débito', codigo: 'DEB' }]);
-    sinon.stub(micrositioDb, 'getCajaAbierta').resolves({ id: 300, sucursal_id: 4, usuario_apertura_id: 21 });
-    sinon.stub(micrositioDb, 'getComandaNro').resolves(5);
-    sinon.stub(operacionesDiariasService, 'crearPedido').resolves(777);
-    sinon.stub(canalesDb, 'getCuentasAvisos').resolves([
-      { id: 40, credenciales_enc: cripto.encriptar(BOT_TOKEN), config: { avisos_chat_ids: ['555'] } },
-    ]);
-    const send = sinon.stub(telegram, 'sendMessage').resolves({});
-    const res = await request(app).post('/api/micrositio/pedidos').set('Authorization', `Bearer ${handoff()}`)
-      .send({ nombre: 'Ana', tipo_entrega: 'pickup', medio_pago_id: 2, telefono: '3515551234', items: [{ producto_id: 10, cantidad: 2 }] });
-    expect(res.status).to.equal(201);
-    await new Promise((r) => setImmediate(r));
-    expect(send.calledOnce).to.equal(true);
-    expect(send.firstCall.args[2]).to.include('#5').and.include('Pedido nuevo');
   });
 });
