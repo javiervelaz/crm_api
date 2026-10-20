@@ -297,6 +297,11 @@ describe('C2 — Telegram: alta', () => {
     expect(st.firstCall.args).to.deep.equal([7, 40, 'disconnected']);
   });
 
+  it('un empleado (sin rol admin) no puede conectar ni ver canales → 403', async () => {
+    const res = await request(app).get('/api/canales').set('Authorization', `Bearer ${userJwt({ role: ['empleado'] })}`);
+    expect(res.status).to.equal(403);
+  });
+
   it('GET /api/canales no expone credenciales ni hashes', async () => {
     sinon.stub(canalesDb, 'listarPorCliente').resolves([cuentaLink(), cuentaTelegram()]);
     sinon.stub(waDb, 'getWhatsappByClienteId').resolves([]);

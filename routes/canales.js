@@ -2,10 +2,13 @@
 const express = require('express');
 const { registerTenantGuards } = require('../middleware/tenantMiddleware');
 const { requireFeature } = require('../middleware/featureMiddleware');
+const { authorizeRole } = require('../middleware/authMiddleware');
 const ctrl = require('../controllers/canalesController');
 
 const router = express.Router();
 registerTenantGuards(router);
+// Conectar bots y ver el link de avisos es cosa del dueño, no del empleado
+router.use(authorizeRole(['admin']));
 
 router.get('/',            ctrl.listar);
 router.post('/link',       requireFeature('canUsePedidosOnline'), ctrl.crearLink);
