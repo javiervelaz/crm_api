@@ -5,6 +5,8 @@ const PLAN_FEATURES = {
   FREE: {
     canUseReports: false,
     canUseWhatsappBot: false,
+    canUseBot: false,             // bots de Telegram / WhatsApp
+    canUsePedidosOnline: true,    // link público del micrositio
     maxPedidosMensuales: 50,
     maxProductos: 5,
     diasDeTrial: 14,
@@ -12,16 +14,22 @@ const PLAN_FEATURES = {
   BASIC: {
     canUseReports: false,
     canUseWhatsappBot: false,
+    canUseBot: false,
+    canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
   },
   PREMIUM: {
     canUseReports: true,
     canUseWhatsappBot: true,
+    canUseBot: true,
+    canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
   },
 };
+// CUSTOM = PREMIUM pagado anual con descuento: mismas prestaciones.
+PLAN_FEATURES.CUSTOM = { ...PLAN_FEATURES.PREMIUM };
 
 
 const getClienteTierAndFeatures = async (clienteId) => {
@@ -38,9 +46,14 @@ const getClienteTierAndFeatures = async (clienteId) => {
   if (!row) throw new Error('Cliente no encontrado');
 
   const tierCode = (row.tier_code || 'FREE').toUpperCase();
-  const features = PLAN_FEATURES[tierCode] || PLAN_FEATURES['FREE'];
+  let features = PLAN_FEATURES[tierCode];
+  if (!features) {
+    // Que un tier nuevo sin features no vuelva a degradarse a FREE en silencio
+    console.warn(`[planService] tier desconocido "${tierCode}" (cliente ${row.id}): se aplican features de FREE`);
+    features = PLAN_FEATURES.FREE;
+  }
 
-  const isExpired = row.tier_expiration_date && new Date(row.tier_expiration_date) < new Date();
+  const isExpired = Boolean(row.tier_expiration_date && new Date(row.tier_expiration_date) < new Date());
 
   return {
     clienteId: row.id,
@@ -53,6 +66,28 @@ const getClienteTierAndFeatures = async (clienteId) => {
 };
 
 
+/**
+ * Chequeo de feature para usar dentro de services/routers sin req.user
+ * (n8n, micrositio). Lanza un Error con status 403 y code PLAN_INACTIVE si
+ * el plan no la incluye o está vencido.
+ */
+const assertFeature = async (clienteId, featureName) => {
+  const plan = await module.exports.getClienteTierAndFeatures(clienteId);
+  if (plan.isExpired || !plan.features[featureName]) {
+    const err = new Error(
+      plan.isExpired
+        ? `El plan ${plan.tierCode} está vencido`
+        : `El plan ${plan.tierCode} no incluye ${featureName}`
+    );
+    err.status = 403;
+    err.code = 'PLAN_INACTIVE';
+    throw err;
+  }
+  return plan;
+};
+
 module.exports = {
+  PLAN_FEATURES,
   getClienteTierAndFeatures,
+  assertFeature,
 };

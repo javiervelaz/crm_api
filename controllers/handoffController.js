@@ -1,62 +1,30 @@
 // controllers/handoffController.js
-const jwt = require('jsonwebtoken');
-
-const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET;
-if (!HANDOFF_JWT_SECRET) throw new Error('HANDOFF_JWT_SECRET env variable is required');
-const HANDOFF_TTL_SECONDS = parseInt(process.env.HANDOFF_TTL_SECONDS || '600', 10); // 10 min
-/**
- * POST /api/handoff/sign
- * Body: { conversationId: string, waPhoneId: string, userPhoneE164?: string }
- */
-const sign = async (req, res) => {
-  try {
-    const { clienteId,conversationId, waPhoneId, userPhoneE164 } = req.body || {};
-    if (!conversationId || !waPhoneId) {
-      return res.status(400).json({ message: 'conversationId and waPhoneId are required' });
-    }
-    const token = jwt.sign({ clienteId,conversationId, waPhoneId, userPhoneE164 }, HANDOFF_JWT_SECRET, {
-      expiresIn: HANDOFF_TTL_SECONDS,
-      issuer: 'orders-api',
-      audience: 'pwa',
-    });
-    return res.json({ token, expiresIn: HANDOFF_TTL_SECONDS });
-  } catch (err) {
-    return res.status(500).json({ message: err.message || 'Error signing handoff token' });
-  }
-};
+const { verifyHandoff } = require('../services/whatsaap/handoffService');
 
 /**
- * GET /api/handoff/resolve?c={conversationId}&t={jwt}
- * Returns: { sessionId, user: { id, phone }, cartId }
+ * POST /api/handoff/sign — RETIRADO (WA-01/WA-03).
+ * Tomaba clienteId del body: cualquier JWT válido emitía links de otro
+ * comercio. El reemplazo es POST /api/internal/whatsapp/handoff/sign
+ * (token de servicio de n8n, tenant derivado del phone_number_id).
  */
-const resolve = async (req, res) => {
+const sign = (req, res) => res.status(410).json({
+  message: 'Endpoint retirado. Usar /api/internal/whatsapp/handoff/sign',
+  code: 'GONE',
+});
 
+/**
+ * GET /api/handoff/resolve?c={token}  (o header x-handoff-token)
+ * Valida el token del link. Público: la credencial es el propio token.
+ */
+const resolve = (req, res) => {
   const token = req.query.c || req.headers['x-handoff-token'];
- 
-  if ( !token) {
-    return res.status(400).json({ message: 'Missing conversationId (c) or token (t)' });
+  if (!token) {
+    return res.status(400).json({ message: 'Falta el token (c)' });
   }
-
   try {
-    const payload = jwt.verify(token, HANDOFF_JWT_SECRET, {
-      clienteId: 'clienteId',
-      conversationId: 'conversationId',
-      waPhoneId: 'waPhoneId',
-      userPhoneE164:'userPhoneE164',
-    });
+    const payload = verifyHandoff(token);
     const now = Math.floor(Date.now() / 1000);
-    let expiresIn = null;
-    if(payload.exp){
-      expiresIn = payload.exp - now;
-      if (expiresIn <= 0) {
-        return res.status(401).json({
-          valid: false,
-          reason: 'expired',
-          message: 'Token expired',
-        });
-      }
-    }
-
+    const expiresIn = payload.exp ? payload.exp - now : null;
     return res.json({
       valid: true,
       clienteId: payload.clienteId,
@@ -67,10 +35,13 @@ const resolve = async (req, res) => {
       expiresIn,
     });
   } catch (err) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    const expired = err && err.name === 'TokenExpiredError';
+    return res.status(401).json({
+      valid: false,
+      reason: expired ? 'expired' : 'invalid',
+      message: expired ? 'Token expired' : 'Invalid token',
+    });
   }
 };
-
-
 
 module.exports = { sign, resolve };

@@ -3,7 +3,10 @@ const pool = require('../../pool');
 
 const createPedido  = async (pedidos) => {
  
-    const { registro_diario_id, monto_total,usuario_id,sucursal_id,medio_pago_id, observaciones, comanda_nro, cliente_id,paga_efectivo,vuelto_pago_efectivo,conversation_id } = pedidos;
+    const { registro_diario_id, monto_total,usuario_id,sucursal_id,medio_pago_id, comanda_nro, cliente_id,paga_efectivo,vuelto_pago_efectivo,conversation_id } = pedidos;
+    // El service manda `observacion`; antes se leía `observaciones` y la
+    // observación del pedido (delivery/retiro, notas) se perdía siempre.
+    const observaciones = pedidos.observacion ?? pedidos.observaciones ?? null;
     const result = await pool.query(
       'INSERT INTO "pedido" (registro_diario_id, monto_total,usuario_id,sucursal_id,medio_pago_id,observacion, comanda_nro, cliente_id,paga_efectivo,vuelto_pago_efectivo,conversation_id ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,$9,$10,$11) RETURNING *',
       [registro_diario_id, monto_total,usuario_id,sucursal_id, medio_pago_id,observaciones,comanda_nro,cliente_id,paga_efectivo,vuelto_pago_efectivo,conversation_id]
