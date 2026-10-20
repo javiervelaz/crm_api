@@ -14,6 +14,9 @@ const { authenticateJWT } = require('./middleware/authMiddleware');
 const { scopeTenant } = require('./middleware/tenantMiddleware');
 const { withTenantConnection} = require('./middleware/tenantConnection');
 const { requirePasswordDefinitiva, restringirExternos } = require('./middleware/cuentaGuards');
+const { authenticateService } = require('./middleware/serviceAuth');
+const { authenticateHandoff } = require('./middleware/handoffAuth');
+const { requireCanalActivo } = require('./middleware/canalMiddleware');
 
 app.set('trust proxy', 1);
 app.use(helmet());
@@ -35,13 +38,23 @@ app.use('/api/tiers',           require('./routes/tiers'));          // catálog
 app.use('/api/rubros',          require('./routes/rubros'));         // catálogo de rubros
 app.use('/api/billing/webhook', require('./routes/billingWebhook')); // firma HMAC propia
 app.use('/api/handoff',         require('./routes/handoff'));        // JWT de handoff propio
+
+// ─── WHATSAPP: credenciales propias, sin JWT de usuario ───────────────────
+// n8n (handoff-ingreso) → token de servicio x-internal-token
+app.use('/api/internal/whatsapp', authenticateService, require('./routes/internalWhatsapp'));
+// Canales: webhooks de bots (secret propio) y link público del micrositio
+const canalesPublico = require('./routes/canalesPublico');
+app.use('/api/canales',  canalesPublico.webhooks);
+app.use('/api/publico',  canalesPublico.publico);
+// Micrositio de pedidos → token de handoff; tenant del token + RLS + plan del canal
+app.use('/api/micrositio', authenticateHandoff, withTenantConnection,
+  requireCanalActivo, require('./routes/micrositio'));
 //app.use('/api/cron',            require('./routes/cron'));           // CRON_SECRET
 
 // ─── PLATAFORMA: cross-tenant por diseño, token separado ──────────────────
 app.use('/api/platform',        require('./routes/platform'));
-// Estas montan ANTES del withTenantConnection: llaman a MP y a Meta
+// Billing monta ANTES del withTenantConnection: llama a MP
 app.use('/api/billing',  authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, require('./routes/billing'));
-app.use('/api/whatsaap', authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, require('./routes/whatsaap'));
 // ─── TENANT: todo lo demás. Auth + scope obligatorios, sin excepciones ────
 // Contraseña temporal y usuarios externos (profesor, tutor, alumno): ver
 // middleware/cuentaGuards.js. Van ANTES de cualquier router de tenant.
@@ -71,7 +84,8 @@ app.use('/api/categoria-tipo',    require('./routes/categoriaTipo'));
 app.use('/api/cliente',           require('./routes/cliente'));
 app.use('/api/cliente-plan',      require('./routes/clientePlan'));
 app.use('/api/billing',           require('./routes/billing'));
-app.use('/api/whatsaap',          require('./routes/whatsaap'));
+app.use('/api/whatsaap',          require('./routes/whatsaap'));   // panel: tenant + RLS + plan
+app.use('/api/canales',           require('./routes/canales'));    // panel de canales
 
 // ─── Health, 404, errores ─────────────────────────────────────────────────
 const pool = require('./pool');

@@ -2,15 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../middleware/authMiddleware');
-const { requireFeature } = require('../middleware/featureMiddleware');
 const handoffController = require('../controllers/handoffController');
 
-// Issue short-lived token (called by n8n — requiere JWT del sistema)
+// Retirado: 410. La emisión la hace /api/internal/whatsapp/handoff/sign.
 router.post('/sign', authenticateJWT, handoffController.sign);
 
-// Validate token and return session/cart context (called by PWA /start — usa handoff JWT propio)
+// Validación del link del micrositio (credencial = el propio token)
 router.get('/resolve', handoffController.resolve);
-
-
 
 module.exports = router;

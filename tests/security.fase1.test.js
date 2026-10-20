@@ -481,25 +481,14 @@ describe('Fase 1 — Handoff: POST /sign requiere autenticación', () => {
     expect(res.status).to.equal(401);
   });
 
-  it('POST /api/handoff/sign con token válido y body correcto → emite token (200)', async () => {
+  it('POST /api/handoff/sign con token válido → 410 (retirado en W0, IDOR WA-03)', async () => {
     const token = makeAdminToken();
     const res = await request(app)
       .post('/api/handoff/sign')
       .set('Authorization', `Bearer ${token}`)
-      .send({ conversationId: 'conv-123', waPhoneId: '+5491112345678' });
-    expect(res.status).to.equal(200);
-    expect(res.body).to.have.property('token').that.is.a('string');
-    expect(res.body).to.have.property('expiresIn').that.is.a('number');
-  });
-
-  it('POST /api/handoff/sign con token válido pero body vacío → 400', async () => {
-    const token = makeAdminToken();
-    const res = await request(app)
-      .post('/api/handoff/sign')
-      .set('Authorization', `Bearer ${token}`)
-      .send({});
-    expect(res.status).to.equal(400);
-    expect(res.body).to.have.property('message').that.includes('required');
+      .send({ clienteId: 99, conversationId: 'conv-123', waPhoneId: '+5491112345678' });
+    expect(res.status).to.equal(410);
+    expect(res.body).to.not.have.property('token');
   });
 
   it('GET /api/handoff/resolve sigue siendo público (usa handoff JWT propio)', async () => {

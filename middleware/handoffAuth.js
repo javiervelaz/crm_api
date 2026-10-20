@@ -1,16 +1,29 @@
 // middleware/handoffAuth.js
-const jwt = require('jsonwebtoken');
-const HANDOFF_JWT_SECRET = process.env.HANDOFF_JWT_SECRET;
-if (!HANDOFF_JWT_SECRET) throw new Error('HANDOFF_JWT_SECRET env variable is required');
+//
+// Autenticación del micrositio con el token de handoff. Acepta
+// `Authorization: Bearer <handoff>` o `x-handoff-token`. No por query string:
+// el token no tiene que quedar en logs de Nginx/proxies en cada request.
+// Deja req.handoff (payload) y req.clienteId (tenant firmado por la API).
+const { verifyHandoff } = require('../services/whatsaap/handoffService');
 
-module.exports = function handoffAuth(req, res, next) {
-  const token = (req.query.t) || req.headers['x-handoff-token'];
-  if (!token) return res.status(401).json({ message: 'Missing token' });
+const authenticateHandoff = (req, res, next) => {
+  const bearer = req.header('Authorization');
+  const token = (bearer && bearer.startsWith('Bearer ') ? bearer.slice(7) : null)
+    || req.header('x-handoff-token');
+  if (!token) return res.status(401).json({ error: 'Falta el token del link', code: 'NO_TOKEN' });
   try {
-    const payload = jwt.verify(token, HANDOFF_JWT_SECRET, { audience: 'pwa', issuer: 'orders-api' });
+    const payload = verifyHandoff(token);
     req.handoff = payload;
+    req.clienteId = payload.clienteId;
     return next();
-  } catch {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+  } catch (err) {
+    const expired = err && err.name === 'TokenExpiredError';
+    return res.status(401).json({
+      error: expired ? 'El link expiró' : 'Link inválido',
+      code: expired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID',
+    });
   }
 };
+
+module.exports = authenticateHandoff;
+module.exports.authenticateHandoff = authenticateHandoff;
