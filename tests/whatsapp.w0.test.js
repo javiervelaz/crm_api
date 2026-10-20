@@ -163,6 +163,18 @@ describe('W0.2 — /api/internal/whatsapp (n8n)', () => {
     expect(res.body.expiresIn).to.equal(3600);
   });
 
+  it('sign: mensaje repetido (reintento de Meta) → enviar:false, sin token', async () => {
+    sinon.stub(waDb, 'getAccountByPhoneId').resolves(cuenta());
+    sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
+    sinon.stub(waDb, 'registrarMensajeEntrante').resolves(false);
+    const conv = sinon.stub(waDb, 'findOrCreateConversation').resolves(1);
+    const res = await request(app).post('/api/internal/whatsapp/handoff/sign').set('x-internal-token', INTERNAL)
+      .send({ wa_phone_id: '267462816451428', telefono: '5493511234567', wa_message_id: 'wamid.X' });
+    expect(res.status).to.equal(200);
+    expect(res.body).to.deep.equal({ enviar: false, motivo: 'DUPLICADO' });
+    expect(conv.called).to.equal(false);
+  });
+
   it('sign: comercio FREE → 403 PLAN_INACTIVE y no crea conversación', async () => {
     sinon.stub(waDb, 'getAccountByPhoneId').resolves(cuenta());
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('FREE'));

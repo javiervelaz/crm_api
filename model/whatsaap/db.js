@@ -154,7 +154,21 @@ const findOrCreateConversation = async ({ cliente_id, wa_phone_id, phone_e164 })
   return ins.rows[0].id;
 };
 
+/**
+ * Dedupe de webhooks de Meta (reintentos). true = primera vez que lo vemos.
+ */
+const registrarMensajeEntrante = async (wa_message_id) => {
+  const result = await pool.query(
+    `INSERT INTO whatsapp_incoming_log (wa_message_id) VALUES ($1)
+     ON CONFLICT (wa_message_id) DO NOTHING
+     RETURNING wa_message_id`,
+    [wa_message_id]
+  );
+  return result.rows.length > 0;
+};
+
 module.exports = {
+  registrarMensajeEntrante,
   createWhatsappAccount,
   getAccountByPhoneId,
   getWhatsappByClienteId,

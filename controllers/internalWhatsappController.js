@@ -61,7 +61,7 @@ const resolve = async (req, res) => {
 
 /**
  * POST /api/internal/whatsapp/handoff/sign
- * Body: { wa_phone_id, telefono }
+ * Body: { wa_phone_id, telefono, wa_message_id? }
  * Upsert de la conversación + token del micrositio + URL lista para mandar.
  * 403 PLAN_INACTIVE / WA_NUMBER_INACTIVE → n8n no responde nada.
  */
@@ -79,6 +79,12 @@ const sign = async (req, res) => {
     const telefono = String(req.body?.telefono ?? '').replace(/\D/g, '');
     if (!TELEFONO_RE.test(telefono)) {
       return res.status(400).json({ error: 'telefono inválido', code: 'INVALID_PARAM' });
+    }
+
+    // Reintento de Meta del mismo mensaje → no se contesta dos veces
+    const waMessageId = req.body?.wa_message_id ? String(req.body.wa_message_id).slice(0, 200) : null;
+    if (waMessageId && !(await waDb.registrarMensajeEntrante(waMessageId))) {
+      return res.json({ enviar: false, motivo: 'DUPLICADO' });
     }
 
     const conversationId = await waDb.findOrCreateConversation({
