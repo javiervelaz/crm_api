@@ -230,6 +230,12 @@ const marcarNotificados = async (ids) => (await pool.query(
   [ids]
 )).rowCount;
 
+/** Contacto de cada academia (el mail del aviso va a contacto_email). */
+const contactosAcademias = async (cliente_ids) => (await pool.query(
+  `SELECT id, nombre, contacto_nombre, contacto_email FROM cliente WHERE id = ANY($1::int[])`,
+  [cliente_ids]
+)).rows;
+
 const contarPendientes = async (cliente_id) => (await pool.query(
   `SELECT count(*)::int AS n FROM edu_pago WHERE cliente_id = $1 AND estado = 'pendiente'`,
   [cliente_id]
@@ -239,5 +245,5 @@ module.exports = {
   configAlumnos, clientesConAlumnos, inscripcionesDelPeriodo, cuotasExistentes, insertarCuota,
   listarCuotas, cuotasPorIds, setEstadoCuotas,
   insertarPago, insertarLineas, actualizarLinea, listarPagos, getPago, getComprobante, cuotasDePago,
-  aprobarPago, rechazarPago, pendientesSinNotificar, marcarNotificados, contarPendientes,
+  aprobarPago, rechazarPago, pendientesSinNotificar, marcarNotificados, contarPendientes, contactosAcademias,
 };

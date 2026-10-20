@@ -1,0 +1,11 @@
+Hola{{#if nombreContacto}} {{nombreContacto}}{{/if}},
+
+{{#if uno}}Hay 1 pago con comprobante esperando tu revisión{{else}}Hay {{cantidad}} pagos con comprobante esperando tu revisión{{/if}} en {{nombreComercio}}:
+
+{{#each pagos}}- {{alumnos}}: {{importe}} (pagado el {{fecha}}){{#if fueraDeTermino}} · fuera de término{{/if}}
+{{/each}}
+Revisalos y aprobalos o rechazalos desde:
+{{urlPagos}}
+
+Counter CRM · Córdoba, Argentina
+Recibís este mail porque sos el contacto de {{nombreComercio}} en Counter.

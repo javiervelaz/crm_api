@@ -1,0 +1,40 @@
+<mjml>
+  <mj-include path="./partials/head.mjml" />
+  <mj-body background-color="#f1f5f9" width="560px">
+    <mj-include path="./partials/header.mjml" />
+
+    <mj-section padding="32px 32px 8px 32px">
+      <mj-column>
+        <mj-text font-size="22px" line-height="30px" font-weight="700" color="#0f172a" padding="0">
+          {{#if uno}}Hay 1 pago para revisar{{else}}Hay {{cantidad}} pagos para revisar{{/if}}
+        </mj-text>
+        <mj-text padding="12px 0 0 0">
+          Subieron comprobantes en <strong style="color:#0f172a">{{nombreComercio}}</strong> y están esperando que los apruebes o los rechaces.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="16px 32px 8px 32px">
+      <mj-column background-color="#f8fafc" border-radius="10px" padding="16px">
+        <mj-text color="#0f172a" padding="0">
+          {{#each pagos}}
+          <div style="padding:0 0 10px 0">
+            <strong>{{alumnos}}</strong> · {{importe}}<br />
+            <span style="color:#64748b;font-size:13px">Pagado el {{fecha}}{{#if fueraDeTermino}} · fuera de término{{/if}}</span>
+          </div>
+          {{/each}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 32px 28px 32px">
+      <mj-column>
+        <mj-button href="{{url urlPagos}}" align="left">
+          Revisar pagos
+        </mj-button>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./partials/footer.mjml" />
+  </mj-body>
+</mjml>
