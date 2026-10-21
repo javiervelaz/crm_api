@@ -1,6 +1,8 @@
 // services/cliente/clienteService.js
 const pool = require('../../pool');
 const legajoDb = require('../../model/profile/legajo');
+const planService = require('./planService');
+const UPPER_FREE = 'FREE';
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { createSubscription, createOneTimePayment, saveSubscription } =
@@ -80,8 +82,6 @@ const createClienteService = async (data) => {
       if (!tier) throw new SignupError('Configuración de planes incompleta', { status: 500 });
     }
 
-    const esPago = Number(tier.precio_mensual) > 0;
-
     const rubroRes = await client.query(
       `SELECT codigo, nombre FROM rubro WHERE codigo = $1 AND activo = true`,
       [rubroCodigo]
@@ -90,6 +90,15 @@ const createClienteService = async (data) => {
     if (!rubroRow) {
       throw new SignupError('El rubro elegido no es válido', { code: 'RUBRO_INVALIDO', field: 'rubro' });
     }
+
+    // Precio, duración y disponibilidad del tier EN este rubro (rubro_tier, 019).
+    // Un tier pago sin precio cargado no se puede contratar: a $0 sería gratis.
+    const oferta = await planService.getOferta(rubroRow.codigo, tier.id, client);
+    if (UPPER_FREE !== String(tier.code).toUpperCase() && (!oferta || !oferta.disponible)) {
+      throw new SignupError('Ese plan todavía no está disponible para tu rubro', { code: 'PLAN_NO_DISPONIBLE', field: 'plan' });
+    }
+    if (oferta) tier = { ...tier, precio_mensual: oferta.precio_mensual, duracion_meses: oferta.duracion_meses, rubro_codigo: rubroRow.codigo };
+    const esPago = Number(tier.precio_mensual) > 0;
 
     // El plan pago arranca vencido: se activa cuando el webhook confirma.
     // Los días de trial del FREE definen su ventana.
