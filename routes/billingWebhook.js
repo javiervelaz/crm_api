@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const {
   activateTierForCliente,
+  registrarPagoUnico,
   simulateWebhook,
   USE_MOCK
 } = require('../services/billing/mercadoPagoService');
@@ -100,6 +101,13 @@ router.post('', async (req, res) => {
       const duracionMeses = metadata.duracion_meses || 1;
 
       if (!clienteId || !tierId) return res.status(200).send('MISSING DATA');
+
+      // Idempotente: un reintento de MP con el mismo pago no extiende el plan dos veces
+      const nuevo = await registrarPagoUnico({
+        clienteId, tierId, rubroCodigo: metadata.rubro_codigo,
+        mpPaymentId: paymentId, monto: payment.transaction_amount, duracionMeses,
+      });
+      if (!nuevo) return res.status(200).send('ALREADY PROCESSED');
 
       await activateTierForCliente(clienteId, tierId, { meses: Number(duracionMeses) || 1 });
 

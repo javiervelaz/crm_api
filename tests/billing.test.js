@@ -34,8 +34,10 @@ describe('Billing API (MP_MOCK=true)', () => {
       }
 
       // SELECT tier
-      if (q.includes('SELECT') && q.includes('FROM TIER WHERE UPPER')) {
-        return { rows: [{ id: MOCK_TIER_ID, code: 'BASIC', precio_mensual: '1500.00' }] };
+      // Oferta del tier en el rubro del cliente (planService.getOferta → rubro_tier)
+      if (q.includes('SELECT') && q.includes('JOIN RUBRO_TIER')) {
+        return { rows: [{ tier_id: MOCK_TIER_ID, id: MOCK_TIER_ID, code: 'BASIC', nombre: 'Básico', nombre_publico: 'Básico',
+          es_activo: true, rubro_codigo: 'gastronomia', precio_mensual: '1500.00', duracion_meses: 1, disponible: true, features: {} }] };
       }
 
       // INSERT billing_subscription
@@ -120,7 +122,7 @@ describe('Billing API (MP_MOCK=true)', () => {
         if (q.includes('FROM CLIENTE WHERE ID')) {
           return { rows: [{ id: MOCK_CLIENTE_ID, nombre: 'Test', contacto_email: 'a@b.com' }] };
         }
-        if (q.includes('FROM TIER WHERE UPPER')) return { rows: [] };
+        if (q.includes('JOIN RUBRO_TIER')) return { rows: [] };
         return { rows: [] };
       });
 
