@@ -1,8 +1,8 @@
 // controllers/signupController.js
 const ClienteService = require('../services/cliente/clienteService');
-const {
-  createSubscription, createOneTimePayment, saveSubscription,
-} = require('../services/billing/mercadoPagoService');
+const { tipoDePago } = require('../services/cliente/planService');
+// Por el objeto del módulo (no destructurado): así los tests pueden stubearlo
+const mp = require('../services/billing/mercadoPagoService');
 const mailer = require('../services/email');
 const { waitUntil } = require('@vercel/functions');
 
@@ -55,14 +55,16 @@ const signup = async (req, res) => {
 
   if (esPago) {
     try {
-      const paymentType = Number(tier.duracion_meses) > 0 ? 'one_time' : 'subscription';
+      // Antes: duracion_meses > 0 → siempre 'one_time' (la duración es ≥ 1), así que
+      // un plan mensual cobraba un solo mes y nunca creaba la suscripción.
+      const paymentType = tipoDePago(tier);
 
       if (paymentType === 'subscription') {
-        const { initPoint, preapprovalId } = await createSubscription(cliente, tier);
-        await saveSubscription(cliente.id, tier.id, preapprovalId, tier);
+        const { initPoint, preapprovalId } = await mp.createSubscription(cliente, tier);
+        await mp.saveSubscription(cliente.id, tier.id, preapprovalId, tier);
         paymentUrl = initPoint;
       } else {
-        const { initPoint, sandboxInitPoint } = await createOneTimePayment(cliente, tier);
+        const { initPoint, sandboxInitPoint } = await mp.createOneTimePayment(cliente, tier);
         paymentUrl = process.env.MP_MOCK === 'true' ? (sandboxInitPoint || initPoint) : initPoint;
       }
     } catch (err) {
