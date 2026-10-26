@@ -59,7 +59,7 @@ const signup = async (req, res) => {
 
       if (paymentType === 'subscription') {
         const { initPoint, preapprovalId } = await createSubscription(cliente, tier);
-        await saveSubscription(cliente.id, tier.id, preapprovalId);
+        await saveSubscription(cliente.id, tier.id, preapprovalId, tier);
         paymentUrl = initPoint;
       } else {
         const { initPoint, sandboxInitPoint } = await createOneTimePayment(cliente, tier);

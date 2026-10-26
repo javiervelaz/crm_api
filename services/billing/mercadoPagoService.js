@@ -119,6 +119,8 @@ async function createOneTimePayment(cliente, tier) {
       tipo: 'pago_unico',
       tier_id: tier.id,
       duracion_meses: tier.duracion_meses,
+      rubro_codigo: tier.rubro_codigo ?? null,
+      precio: Number(tier.precio_mensual),
     },
   };
 
@@ -138,14 +140,38 @@ async function createOneTimePayment(cliente, tier) {
 /**
  * SAVE SUBSCRIPTION IN DB
  */
-async function saveSubscription(clienteId, tierId, preapprovalId) {
+/**
+ * Guarda la suscripción con el snapshot de lo contratado. El monto del
+ * preapproval queda fijo en MercadoPago hasta que la suscripción termina:
+ * un cambio de precio del rubro sólo aplica a suscripciones nuevas.
+ * `tier` es la oferta del rubro (planService.getOferta).
+ */
+async function saveSubscription(clienteId, tierId, preapprovalId, tier = {}) {
   await pool.query(
     `
-    INSERT INTO billing_subscription (cliente_id, tier_id, mp_preapproval_id, status)
-    VALUES ($1, $2, $3, 'pending')
+    INSERT INTO billing_subscription
+      (cliente_id, tier_id, mp_preapproval_id, status, rubro_codigo, precio_mensual, duracion_meses)
+    VALUES ($1, $2, $3, 'pending', $4, $5, $6)
     `,
-    [clienteId, tierId, preapprovalId]
+    [clienteId, tierId, preapprovalId, tier.rubro_codigo ?? null,
+      tier.precio_mensual != null ? Number(tier.precio_mensual) : null,
+      tier.duracion_meses != null ? Number(tier.duracion_meses) : null]
   );
+}
+
+/**
+ * Registra un pago único aprobado. Devuelve false si ese pago ya estaba
+ * registrado (reintento del webhook): el plan NO se vuelve a extender.
+ */
+async function registrarPagoUnico({ clienteId, tierId, rubroCodigo, mpPaymentId, monto, duracionMeses }) {
+  const r = await pool.query(
+    `INSERT INTO billing_pago (cliente_id, tier_id, rubro_codigo, mp_payment_id, monto, duracion_meses)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (mp_payment_id) DO NOTHING
+     RETURNING id`,
+    [clienteId, tierId, rubroCodigo ?? null, String(mpPaymentId), Number(monto) || 0, Number(duracionMeses) || 1]
+  );
+  return r.rows.length > 0;
 }
 
 
@@ -210,6 +236,7 @@ module.exports = {
   createSubscription,
   createOneTimePayment,
   saveSubscription,
+  registrarPagoUnico,
   activateTierForCliente,
   simulateWebhook,
   USE_MOCK,
