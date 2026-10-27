@@ -83,6 +83,8 @@ const getReporteClientesWithFilters = async (request) => {
   return result.rows;
 };
 
+// sc.categoria_salida_id guarda el id de categoria_tipo (nombre histórico; ver
+// migración 021). El JOIN contra categoria_tipo es el correcto.
 const getReporteGastosPorTipoCategoria = async (request) => {
   const { fecha_desde, fecha_hasta, tipoId, cliente_id } = request;
 
