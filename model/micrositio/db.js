@@ -1,6 +1,7 @@
 // model/micrositio/db.js — queries del micrositio de pedidos.
 // Corren dentro de la conexión de tenant (RLS) y además filtran por cliente_id.
 const pool = require('../../pool');
+const { inicioMesUtcSql } = require('../../utils/fechaTenant');
 
 const getProductosPorIds = async (cliente_id, ids) => {
   const result = await pool.query(
@@ -35,7 +36,7 @@ const getMediosPago = async () => {
 const contarPedidosDelMes = async (cliente_id) => {
   const result = await pool.query(
     `SELECT COUNT(*)::int AS n FROM pedido
-      WHERE cliente_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)`,
+      WHERE cliente_id = $1 AND created_at >= ${inicioMesUtcSql('$1')}`,
     [cliente_id]
   );
   return result.rows[0].n;

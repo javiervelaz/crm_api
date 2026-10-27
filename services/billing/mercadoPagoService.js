@@ -175,7 +175,6 @@ async function registrarPagoUnico({ clienteId, tierId, rubroCodigo, mpPaymentId,
 }
 
 
-const TZ = 'America/Argentina/Cordoba';
 
 /**
  * Activa el tier y setea la fecha de vencimiento.
@@ -193,13 +192,13 @@ async function activateTierForCliente(clienteId, tierId, { meses } = {}) {
     `UPDATE cliente
         SET tier_id              = $1,
             tier_expiration_date = GREATEST(
-              COALESCE(tier_expiration_date, (now() AT TIME ZONE $4)::date),
-              (now() AT TIME ZONE $4)::date
+              COALESCE(tier_expiration_date, (now() AT TIME ZONE timezone)::date),
+              (now() AT TIME ZONE timezone)::date
             ) + ($2 || ' months')::interval,
             tier_downgraded_at   = NULL,
             updated_at           = now()
       WHERE id = $3`,
-    [tierId, duracion, clienteId, TZ]
+    [tierId, duracion, clienteId]
   );
 }
 

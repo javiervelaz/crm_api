@@ -1,10 +1,15 @@
 const pool = require('../../pool');
+const { hoySql } = require('../../utils/fechaTenant');
 
+// La fecha de la caja la pone el servidor en la zona del tenant. Antes venía del
+// navegador como new Date() → ISO en UTC → una caja abierta a las 22:00 quedaba
+// con la fecha de mañana.
 const createRegistroDiario  = async (RegistroDiario) => {
-    const { fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id, cliente_id } = RegistroDiario;
+    const { usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id, cliente_id } = RegistroDiario;
     const result = await pool.query(
-      'INSERT INTO "registro_diario" (fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id) VALUES ($1, $2, $3, $4, $5, $6,$7) RETURNING *',
-      [fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id]
+      `INSERT INTO "registro_diario" (fecha, usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id)
+       VALUES (${hoySql('$6')}, $1, $2, $3, $4, $5, $6) RETURNING *`,
+      [usuario_apertura_id, usuario_cierre_id, caja_inicial,caja_final,sucursal_id,cliente_id]
     );
     return result.rows[0];
   };
@@ -42,13 +47,13 @@ const createRegistroDiario  = async (RegistroDiario) => {
       
       switch (filtro) {
         case 'dia':
-          query += 'WHERE fecha = CURRENT_DATE and cliente_id =  $1 ORDER BY fecha DESC';
+          query += `WHERE fecha = ${hoySql('$1')} and cliente_id =  $1 ORDER BY fecha DESC`;
           break;
         case 'semana':
-          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'7 days\' and cliente_id =  $1 ORDER BY fecha DESC';
+          query += `WHERE fecha >= ${hoySql('$1')} - 7 and cliente_id =  $1 ORDER BY fecha DESC`;
           break;
         case 'mes':
-          query += 'WHERE fecha >= CURRENT_DATE - INTERVAL \'30 days\' and cliente_id =  $1 ORDER BY fecha DESC';
+          query += `WHERE fecha >= ${hoySql('$1')} - 30 and cliente_id =  $1 ORDER BY fecha DESC`;
           break;
         default:
           query += 'ORDER BY fecha DESC LIMIT 30';

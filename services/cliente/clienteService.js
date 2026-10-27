@@ -11,7 +11,8 @@ const { ESTADOS } = require('../verificacion/estados');
 const { TTL_DIAS } = require('../verificacion/config');
 const mailer = require('../email');
 
-const TZ = 'America/Argentina/Cordoba';
+// Un cliente nuevo arranca con la zona por defecto de cliente.timezone (020)
+const { TZ_DEFAULT: TZ } = require('../../utils/fechaTenant');
 const RUBRO_DEFAULT = 'gastronomia';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 

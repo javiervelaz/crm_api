@@ -3,6 +3,7 @@
 // transacción del request (middleware/tenantConnection.js): si el request
 // termina en 4xx/5xx se hace ROLLBACK de todo.
 const pool = require('../../pool');
+const { hoySql } = require('../../utils/fechaTenant');
 
 /** Tipo de usuario habilitado para el rubro del tenant, por código. */
 const getUserTypeDelRubro = async (cliente_id, codigo) => {
@@ -52,7 +53,7 @@ const crearUser = async ({ nombre, apellido, email, user_type_id, cliente_id }) 
 const crearProfile = async ({ id_user, dni, telefono, passwordHash, legajo, cliente_id }) => {
   await pool.query(
     `INSERT INTO profile (id_user, dni, telefono, password, legajo, fecha_ingreso, cliente_id, debe_cambiar_password)
-     VALUES ($1, $2, $3, $4, $5, (now() AT TIME ZONE 'America/Argentina/Cordoba')::date, $6, true)`,
+     VALUES ($1, $2, $3, $4, $5, ${hoySql('$6')}, $6, true)`,
     [id_user, dni || 0, telefono || null, passwordHash, legajo, cliente_id]
   );
 };
