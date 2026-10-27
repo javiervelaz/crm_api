@@ -1,4 +1,5 @@
 const pool = require('../../pool');
+const { fechaLocalSql } = require('../../utils/fechaTenant');
 
 const createSalidaCaja  = async (RegistroDiario) => {
     const sucursal_id =1; 
@@ -96,18 +97,18 @@ const createSalidaCaja  = async (RegistroDiario) => {
     return result.rows[0].usa_caja === true;
   };
 
-  // Gastos entre dos fechas (inclusive), en hora de Córdoba. created_at se
+  // Gastos entre dos fechas (inclusive), en la zona del tenant. created_at se
   // guarda en UTC sin zona (default CURRENT_TIMESTAMP de la sesión de Neon).
   const getSalidasCajasPorPeriodo = async (cliente_id, desde, hasta) => {
     const result = await pool.query(
       `SELECT sc.id, sc.descripcion, sc.monto, sc.categoria_salida_id,
               sc.registro_diario_id, sc.usuario_id, sc.created_at,
               ct.descripcion AS categoria_nombre,
-              (sc.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Cordoba')::date AS fecha
+              ${fechaLocalSql('sc.created_at', '$1')} AS fecha
          FROM salida_caja sc
          LEFT JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
         WHERE sc.cliente_id = $1::int
-          AND (sc.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Cordoba')::date
+          AND ${fechaLocalSql('sc.created_at', '$1')}
               BETWEEN $2::date AND $3::date
         ORDER BY sc.created_at DESC`,
       [cliente_id, desde, hasta]

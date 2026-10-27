@@ -1,7 +1,7 @@
 // crm_api/middleware/limitMiddleware.js
 const planService = require('../services/cliente/planService');
 const pool = require('../pool');
-const dayjs = require('dayjs');
+const { inicioMesUtcSql } = require('../utils/fechaTenant');
 
 const requireLimit = (limitKey) => {
   return async (req, res, next) => {
@@ -24,7 +24,7 @@ const requireLimit = (limitKey) => {
           countRes = await pool.query(
             `SELECT COUNT(*) FROM pedido
             WHERE cliente_id = $1
-              AND created_at >= date_trunc('month', CURRENT_DATE)`,
+              AND created_at >= ${inicioMesUtcSql('$1')}`,
             [user.cliente_id]
           );
           break;
