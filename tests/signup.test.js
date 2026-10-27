@@ -66,7 +66,7 @@ describe('POST /api/signup', () => {
       esPago: true,
       tier: { id: 2, code: 'PREMIUM', nombre_publico: 'Premium', precio_mensual: 15000, duracion_meses: 1 },
     });
-    sinon.stub(mpService, 'createOneTimePayment').rejects(new Error('MP 503'));
+    sinon.stub(mpService, 'createSubscription').rejects(new Error('MP 503'));
     sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
 
     const res = await request(app).post('/api/signup').send({ ...VALIDO, plan: 'PREMIUM' });
@@ -74,6 +74,41 @@ describe('POST /api/signup', () => {
     expect(res.status).to.equal(201);
     expect(res.body.paymentWarning).to.be.a('string');
     expect(res.body.token).to.equal(undefined);
+  });
+
+  it('plan de 1 mes → suscripción (antes caía siempre en pago único)', async () => {
+    stubProvisioning({
+      esPago: true,
+      tier: { id: 2, code: 'PREMIUM', nombre_publico: 'Premium', precio_mensual: 15000, duracion_meses: 1 },
+    });
+    const sub = sinon.stub(mpService, 'createSubscription').resolves({ initPoint: 'https://mp/sub', preapprovalId: 'pre-9' });
+    const save = sinon.stub(mpService, 'saveSubscription').resolves();
+    const unico = sinon.stub(mpService, 'createOneTimePayment');
+    sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
+
+    const res = await request(app).post('/api/signup').send({ ...VALIDO, plan: 'PREMIUM' });
+
+    expect(res.status).to.equal(201);
+    expect(res.body.paymentUrl).to.equal('https://mp/sub');
+    expect(sub.calledOnce).to.equal(true);
+    expect(save.firstCall.args.slice(0, 3)).to.deep.equal([1, 2, 'pre-9']);
+    expect(unico.called).to.equal(false);
+  });
+
+  it('plan de 12 meses → pago único por el período', async () => {
+    stubProvisioning({
+      esPago: true,
+      tier: { id: 4, code: 'CUSTOM', nombre_publico: 'Custom', precio_mensual: 120000, duracion_meses: 12 },
+    });
+    const sub = sinon.stub(mpService, 'createSubscription');
+    sinon.stub(mpService, 'createOneTimePayment').resolves({ initPoint: 'https://mp/pref', paymentId: 'pref-1' });
+    sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
+
+    const res = await request(app).post('/api/signup').send({ ...VALIDO, plan: 'CUSTOM' });
+
+    expect(res.status).to.equal(201);
+    expect(res.body.paymentUrl).to.equal('https://mp/pref');
+    expect(sub.called).to.equal(false);
   });
 
   it('rechaza CUIT con dígito verificador inválido', async () => {

@@ -111,11 +111,47 @@ describe('POST /api/billing/checkout — precio del rubro', () => {
     expect(pay.called).to.equal(false);
   });
 
+  it('cómo se cobra lo decide la duración, no el body', async () => {
+    stubDb(ofertaRow({ precio_mensual: '200.00', duracion_meses: 1 }));
+    const sub = sinon.stub(mp, 'createSubscription').resolves({ initPoint: 'https://mp/x', preapprovalId: 'pre-2' });
+    const pay = sinon.stub(mp, 'createOneTimePayment');
+    const res = await request(app).post('/api/billing/checkout').set('Authorization', `Bearer ${token()}`)
+      .send({ tierCode: 'PREMIUM', paymentType: 'one_time' });
+    expect(res.status).to.equal(200);
+    expect(sub.calledOnce).to.equal(true);
+    expect(pay.called).to.equal(false);
+  });
+
+  it('12 meses → pago único aunque el body pida suscripción', async () => {
+    stubDb(ofertaRow({ code: 'CUSTOM', precio_mensual: '1200.00', duracion_meses: 12 }));
+    const sub = sinon.stub(mp, 'createSubscription');
+    const pay = sinon.stub(mp, 'createOneTimePayment').resolves({ initPoint: 'https://mp/p', paymentId: 'p-1' });
+    const res = await request(app).post('/api/billing/checkout').set('Authorization', `Bearer ${token()}`)
+      .send({ tierCode: 'CUSTOM', paymentType: 'subscription' });
+    expect(res.status).to.equal(200);
+    expect(pay.calledOnce).to.equal(true);
+    expect(sub.called).to.equal(false);
+  });
+
   it('tier desactivado → no disponible aunque rubro_tier diga disponible', async () => {
     stubDb(ofertaRow({ es_activo: false, disponible: true }));
     const res = await request(app).post('/api/billing/checkout').set('Authorization', `Bearer ${token()}`)
       .send({ tierCode: 'PREMIUM' });
     expect(res.body.code).to.equal('PLAN_NO_DISPONIBLE');
+  });
+});
+
+describe('planService.tipoDePago / esPagable', () => {
+  it('1 mes → subscription; > 1 → one_time', () => {
+    expect(planService.tipoDePago({ duracion_meses: 1 })).to.equal('subscription');
+    expect(planService.tipoDePago({ duracion_meses: 12 })).to.equal('one_time');
+    expect(planService.tipoDePago({})).to.equal('subscription');
+  });
+  it('disponible a $0 no es pagable (sería un plan pago gratis)', () => {
+    expect(planService.esPagable({ disponible: true, precio_mensual: 0 })).to.equal(false);
+    expect(planService.esPagable({ disponible: false, precio_mensual: 200 })).to.equal(false);
+    expect(planService.esPagable({ disponible: true, precio_mensual: 200 })).to.equal(true);
+    expect(planService.esPagable(null)).to.equal(false);
   });
 });
 

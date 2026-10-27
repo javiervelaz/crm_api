@@ -150,6 +150,17 @@ const ofertaContratable = async (rubroCodigo, tier, db = pool) => {
 };
 
 /**
+ * Cómo se cobra una oferta. Lo decide la duración, no el cliente:
+ * · 1 mes  → suscripción (preapproval mensual, monto fijo hasta que se cancele)
+ * · N > 1  → pago único por el período (precio_mensual = total del período)
+ */
+const tipoDePago = (oferta) => (Number(oferta?.duracion_meses) > 1 ? 'one_time' : 'subscription');
+
+/** Un tier que no es FREE sólo se contrata pagando: disponible y con precio > 0. */
+const esFree = (code) => String(code || '').toUpperCase() === 'FREE';
+const esPagable = (oferta) => Boolean(oferta && oferta.disponible && Number(oferta.precio_mensual) > 0);
+
+/**
  * Chequeo de feature para usar dentro de services/routers sin req.user
  * (n8n, micrositio). Lanza un Error con status 403 y code PLAN_INACTIVE si
  * el plan no la incluye o está vencido.
@@ -177,4 +188,7 @@ module.exports = {
   listarOfertas,
   ofertaContratable,
   resolverFeatures,
+  tipoDePago,
+  esFree,
+  esPagable,
 };
