@@ -22,6 +22,7 @@ const telegram = require('../services/canales/telegramApi');
 const cripto = require('../services/canales/cripto');
 const canalesService = require('../services/canales/canalesService');
 const operacionesDiariasService = require('../services/operaciones_diarias/operacionesDiariasService');
+const turnLog = require('../model/harness/turnLog');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -149,6 +150,7 @@ describe('Bot — chats vinculados a usuarios', () => {
     sinon.stub(canalesDb, 'getCuentaInterna').resolves(bot());
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan('PREMIUM'));
     sinon.stub(waDb, 'registrarMensajeEntrante').resolves(true);
+    sinon.stub(turnLog, 'insertar').resolves(1); // turn_log: lo cubre harnessTurnLog.test.js
   });
 
   it('/start v_<código válido> vincula el chat al usuario del código', async () => {

@@ -10,6 +10,7 @@
 const db = require('../../model/canales/db');
 const usuariosDb = require('../../model/canales/usuarios');
 const mensajesInternos = require('./mensajesInternos');
+const usage = require('../harness/core/usage');
 const waDb = require('../../model/whatsaap/db');
 const telegram = require('./telegramApi');
 const cripto = require('./cripto');
@@ -189,17 +190,37 @@ const procesarUpdateTelegram = async ({ cuenta, update, plan }) => {
       await usuariosDb.desvincularPorId(Number(cuenta.cliente_id), usuario.vinculo_id);
     } else {
       await usuariosDb.tocarUso(usuario.vinculo_id);
+      // Cada mensaje de un usuario vinculado es un turno del harness interno:
+      // una fila en turn_log, siempre (también comandos y errores).
+      const turno = (extra) => usage.registrarTurno({
+        clienteId: cuenta.cliente_id, userId: usuario.user_id, vertical: 'interno',
+        canal: 'telegram', canalCuentaId: cuenta.id, externalUserId: String(chatId),
+        texto, msgsOut: 1, ...extra,
+      });
       if (texto === '/desvincular') {
         await usuariosDb.desvincularPorId(Number(cuenta.cliente_id), usuario.vinculo_id);
         await telegram.sendMessage(token, chatId, `Listo, desvinculé este chat de tu usuario de ${comercio}. Ya no vas a recibir avisos acá.`);
+        await turno({ intent: 'desvincular', stage: 'comando' });
         return { accion: 'desvinculado' };
       }
       if (texto !== '/pedir') {
-        const respuesta = await mensajesInternos.responder({ usuario, comercio, texto, plan });
-        await telegram.sendMessage(token, chatId, respuesta.texto, respuesta.extra || {});
+        const { resultado: respuesta, error, latencyMs } = await usage.medir(async () => {
+          const rta = await mensajesInternos.responder({ usuario, comercio, texto, plan });
+          await telegram.sendMessage(token, chatId, rta.texto, rta.extra || {});
+          return rta;
+        });
+        if (error) {
+          await turno({ stage: 'error', ok: false, msgsOut: 0, latencyMs, error: error.message });
+          throw error;
+        }
+        await turno({
+          intent: respuesta.intent, stage: respuesta.stage || 'fijo', ok: respuesta.ok !== false,
+          gasto: respuesta.gasto === true, uso: respuesta.uso, latencyMs,
+        });
         return { accion: 'interno', intent: respuesta.intent };
       }
       // /pedir: el dueño ve el link tal cual lo recibe un cliente (sigue abajo)
+      await turno({ intent: 'pedir', stage: 'comando' });
     }
   }
 
