@@ -7,6 +7,8 @@
 //
 // `usuario` ya viene validado como staff activo del comercio (canalesService).
 
+const harness = require('../harness/core/manejarTurno');
+
 const nombreCorto = (nombre) => String(nombre || '').trim().split(/\s+/)[0] || '';
 
 const textoBienvenida = ({ nombre, comercio, recibeAvisos }) => [
@@ -20,22 +22,13 @@ const textoBienvenida = ({ nombre, comercio, recibeAvisos }) => [
 ].join('\n');
 
 /**
- * Respuesta a un mensaje de un usuario vinculado.
- * Hoy: ayuda. Con el harness interno: consultas ("¿cuánto vendí hoy?").
+ * Respuesta a un mensaje de un usuario vinculado: el harness interno resuelve la
+ * consulta ("¿cuánto vendí hoy?"). Si el harness falla, el error sube a
+ * canalesService, que lo registra en turn_log (stage 'error').
  */
-const responder = async ({ usuario, comercio }) => {
-  const recibeAvisos = usuario.avisos !== false && (usuario.modulos || []).includes('operaciones');
-  return {
-    intent: 'ayuda',
-    texto: [
-      `Hola${nombreCorto(usuario.nombre) ? ` ${nombreCorto(usuario.nombre)}` : ''}. Este chat está vinculado a tu usuario de ${comercio}.`,
-      recibeAvisos ? 'Acá te llegan los pedidos nuevos.' : 'Tu usuario no recibe avisos de pedidos.',
-      'Muy pronto vas a poder preguntarme cosas como "¿cuánto vendí hoy?".',
-      '',
-      '/pedir — ver el link de pedidos como lo ve un cliente',
-      '/desvincular — desconectar este chat',
-    ].join('\n'),
-  };
+const responder = async ({ clienteId, usuario, texto }) => {
+  const r = await harness.manejarTurno({ clienteId, userId: usuario.user_id, texto });
+  return { intent: r.intent, stage: r.stage, ok: r.ok, texto: r.texto };
 };
 
 module.exports = { textoBienvenida, responder };
