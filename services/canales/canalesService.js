@@ -205,7 +205,7 @@ const procesarUpdateTelegram = async ({ cuenta, update, plan }) => {
       }
       if (texto !== '/pedir') {
         const { resultado: respuesta, error, latencyMs } = await usage.medir(async () => {
-          const rta = await mensajesInternos.responder({ clienteId: Number(cuenta.cliente_id), usuario, comercio, texto, plan });
+          const rta = await mensajesInternos.responder({ clienteId: Number(cuenta.cliente_id), usuario, comercio, texto, plan, chat: { canalCuentaId: cuenta.id, chatId: String(chatId) } });
           await telegram.sendMessage(token, chatId, rta.texto, rta.extra || {});
           return rta;
         });

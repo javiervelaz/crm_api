@@ -165,6 +165,7 @@ const AYUDA = [
   '• ¿Cuánto pagué de sueldos el mes pasado?',
   '• Compará las ventas de este mes con el mes pasado',
   '• ¿Cuántos clientes nuevos tuve en octubre?',
+  '• Después podés seguir con "¿y ayer?" o "¿y los gastos?"',
 ].join('\n');
 
 const CATALOGO = validarCatalogo([
