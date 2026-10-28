@@ -96,12 +96,13 @@ const REGLAS = [
     const hasta = ddmm(m[4], m[5], m[6] || m[3], hoy);
     return rangoExplicito(desde, hasta, `del ${m[1]}/${m[2]} al ${m[4]}/${m[5]}`, 'rango');
   }],
-  // del 1 al 15 [de octubre [de 2025]]
-  [new RegExp(`\\bdel?\\s+${N}\\s+al\\s+${N}(?:\\s+de\\s+${MES_RE}${ANIO})?\\b`), (m, hoy) => {
+  // del 1 al 15 | desde el 1 hasta el 15 [de octubre [de 2025] | de este mes | del mes pasado]
+  [new RegExp(`\\b(?:del?|desde(?:\\s+el)?)\\s+${N}\\s+(?:al|hasta(?:\\s+el)?)\\s+${N}(?:\\s+de(?:l)?\\s+(?:${MES_RE}${ANIO}|(este\\s+mes)|(mes\\s+pasado)))?\\b`), (m, hoy) => {
     const d1 = aNumero(m[1]); const d2 = aNumero(m[2]);
     const h = partes(hoy);
-    const mes = m[3] ? numMes(m[3]) : h.mes;
-    const anio = m[3] ? anioDeMes(mes, m[4], hoy) : h.anio;
+    let mes = h.mes; let anio = h.anio;
+    if (m[3]) { mes = numMes(m[3]); anio = anioDeMes(mes, m[4], hoy); }
+    else if (m[6]) { mes = h.mes === 1 ? 12 : h.mes - 1; anio = h.mes === 1 ? h.anio - 1 : h.anio; }
     const desde = fecha(anio, mes, d1);
     const hasta = fecha(anio, mes, d2);
     if (!desde || !hasta || desde > hasta || desde > hoy) return INVALIDA;

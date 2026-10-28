@@ -23,6 +23,7 @@ const cripto = require('../services/canales/cripto');
 const canalesService = require('../services/canales/canalesService');
 const operacionesDiariasService = require('../services/operaciones_diarias/operacionesDiariasService');
 const turnLog = require('../model/harness/turnLog');
+const harness = require('../services/harness/core/manejarTurno');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -198,11 +199,13 @@ describe('Bot — chats vinculados a usuarios', () => {
     const uso = sinon.stub(usuariosDb, 'tocarUso').resolves();
     const conv = sinon.stub(canalesDb, 'findOrCreateConversacion');
     const send = sinon.stub(telegram, 'sendMessage').resolves({});
+    const turno = sinon.stub(harness, 'manejarTurno').resolves({ intent: 'ventas_periodo', stage: 'ejecutor', ok: true, texto: 'Ventas hoy: $ 1.000 en 1 pedido.' });
     const res = await hook(update('cuánto vendí hoy'));
     expect(res.body).to.deep.equal({ ok: true, accion: 'interno' });
     expect(uso.calledOnce).to.equal(true);
     expect(conv.called).to.equal(false);
-    expect(send.firstCall.args[2]).to.include('vinculado a tu usuario de Pizzería Test');
+    expect(turno.firstCall.args[0]).to.include({ clienteId: 7, userId: 21, texto: 'cuánto vendí hoy' });
+    expect(send.firstCall.args[2]).to.equal('Ventas hoy: $ 1.000 en 1 pedido.');
   });
 
   it('usuario vinculado manda /pedir → recibe el link como un cliente', async () => {
