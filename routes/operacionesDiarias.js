@@ -16,10 +16,6 @@ router.post('/crear-pedido-whatsaap', authenticateJWT, requireLimit('maxPedidosM
 router.get('/listar-pedidos/:registroDiarioId/:cliente_id', authenticateJWT, authorizeModule('operaciones'),
                 authorizePermission('operaciones', 'operaciones.list'), operacionesDiariasController.listarPedidos);
 router.post('/registrar-salida-caja', authenticateJWT, operacionesDiariasController.registrarSalidaCaja);
-router.get('/consultar-inventario-insumos/:sucursalId', authenticateJWT, operacionesDiariasController.consultarInventarioInsumos);
-router.post('/registrar-movimiento-inventario', authenticateJWT, operacionesDiariasController.registrarMovimientoInventario);
-router.post('/registrar-compra-insumo', authenticateJWT, operacionesDiariasController.registrarCompraInsumo);
-router.put('/actualizar-inventario-insumos/:id', authenticateJWT, operacionesDiariasController.actualizarInventarioInsumos);
 router.post('/check-caja', authenticateJWT, operacionesDiariasController.checkCajaAbierta);
 router.put('/terminar-pedido/:id', authenticateJWT, operacionesDiariasController.terminarPedido);
 router.get('/detalle-pedido/:id', authenticateJWT, pedidosController.getDetallePedido);
