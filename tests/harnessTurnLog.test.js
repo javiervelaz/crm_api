@@ -23,6 +23,7 @@ const waDb = require('../model/whatsaap/db');
 const telegram = require('../services/canales/telegramApi');
 const cripto = require('../services/canales/cripto');
 const mensajesInternos = require('../services/canales/mensajesInternos');
+const harness = require('../services/harness/core/manejarTurno');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -167,6 +168,7 @@ describe('Bot de Telegram → turn_log', () => {
     sinon.stub(waDb, 'registrarMensajeEntrante').resolves(true);
     sinon.stub(usuariosDb, 'getUsuarioDelChat').resolves(usuario());
     sinon.stub(usuariosDb, 'tocarUso').resolves();
+    sinon.stub(harness, 'manejarTurno').resolves({ intent: 'ventas_periodo', stage: 'ejecutor', ok: true, texto: 'Ventas hoy: $ 1.000 en 1 pedido.' });
   });
 
   it('mensaje de un usuario vinculado → una fila con user, texto, intent y sin modelo', async () => {
@@ -177,7 +179,7 @@ describe('Bot de Telegram → turn_log', () => {
     expect(ins.calledOnce).to.equal(true);
     expect(ins.firstCall.args[0]).to.include({
       cliente_id: 7, user_id: 21, vertical: 'interno', canal: 'telegram', canal_cuenta_id: 40,
-      external_user_id: '555', texto: 'cuánto vendí hoy', intent: 'ayuda', stage: 'fijo',
+      external_user_id: '555', texto: 'cuánto vendí hoy', intent: 'ventas_periodo', stage: 'ejecutor',
       ok: true, model: null, msgs_out: 1,
     });
   });
