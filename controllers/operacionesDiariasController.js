@@ -36,49 +36,6 @@ const registrarSalidaCaja = async (req, res) => {
     }
 };
 
-// Controlador para consultar el inventario de insumos
-const consultarInventarioInsumos = async (req, res) => {
-    const { sucursalId } = req.params;
-    try {
-        const inventario = await operacionesDiariasService.consultarInventarioInsumos(sucursalId);
-        res.status(200).json(inventario);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// Controlador para registrar movimiento de inventario
-const registrarMovimientoInventario = async (req, res) => {
-    const { inventarioInsumosId, registroDiarioId, tipoMovimiento, cantidad } = req.body;
-    try {
-        const movimientoInventario = await operacionesDiariasService.registrarMovimientoInventario(inventarioInsumosId, registroDiarioId, tipoMovimiento, cantidad);
-        res.status(201).json(movimientoInventario);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-const registrarCompraInsumo = async (req, res) => {
-    const { registroDiarioId, insumo, cantidad, precioTotal, usuarioId, sucursalId } = req.body;
-    try {
-        const compraInsumo = await operacionesDiariasService.registrarCompraInsumo(registroDiarioId, insumo, cantidad, precioTotal, usuarioId, sucursalId);
-        res.status(201).json(compraInsumo);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-const actualizarInventarioInsumos = async (req, res) => {
-    const { sucursal_id, nombre, cantidad } = req.body;
-    const id = req.params.id;
-    try {
-        const inventarioActualizado = await operacionesDiariasService.actualizarInventarioInsumos(id,{sucursal_id, nombre, cantidad});
-        res.status(200).json(inventarioActualizado);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
 const registrarAperturaCierreCaja = async (req, res) => {
     const { fecha, usuario_apertura_id, caja_inicial, sucursal_id, usuario_cierre_id, caja_final, cliente_id } = req.body;
     try {
@@ -120,10 +77,24 @@ const pedidoMontoTotalDiario = async (req, res) => {
     }
 }
 
+// Número opcional >= 0. undefined/null/'' => `vacio`; inválido => NaN.
+const montoOpcional = (v, vacio) => {
+    if (v === undefined || v === null || v === '') return vacio;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : NaN;
+};
+
 const cierrCaja = async (req, res) => {
-    const { id, monto_final,usuario_cierre_id,sucursal_id,cliente_id } = req.body;
+    const { id, monto_final,usuario_cierre_id,sucursal_id,cliente_id, detalles } = req.body;
+    const d = detalles || {};
+    const efectivo_contado = montoOpcional(req.body.efectivo_contado, null);
+    const otros_ingresos = montoOpcional(req.body.otros_ingresos ?? d.otros_ingresos, 0);
+    const gastos_administrativos = montoOpcional(req.body.gastos_administrativos ?? d.gastos_administrativos, 0);
+    if ([efectivo_contado, otros_ingresos, gastos_administrativos].some(Number.isNaN)) {
+        return res.status(400).json({ message: 'Los montos del cierre deben ser números mayores o iguales a 0' });
+    }
     try {
-        const result = await operacionesDiariasService.actualizarRegistroDiarioService({id,monto_final, usuario_cierre_id, sucursal_id,cliente_id });
+        const result = await operacionesDiariasService.actualizarRegistroDiarioService({id,monto_final, usuario_cierre_id, sucursal_id,cliente_id, efectivo_contado, otros_ingresos, gastos_administrativos });
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -167,10 +138,6 @@ module.exports = {
     crearPedido,
     listarPedidos,
     registrarSalidaCaja,
-    consultarInventarioInsumos,
-    registrarMovimientoInventario,
-    registrarCompraInsumo,
-    actualizarInventarioInsumos,
     registrarAperturaCierreCaja,
     checkCajaAbierta,
     terminarPedido,

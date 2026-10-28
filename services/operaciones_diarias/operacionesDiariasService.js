@@ -1,61 +1,9 @@
-const CompraInsumo = require('../../model/compra_insumo/db');
-const InventarioInsumos = require('../../model/inventario_insumo/db');
-const MovimientoInventario = require('../../model/movimiento_inventario/db');
 const SalidaCaja = require('../../model/salida_caja/db');
 const Pedido = require('../../model/pedido/db');
 const RegistroDiario = require('../../model/registro_diario/db');
 const Users  = require("../../model/users/db") 
 const Profile   =  require("../../model/profile/db");
 const { json } = require('body-parser');
-
-// Lógica para registrar una compra de insumos
-exports.registrarCompraInsumo = async (registroDiarioId, insumo, cantidad, precioTotal, usuarioId, sucursalId) => {
-    try {
-        const nuevaCompra = await CompraInsumo.createCompraInsumo({
-            registro_diario_id: registroDiarioId,
-            insumo,
-            cantidad,
-            precio_total: precioTotal,
-            usuario_id: usuarioId,
-            sucursal_id: sucursalId
-        });
-        return nuevaCompra;
-    } catch (error) {
-        throw new Error('Error registrando la compra de insumos: ' + error.message);
-    }
-};
-
-// Lógica para actualizar el inventario de insumos
-exports.actualizarInventarioInsumos = async (Id, inventarioInsumo) => {
-    const {sucursal_id, nombre, cantidad} = inventarioInsumo;
-    try {
-        const inventario = await InventarioInsumos.getInventarioInsumoById(Id); 
-        if (inventario) {
-            inventario.cantidad += cantidad;
-            return await InventarioInsumos.updatetInventarioInsumo(Id,{inventario});
-             
-        } else {
-            return await InventarioInsumos.createInventarioInsumo({ sucursal_id: sucursal_id, nombre, cantidad })
-        }
-    } catch (error) {
-        throw new Error('Error actualizando el inventario de insumos: ' + error.message);
-    }
-};
-
-// Lógica para registrar movimiento de inventario
-exports.registrarMovimientoInventario = async (inventarioInsumosId, registroDiarioId, tipoMovimiento, cantidad) => {
-    try {
-        const movimiento = await MovimientoInventario.createMovimientoInventario({
-            inventario_insumos_id: inventarioInsumosId,
-            registro_diario_id: registroDiarioId,
-            tipo_movimiento: tipoMovimiento,
-            cantidad
-        });
-        return movimiento;
-    } catch (error) {
-        throw new Error('Error registrando movimiento de inventario: ' + error.message);
-    }
-};
 
 // Lógica para registrar salida de caja
 exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId,cliente_id) => {
@@ -233,9 +181,11 @@ exports.totalMontoTotalDiario  = async (registro_diario_id,cliente_id) => {
 }
 
 exports.actualizarRegistroDiarioService = async (data) => {
-    const {id,monto_final, usuario_cierre_id, sucursal_id, cliente_id} = data;
+    const {id,monto_final, usuario_cierre_id, sucursal_id, cliente_id, efectivo_contado, otros_ingresos, gastos_administrativos} = data;
     try {
-        const result = await RegistroDiario.updateMontoFinalRegistroDiario(id,monto_final, usuario_cierre_id, sucursal_id,cliente_id);
+        const result = await RegistroDiario.updateMontoFinalRegistroDiario(id,monto_final, usuario_cierre_id, sucursal_id,cliente_id, {
+            efectivo_contado, otros_ingresos, gastos_administrativos,
+        });
         return result.rows;
     } catch (error) {
         throw new Error('Error actualizando monto final en el registro diario ' + error.message);

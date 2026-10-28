@@ -18,6 +18,8 @@ const createSalidaCajaService = async (dataArray) => {
   const cliente_id = dataArray[0]?.cliente_id;
   if (!cliente_id) throw new Error('Falta cliente_id');
   const usaCaja = await db.tenantUsaCaja(cliente_id);
+  const hayMedioPago = dataArray.some((d) => d.medio_pago_id !== undefined && d.medio_pago_id !== null);
+  const mediosValidos = hayMedioPago ? new Set(await db.getMediosPagoIds()) : null;
 
   const items = dataArray.map((data) => {
     const { registro_diario_id, categoria_salida_id, descripcion, monto, usuario_id } = data;
@@ -27,6 +29,10 @@ const createSalidaCajaService = async (dataArray) => {
     }
     if (!(Number(monto) > 0)) {
       throw new Error('El monto debe ser mayor a cero');
+    }
+    const medio_pago_id = data.medio_pago_id ?? null;
+    if (medio_pago_id !== null && !(Number.isInteger(medio_pago_id) && mediosValidos.has(medio_pago_id))) {
+      throw new Error('Medio de pago inválido');
     }
     if (usaCaja && !registro_diario_id) {
       throw new Error('Para registrar gastos tenés que tener la caja abierta');
@@ -39,6 +45,7 @@ const createSalidaCajaService = async (dataArray) => {
       monto,
       usuario_id,
       cliente_id,
+      medio_pago_id,
     };
   });
 
@@ -101,6 +108,9 @@ const getGastosPorPeriodoService = async (cliente_id, desde, hasta) => {
     }
     return result;
   }
+  const getMontoGastosEfectivoService = async (registro_diario_id, cliente_id) =>
+    db.getMontoGastosEfectivo(registro_diario_id, cliente_id);
+
   const getMontoGastosdService = async (id,data,cliente_id) => {
     const result = await db.getMontoTotalDiarioGastosPorTipo(id,data,cliente_id);
     console.log(result);
@@ -115,5 +125,6 @@ const getGastosPorPeriodoService = async (cliente_id, desde, hasta) => {
     getSalidaCajaListService,
     updateSalidaCajaService,
     deleteSalidaCajaService,
-    getMontoGastosdService
+    getMontoGastosdService,
+    getMontoGastosEfectivoService
 };

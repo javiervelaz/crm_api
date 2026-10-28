@@ -3,10 +3,13 @@ const { fechaLocalSql } = require('../../utils/fechaTenant');
 
 const createSalidaCaja  = async (RegistroDiario) => {
     const sucursal_id =1; 
-    const { registro_diario_id, categoria_salida_id, descripcion, monto,usuario_id, cliente_id } = RegistroDiario;
+    const { registro_diario_id, categoria_salida_id, descripcion, monto,usuario_id, cliente_id, medio_pago_id = null } = RegistroDiario;
+    // Sin medio de pago el gasto se asume en efectivo (default de la columna).
     const result = await pool.query(
-      'INSERT INTO "salida_caja" (registro_diario_id, categoria_salida_id, descripcion, monto,usuario_id,sucursal_id,cliente_id) VALUES ($1, $2, $3, $4, $5, $6,$7) RETURNING *',
-      [registro_diario_id, categoria_salida_id, descripcion, monto,usuario_id,sucursal_id, cliente_id]
+      `INSERT INTO "salida_caja" (registro_diario_id, categoria_salida_id, descripcion, monto, usuario_id, sucursal_id, cliente_id, medio_pago_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::int, (SELECT id FROM medio_pago WHERE codigo = 'EFE')))
+       RETURNING *`,
+      [registro_diario_id, categoria_salida_id, descripcion, monto,usuario_id,sucursal_id, cliente_id, medio_pago_id]
     );
     return result.rows[0];
   };
@@ -18,9 +21,11 @@ const createSalidaCaja  = async (RegistroDiario) => {
   
   const   getSalidasCajas  = async (id,cliente_id) => {
     const result = await pool.query(
-      `SELECT sc.*, ct.descripcion AS categoria_nombre
+      `SELECT sc.*, ct.descripcion AS categoria_nombre,
+              mp.descripcion AS medio_pago, mp.codigo AS medio_pago_codigo
        FROM "salida_caja" sc
        LEFT JOIN "categoria_tipo" ct ON sc.categoria_salida_id = ct.id
+       LEFT JOIN "medio_pago" mp ON mp.id = sc.medio_pago_id
        WHERE sc.registro_diario_id = $1 AND sc.cliente_id = $2::int
        ORDER BY sc.created_at DESC`,
       [id, cliente_id]);
@@ -83,6 +88,24 @@ const createSalidaCaja  = async (RegistroDiario) => {
   };
   
   
+  // Gastos del día pagados en efectivo: los únicos que salen del cajón.
+  const getMontoGastosEfectivo = async (registro_diario_id, cliente_id) => {
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(sc.monto), 0)::float8 AS sum
+         FROM salida_caja sc
+         JOIN medio_pago mp ON mp.id = sc.medio_pago_id
+        WHERE sc.registro_diario_id = $1 AND sc.cliente_id = $2::int AND mp.codigo = 'EFE'`,
+      [registro_diario_id, cliente_id]
+    );
+    return result.rows[0].sum;
+  };
+
+  // ids de medio_pago existentes (catálogo global, chico).
+  const getMediosPagoIds = async () => {
+    const result = await pool.query('SELECT id FROM medio_pago');
+    return result.rows.map((r) => r.id);
+  };
+
   // ¿El tenant trabaja con caja? Abrir caja es parte del módulo 'operaciones':
   // sin él (rubro educación, por ejemplo) los gastos se cargan sin registro diario.
   const tenantUsaCaja = async (cliente_id) => {
@@ -103,10 +126,12 @@ const createSalidaCaja  = async (RegistroDiario) => {
     const result = await pool.query(
       `SELECT sc.id, sc.descripcion, sc.monto, sc.categoria_salida_id,
               sc.registro_diario_id, sc.usuario_id, sc.created_at,
+              sc.medio_pago_id, mp.descripcion AS medio_pago, mp.codigo AS medio_pago_codigo,
               ct.descripcion AS categoria_nombre,
               ${fechaLocalSql('sc.created_at', '$1')} AS fecha
          FROM salida_caja sc
          LEFT JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
+         LEFT JOIN medio_pago mp ON mp.id = sc.medio_pago_id
         WHERE sc.cliente_id = $1::int
           AND ${fechaLocalSql('sc.created_at', '$1')}
               BETWEEN $2::date AND $3::date
@@ -118,6 +143,8 @@ const createSalidaCaja  = async (RegistroDiario) => {
 
   module.exports = {
     tenantUsaCaja,
+    getMontoGastosEfectivo,
+    getMediosPagoIds,
     getSalidasCajasPorPeriodo,
     createSalidaCaja,
     getSalidaCajaById,
