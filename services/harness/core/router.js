@@ -21,6 +21,12 @@ const router = (texto) => {
   if (/\bclientes? nuev\w*|\bnuevos clientes\b|\baltas? de clientes\b/.test(t)) {
     return { intent: 'clientes_nuevos', texto: t };
   }
+  if (/\b(ultimo cierre|cierre de (la )?caja|cierre de ayer|con cuanto (cerre|cerramos|quedo)|cuanto (cerre|cerramos|quedo la caja))\b/.test(t)) {
+    return { intent: 'ultimo_cierre', texto: t };
+  }
+  if (/\b(caja (abierta|cerrada)|esta (abierta|cerrada) la caja|estado de (la )?caja|como (esta|anda|va) la caja|abri la caja|la caja)\b/.test(t)) {
+    return { intent: 'estado_caja', texto: t };
+  }
   if (/\b(sueldos?|salarios?|jornales?)\b/.test(t)) return { intent: 'gastos_sueldos', texto: t };
   if (/\b(gaste|gastamos|gastos?|egresos?|salidas? de caja|pague|pagamos)\b/.test(t)) {
     return { intent: 'gastos_periodo', texto: t };
