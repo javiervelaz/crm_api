@@ -108,7 +108,33 @@ const clientesNuevos = async (clienteId, desde, hasta) => {
   return rows[0].nuevos;
 };
 
+// Resumen de un registro_diario (una caja): lo registrado, sin fórmulas propias.
+const RESUMEN_CAJA = `
+  SELECT rd.id, rd.fecha::text AS fecha, rd.caja_inicial::text AS caja_inicial, rd.caja_final::text AS caja_final,
+         COALESCE((SELECT SUM(p.monto_total) FROM pedido p WHERE p.registro_diario_id = rd.id AND p.cliente_id = $1), 0)::text AS ventas,
+         (SELECT COUNT(*) FROM pedido p WHERE p.registro_diario_id = rd.id AND p.cliente_id = $1)::int AS pedidos,
+         COALESCE((SELECT SUM(s.monto) FROM salida_caja s WHERE s.registro_diario_id = rd.id AND s.cliente_id = $1), 0)::text AS gastos
+    FROM registro_diario rd`;
+
+/** Cajas abiertas del comercio (misma definición que la app: caja_cerrada IS NULL). */
+const cajasAbiertas = async (clienteId) => {
+  const { rows } = await pool.query(
+    `${RESUMEN_CAJA} WHERE rd.cliente_id = $1 AND rd.caja_cerrada IS NULL ORDER BY rd.fecha DESC, rd.id DESC`,
+    [clienteId],
+  );
+  return rows;
+};
+
+const ultimoCierre = async (clienteId) => {
+  const { rows } = await pool.query(
+    `${RESUMEN_CAJA} WHERE rd.cliente_id = $1 AND rd.caja_cerrada = TRUE ORDER BY rd.fecha DESC, rd.id DESC LIMIT 1`,
+    [clienteId],
+  );
+  return rows[0] || null;
+};
+
 module.exports = {
+  cajasAbiertas, ultimoCierre,
   ventasTotales, ventasMejorDia, productosDelComercio, ventasPorProductos,
   gastosPorTipo, gastosTotal, gastosPorDescripcion, clientesNuevos,
 };

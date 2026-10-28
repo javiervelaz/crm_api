@@ -38,6 +38,10 @@ describe('router (etapa 1)', () => {
     ['Cuantas hamburguesas vendí desde el 1 al 15 de este mes?', 'ventas_producto'],
     ['cuánto vendí de pizza esta semana', 'ventas_producto'],
     ['Cuántos clientes nuevos tuve en octubre?', 'clientes_nuevos'],
+    ['¿Está abierta la caja?', 'estado_caja'],
+    ['cómo está la caja', 'estado_caja'],
+    ['cómo fue el último cierre de caja', 'ultimo_cierre'],
+    ['con cuánto cerré ayer', 'ultimo_cierre'],
     ['Compara las entradas de este mes con las de el mes pasado y dame un reporte', 'ventas_comparar'],
     ['comparame las ventas de esta semana con la pasada', 'ventas_comparar'],
   ];
@@ -161,6 +165,41 @@ describe('manejarTurno', () => {
     expect(r.texto).to.contain('+50 %').and.contain('mismo tramo').and.contain('$ 300.000');
   });
 
+  it('caja abierta: reporta lo registrado, sin inventar un saldo', async () => {
+    sinon.stub(consultas, 'cajasAbiertas').resolves([{ id: 1, fecha: '2026-10-28', caja_inicial: '20000.00', ventas: '54000.00', pedidos: 3, gastos: '5000.00' }]);
+    const r = await turno('esta abierta la caja?', ctxBase({ modules: ['cerrarcaja'], permissions: { cerrarcaja: ['cerrarcaja.list'] } }));
+    expect(r.intent).to.equal('estado_caja');
+    expect(r.texto).to.contain('abierta (desde el 28/10)').and.contain('Inicial $ 20.000').and.contain('ventas $ 54.000 (3 pedidos)').and.contain('gastos $ 5.000');
+  });
+
+  it('caja: ninguna abierta / varias abiertas', async () => {
+    const c = sinon.stub(consultas, 'cajasAbiertas');
+    const ctx = ctxBase({ modules: ['cerrarcaja'], permissions: { cerrarcaja: ['cerrarcaja.list'] } });
+    c.onCall(0).resolves([]);
+    expect((await turno('esta abierta la caja', ctx)).texto).to.equal('No hay ninguna caja abierta ahora.');
+    const fila = (fecha) => ({ id: 1, fecha, caja_inicial: '0', ventas: '0', pedidos: 0, gastos: '0' });
+    c.onCall(1).resolves([fila('2026-10-28'), fila('2026-10-27')]);
+    expect((await turno('esta abierta la caja', ctx)).texto).to.contain('Hay 2 cajas abiertas');
+  });
+
+  it('último cierre: con y sin monto final', async () => {
+    const u = sinon.stub(consultas, 'ultimoCierre');
+    const ctx = ctxBase({ modules: ['cerrarcaja'], permissions: { cerrarcaja: ['cerrarcaja.list'] } });
+    u.onCall(0).resolves({ id: 2, fecha: '2026-10-27', caja_inicial: '20000.00', caja_final: '90000.50', ventas: '70000.00', pedidos: 5, gastos: '0' });
+    expect((await turno('cual fue el ultimo cierre de caja', ctx)).texto).to.contain('Último cierre: 27/10').and.contain('final $ 90.000,50');
+    u.onCall(1).resolves({ id: 3, fecha: '2026-10-26', caja_inicial: '0', caja_final: null, ventas: '0', pedidos: 0, gastos: '0' });
+    expect((await turno('ultimo cierre', ctx)).texto).to.contain('sin monto final registrado');
+    u.onCall(2).resolves(null);
+    expect((await turno('ultimo cierre', ctx)).texto).to.contain('Todavía no hay cierres');
+  });
+
+  it('caja exige cerrarcaja.list: un usuario sin él no ve nada', async () => {
+    const c = sinon.stub(consultas, 'cajasAbiertas');
+    const r = await turno('esta abierta la caja');
+    expect(c.called).to.equal(false);
+    expect(r.stage).to.equal('negado_modulo');
+  });
+
   it('fecha inválida: pide corregirla y no consulta', async () => {
     const t = sinon.stub(consultas, 'ventasTotales');
     const r = await turno('cuanto vendi el 31 de septiembre');
@@ -256,6 +295,8 @@ describe('aislamiento: toda consulta del harness filtra por cliente_id ($1)', ()
     gastosTotal: [7, '2026-10-01', '2026-10-28'],
     gastosPorDescripcion: [7, '2026-10-01', '2026-10-28'],
     clientesNuevos: [7, '2026-10-01', '2026-10-28'],
+    cajasAbiertas: [7],
+    ultimoCierre: [7],
   };
 
   it('cubre todas las funciones exportadas (una consulta nueva sin caso acá rompe el test)', () => {
