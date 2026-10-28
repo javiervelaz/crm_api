@@ -157,6 +157,27 @@ const clientesNuevos = async (turno, ctx) => {
   return { texto: n === 0 ? `No hubo clientes nuevos ${en(v.etiqueta)}.` : `Clientes nuevos ${en(v.etiqueta)}: ${entero(n)}.` };
 };
 
+// ─── caja ──────────────────────────────────────────────────────────────────
+const ddmm = (f) => f.slice(5).split('-').reverse().join('/');
+const lineaCaja = (c) => `Inicial ${moneda(c.caja_inicial)} · ventas ${moneda(c.ventas)} (${plural(c.pedidos, 'pedido', 'pedidos')}) · gastos ${moneda(c.gastos)}`;
+
+const estadoCaja = async (turno, ctx) => {
+  const abiertas = await consultas.cajasAbiertas(ctx.clienteId);
+  if (!abiertas.length) return { texto: 'No hay ninguna caja abierta ahora.' };
+  if (abiertas.length === 1) return { texto: `La caja está abierta (desde el ${ddmm(abiertas[0].fecha)}).\n${lineaCaja(abiertas[0])}.` };
+  return {
+    texto: [`Hay ${abiertas.length} cajas abiertas, conviene cerrarlas:`,
+      ...abiertas.map((c) => `• ${ddmm(c.fecha)}: ${lineaCaja(c)}`)].join('\n'),
+  };
+};
+
+const ultimoCierre = async (turno, ctx) => {
+  const c = await consultas.ultimoCierre(ctx.clienteId);
+  if (!c) return { texto: 'Todavía no hay cierres de caja registrados.' };
+  const final = c.caja_final == null ? 'sin monto final registrado' : `final ${moneda(c.caja_final)}`;
+  return { texto: `Último cierre: ${ddmm(c.fecha)}.\n${lineaCaja(c)} · ${final}.` };
+};
+
 const AYUDA = [
   'Podés preguntarme, por ejemplo:',
   '• ¿Cuánto vendí hoy? / ayer / esta semana / en octubre',
@@ -165,7 +186,10 @@ const AYUDA = [
   '• ¿Cuánto pagué de sueldos el mes pasado?',
   '• Compará las ventas de este mes con el mes pasado',
   '• ¿Cuántos clientes nuevos tuve en octubre?',
+  '• ¿Está abierta la caja? / ¿Cómo fue el último cierre de caja?',
 ].join('\n');
+
+const CAJA = { modulo: 'cerrarcaja', permiso: 'cerrarcaja.list', rubros: RUBROS };
 
 const CATALOGO = validarCatalogo([
   { name: 'ayuda', publico: true, ejecutar: async () => ({ texto: AYUDA }) },
@@ -175,6 +199,8 @@ const CATALOGO = validarCatalogo([
   { name: 'clientes_nuevos', ...VENTAS, ejecutar: clientesNuevos },
   { name: 'gastos_periodo', ...GASTOS, ejecutar: gastosPeriodo },
   { name: 'gastos_sueldos', ...GASTOS, ejecutar: gastosSueldos },
+  { name: 'estado_caja', ...CAJA, ejecutar: estadoCaja },
+  { name: 'ultimo_cierre', ...CAJA, ejecutar: ultimoCierre },
 ]);
 
 module.exports = { CATALOGO, AYUDA, _internos: { buscarProductos, tramoPrevio } };
