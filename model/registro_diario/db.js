@@ -159,10 +159,11 @@ const createRegistroDiario  = async (RegistroDiario) => {
    * salidas de caja y, si el cajero contó el efectivo, la diferencia.
    *
    *   esperado en efectivo = caja_inicial + ventas_efectivo + otros_ingresos
-   *                          - salidas de caja - gastos_administrativos
+   *                          - salidas de caja en efectivo - gastos_administrativos
    *   diferencias_caja     = efectivo_contado - esperado        (NULL si no se contó)
    *
-   * Las ventas digitales (débito, crédito, transferencia) no entran al cajón.
+   * `gatos_total` es el total de salidas (cualquier medio); sólo las pagadas en efectivo
+   * descuentan del cajón. Las ventas digitales (débito, crédito, transferencia) no entran al cajón.
    * `caja_final` sigue siendo el valor que calcula el front (no cambia su significado).
    * Nota de esquema: la columna se llama `gatos_total` (typo histórico).
    */
@@ -176,8 +177,10 @@ const createRegistroDiario  = async (RegistroDiario) => {
            JOIN medio_pago mp ON mp.id = p.medio_pago_id
           WHERE p.registro_diario_id = $1 AND p.cliente_id = $5 AND p.pedido_terminado = true
        ), g AS (
-         SELECT COALESCE(SUM(s.monto), 0) AS total
+         SELECT COALESCE(SUM(s.monto), 0) AS total,
+                COALESCE(SUM(s.monto) FILTER (WHERE mp.codigo = 'EFE'), 0) AS efectivo
            FROM salida_caja s
+           LEFT JOIN medio_pago mp ON mp.id = s.medio_pago_id
           WHERE s.registro_diario_id = $1 AND s.cliente_id = $5
        )
        UPDATE registro_diario rd
@@ -185,7 +188,7 @@ const createRegistroDiario  = async (RegistroDiario) => {
               updated_at = CURRENT_TIMESTAMP, caja_cerrada = TRUE,
               ventas_efectivo = v.efectivo, ventas_digital = v.digital, gatos_total = g.total,
               diferencias_caja = CASE WHEN $6::numeric IS NULL THEN NULL
-                ELSE $6::numeric - (rd.caja_inicial + v.efectivo + $7::numeric - g.total - $8::numeric) END
+                ELSE $6::numeric - (rd.caja_inicial + v.efectivo + $7::numeric - g.efectivo - $8::numeric) END
          FROM v, g
         WHERE rd.id = $1 AND rd.cliente_id = $5
         RETURNING rd.*`,

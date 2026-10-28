@@ -10,11 +10,13 @@ const {
   getSalidaCajaList,
   updateSalidaCaja,
   deleteSalidaCaja,
-  getMontoGastos
+  getMontoGastos,
+  getMontoGastosEfectivo
 } = require('../controllers/salidaCajaController');
 
 router.get('/config', getGastosConfig);       // { requiereCaja }
 router.get('/periodo', getGastosPorPeriodo);  // ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+router.get('/efectivo/:id', getMontoGastosEfectivo); // gastos en efectivo de una caja
 router.post('/', createSalidaCaja);
 router.get('/list/:id/:cliente_id', getSalidaCajaList);
 router.get('/:id/:cliente_id', getSalidaCajaById);

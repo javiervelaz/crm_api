@@ -66,6 +66,10 @@ describe('Cierre de caja: diferencia y totales los calcula el servidor', () => {
       expect(sql).to.match(/rd\.cliente_id = \$5/);
       expect(sql).to.match(/mp\.codigo = 'EFE'/); // efectivo vs digital por código de medio de pago
       expect(sql).to.match(/diferencias_caja/);
+      // sólo los gastos en efectivo descuentan del cajón; gatos_total sigue siendo el total
+      expect(sql).to.match(/SUM\(s\.monto\) FILTER \(WHERE mp\.codigo = 'EFE'\), 0\) AS efectivo/);
+      expect(sql).to.match(/- g\.efectivo - \$8/);
+      expect(sql).to.match(/gatos_total = g\.total/);
     });
 
     it('sin extras usa defaults: no cuenta efectivo (null) y suma 0', async () => {
