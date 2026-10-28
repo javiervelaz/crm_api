@@ -26,8 +26,8 @@ const textoBienvenida = ({ nombre, comercio, recibeAvisos }) => [
  * consulta ("¿cuánto vendí hoy?"). Si el harness falla, el error sube a
  * canalesService, que lo registra en turn_log (stage 'error').
  */
-const responder = async ({ clienteId, usuario, texto }) => {
-  const r = await harness.manejarTurno({ clienteId, userId: usuario.user_id, texto });
+const responder = async ({ clienteId, usuario, texto, chat }) => {
+  const r = await harness.manejarTurno({ clienteId, userId: usuario.user_id, texto, chat });
   return { intent: r.intent, stage: r.stage, ok: r.ok, texto: r.texto };
 };
 

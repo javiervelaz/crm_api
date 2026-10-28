@@ -186,7 +186,7 @@ const AYUDA = [
   '• ¿Cuánto pagué de sueldos el mes pasado?',
   '• Compará las ventas de este mes con el mes pasado',
   '• ¿Cuántos clientes nuevos tuve en octubre?',
-  '• ¿Está abierta la caja? / ¿Cómo fue el último cierre de caja?',
+  '• Después podés seguir con "¿y ayer?" o "¿y los gastos?"',
 ].join('\n');
 
 const CAJA = { modulo: 'cerrarcaja', permiso: 'cerrarcaja.list', rubros: RUBROS };
