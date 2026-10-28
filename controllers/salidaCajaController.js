@@ -92,6 +92,18 @@ const getSalidaCajaById = async (req, res) => {
     }
   };
 
+  // Gastos del día pagados en efectivo (los que descuentan del cajón al cerrar caja).
+  const getMontoGastosEfectivo = async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isInteger(id)) return res.status(400).json({ error: 'id inválido' });
+      const monto = await SalidaCajaService.getMontoGastosEfectivoService(id, req.clienteId);
+      res.status(200).json(monto);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
 module.exports = {
     getGastosConfig,
     getGastosPorPeriodo,
@@ -100,6 +112,7 @@ module.exports = {
     getSalidaCajaList,
     updateSalidaCaja,
     deleteSalidaCaja,
-    getMontoGastos
+    getMontoGastos,
+    getMontoGastosEfectivo
   };
   

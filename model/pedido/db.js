@@ -156,8 +156,14 @@ const createPedido  = async (pedidos) => {
   }
 
   const getPedidosMontoTotalDiario = async(registro_diario_id,cliente_id) => {
-    const result = await pool.query('SELECT sum("monto_total") FROM pedido where "registro_diario_id"= $1 and "pedido_terminado"= true and cliente_id = $2'
-      ,[registro_diario_id,cliente_id]);
+    // `sum` = ventas totales (como antes); `efectivo` = la parte cobrada en efectivo (medio_pago EFE).
+    const result = await pool.query(
+      `SELECT SUM(p.monto_total) AS sum,
+              COALESCE(SUM(p.monto_total) FILTER (WHERE mp.codigo = 'EFE'), 0) AS efectivo
+         FROM pedido p
+         JOIN medio_pago mp ON mp.id = p.medio_pago_id
+        WHERE p.registro_diario_id = $1 AND p.pedido_terminado = true AND p.cliente_id = $2`,
+      [registro_diario_id, cliente_id]);
       return result.rows[0];
   }
   

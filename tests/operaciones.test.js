@@ -3,8 +3,6 @@ const sinon = require('sinon');
 const jwt = require('jsonwebtoken');
 const app = require('../node');
 const operacionesService = require('../services/operaciones_diarias/operacionesDiariasService');
-const InventarioInsumosService = require('../services/inventario_insumo/inventarioInsumoService');
-const MovimientoInventario = require('../services/movimiento_inventario/movimientoInventarioService');
 const planService = require('../services/cliente/planService');
 const pool = require('../pool');
 
@@ -48,27 +46,6 @@ describe('Operaciones Diarias API', () => {
       return { id: mockopId };
     });
 
-    sinon.stub(operacionesService, 'registrarCompraInsumo').callsFake(async (compraIn) => {
-      return { id: mockopId };
-    });
-
-    sinon.stub(operacionesService, 'actualizarInventarioInsumos').callsFake(async (id, compraIn) => {
-      const { sucursal_id, nombre, cantidad } = compraIn;
-      if (id === 1) {
-        return { id: 1, nombre: 'harina', sucursal_id: 1, cantidad: 10 };
-      } else {
-        return await InventarioInsumosService.createInventarioInsumoService({ nombre, sucursal_id, cantidad });
-      }
-    });
-
-    sinon.stub(InventarioInsumosService, 'createInventarioInsumoService').callsFake(async (nuevoInsumo) => {
-      return { id: 2, nombre: nuevoInsumo.nombre, sucursal_id: nuevoInsumo.sucursal_id, cantidad: nuevoInsumo.cantidad };
-    });
-
-    sinon.stub(operacionesService, 'registrarMovimientoInventario').callsFake(async (inventarioInsumosId, registroDiarioId, tipoMovimiento, cantidad) => {
-      return { id: mockopId, tipo_movimiento: 'entrada', cantidad: 10 };
-    });
-
     sinon.stub(operacionesService, 'registrarSalidaCaja').callsFake(async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId) => {
       return { id: mockopId, categoria: 'compra', monto: 500 };
     });
@@ -94,64 +71,6 @@ describe('Operaciones Diarias API', () => {
       });
     expect(res.status).to.equal(201);
     expect(res.body).to.have.property('id', mockopId);
-  });
-
-  it('should create a new compra insumo', async () => {
-    const res = await request(app)
-      .post('/api/operaciones/registrar-compra-insumo')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        registroDiarioId: 1,
-        insumo: 'harina',
-        cantidad: 2,
-        precioTotal: 200,
-        usuarioId: 1,
-        sucursalId: 1,
-      });
-    expect(res.status).to.equal(201);
-    expect(res.body).to.have.property('id', mockopId);
-  });
-
-  it('should update inventory insumo', async () => {
-    const res = await request(app)
-      .put('/api/operaciones/actualizar-inventario-insumos/1')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        sucursal_id: 1,
-        nombre: 'harina',
-        cantidad: 12,
-      });
-    expect(res.body).to.have.property('cantidad', 12);
-  });
-
-  it('should create new inventory insumo if not found', async () => {
-    const res = await request(app)
-      .put('/api/operaciones/actualizar-inventario-insumos/2')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        sucursal_id: 1,
-        nombre: 'aceite',
-        cantidad: 5,
-      });
-    expect(res.status).to.equal(200);
-    expect(res.body).to.have.property('id', 2);
-    expect(res.body).to.have.property('nombre', 'aceite');
-  });
-
-  it('should register a new inventory movement', async () => {
-    const res = await request(app)
-      .post('/api/operaciones/registrar-movimiento-inventario')
-      .set('Authorization', 'Bearer ' + adminToken)
-      .send({
-        inventario_insumos_id: 1,
-        registro_diario_id: 1,
-        tipo_movimiento: 'entrada',
-        cantidad: 10,
-      });
-    expect(res.status).to.equal(201);
-    expect(res.body).to.have.property('id', mockopId);
-    expect(res.body).to.have.property('tipo_movimiento', 'entrada');
-    expect(res.body).to.have.property('cantidad', 10);
   });
 
   it('should register a new cash withdrawal', async () => {

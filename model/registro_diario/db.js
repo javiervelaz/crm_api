@@ -1,4 +1,14 @@
 const pool = require('../../pool');
+
+const CAMPOS_NUMERICOS = ['caja_inicial', 'caja_final', 'ventas_efectivo', 'ventas_digital', 'retiros_total', 'gatos_total', 'diferencias_caja'];
+
+/** numeric -> number (null se queda null). `gastos_total` es el nombre que usa el front para `gatos_total`. */
+const normalizarRegistro = (registro) => {
+  const out = { ...registro };
+  for (const c of CAMPOS_NUMERICOS) out[c] = registro[c] === null || registro[c] === undefined ? null : Number(registro[c]);
+  out.gastos_total = out.gatos_total;
+  return out;
+};
 const { hoySql } = require('../../utils/fechaTenant');
 
 // La fecha de la caja la pone el servidor en la zona del tenant. Antes venía del
@@ -103,17 +113,19 @@ const createRegistroDiario  = async (RegistroDiario) => {
       // Calcular totales
       const totalEntradas = entradasResult.rows.reduce((sum, row) => sum + parseFloat(row.monto_total), 0);
       const totalSalidas = salidasResult.rows.reduce((sum, row) => sum + parseFloat(row.monto), 0);
-      const saldoFinal = registro.caja_inicial + totalEntradas - totalSalidas;
+      // pg devuelve numeric como string: "1000.00" + 5000 concatenaba en vez de sumar.
+      const registroNum = normalizarRegistro(registro);
+      const saldoFinal = Math.round((registroNum.caja_inicial + totalEntradas - totalSalidas) * 100) / 100;
       
       console.log("Registro encontrado:", {
         totalEntradas,
         totalSalidas,
         saldoFinal,
-        cajaInicial: registro.caja_inicial
+        cajaInicial: registroNum.caja_inicial
       });
       
       return {
-        registro,
+        registro: registroNum,
         entradas: entradasResult.rows,
         salidas: salidasResult.rows,
         total_entradas: totalEntradas,
@@ -141,10 +153,46 @@ const createRegistroDiario  = async (RegistroDiario) => {
     return result.rows[0];
   };
 
-  const updateMontoFinalRegistroDiario  = async (id,monto_final, usuario_cierre_id, sucursal_id,cliente_id) => {
+  /**
+   * Cierra la caja y deja asentado lo que el servidor sabe, sin confiar en el cliente:
+   * ventas en efectivo / digitales (pedidos terminados, por medio de pago), total de
+   * salidas de caja y, si el cajero contó el efectivo, la diferencia.
+   *
+   *   esperado en efectivo = caja_inicial + ventas_efectivo + otros_ingresos
+   *                          - salidas de caja en efectivo - gastos_administrativos
+   *   diferencias_caja     = efectivo_contado - esperado        (NULL si no se contó)
+   *
+   * `gatos_total` es el total de salidas (cualquier medio); sólo las pagadas en efectivo
+   * descuentan del cajón. Las ventas digitales (débito, crédito, transferencia) no entran al cajón.
+   * `caja_final` sigue siendo el valor que calcula el front (no cambia su significado).
+   * Nota de esquema: la columna se llama `gatos_total` (typo histórico).
+   */
+  const updateMontoFinalRegistroDiario  = async (id, monto_final, usuario_cierre_id, sucursal_id, cliente_id, extras = {}) => {
+    const { efectivo_contado = null, otros_ingresos = 0, gastos_administrativos = 0 } = extras;
     const result = await pool.query(
-      'UPDATE "registro_diario" SET caja_final = $2, usuario_cierre_id = $3, sucursal_id = $4, updated_at = CURRENT_TIMESTAMP, caja_cerrada = TRUE WHERE id = $1 and cliente_id = $5 RETURNING *',
-      [id,monto_final, usuario_cierre_id, sucursal_id,cliente_id]
+      `WITH v AS (
+         SELECT COALESCE(SUM(p.monto_total) FILTER (WHERE mp.codigo = 'EFE'), 0) AS efectivo,
+                COALESCE(SUM(p.monto_total) FILTER (WHERE mp.codigo IS DISTINCT FROM 'EFE'), 0) AS digital
+           FROM pedido p
+           JOIN medio_pago mp ON mp.id = p.medio_pago_id
+          WHERE p.registro_diario_id = $1 AND p.cliente_id = $5 AND p.pedido_terminado = true
+       ), g AS (
+         SELECT COALESCE(SUM(s.monto), 0) AS total,
+                COALESCE(SUM(s.monto) FILTER (WHERE mp.codigo = 'EFE'), 0) AS efectivo
+           FROM salida_caja s
+           LEFT JOIN medio_pago mp ON mp.id = s.medio_pago_id
+          WHERE s.registro_diario_id = $1 AND s.cliente_id = $5
+       )
+       UPDATE registro_diario rd
+          SET caja_final = $2, usuario_cierre_id = $3, sucursal_id = $4,
+              updated_at = CURRENT_TIMESTAMP, caja_cerrada = TRUE,
+              ventas_efectivo = v.efectivo, ventas_digital = v.digital, gatos_total = g.total,
+              diferencias_caja = CASE WHEN $6::numeric IS NULL THEN NULL
+                ELSE $6::numeric - (rd.caja_inicial + v.efectivo + $7::numeric - g.efectivo - $8::numeric) END
+         FROM v, g
+        WHERE rd.id = $1 AND rd.cliente_id = $5
+        RETURNING rd.*`,
+      [id, monto_final, usuario_cierre_id, sucursal_id, cliente_id, efectivo_contado, otros_ingresos, gastos_administrativos]
     );
     return result;
   };
