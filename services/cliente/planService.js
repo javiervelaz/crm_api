@@ -1,4 +1,5 @@
 // crm_api/services/cliente/planService.js
+const { TZ_DEFAULT } = require('../../utils/fechaTenant');
 const pool = require('../../pool');
 
 const PLAN_FEATURES = {
@@ -61,7 +62,8 @@ const getClienteTierAndFeatures = async (clienteId) => {
   if (!clienteId) throw new Error('clienteId requerido');
 
   const result = await pool.query(`
-    SELECT c.id, c.nombre, c.tier_expiration_date, c.rubro_codigo,
+    SELECT c.id, c.nombre, c.tier_expiration_date, c.rubro_codigo, c.timezone,
+           (c.tier_expiration_date < (now() AT TIME ZONE c.timezone)::date) AS vencido,
            t.code AS tier_code, t.nombre_publico,
            rt.features AS rubro_features
     FROM cliente c
@@ -77,7 +79,8 @@ const getClienteTierAndFeatures = async (clienteId) => {
   const rubroCodigo = row.rubro_codigo || 'gastronomia';
   const features = resolverFeatures({ tierCode, rubroCodigo, rubroFeatures: row.rubro_features, clienteId: row.id });
 
-  const isExpired = Boolean(row.tier_expiration_date && new Date(row.tier_expiration_date) < new Date());
+  // En la zona del tenant (antes: new Date() contra una fecha leída como UTC).
+  const isExpired = row.vencido === true;
 
   return {
     clienteId: row.id,
@@ -87,6 +90,7 @@ const getClienteTierAndFeatures = async (clienteId) => {
     tierNombre: row.nombre_publico || tierCode,
     features,
     isExpired,
+    timezone: row.timezone || TZ_DEFAULT,
   };
 };
 
@@ -150,6 +154,17 @@ const ofertaContratable = async (rubroCodigo, tier, db = pool) => {
 };
 
 /**
+ * Cómo se cobra una oferta. Lo decide la duración, no el cliente:
+ * · 1 mes  → suscripción (preapproval mensual, monto fijo hasta que se cancele)
+ * · N > 1  → pago único por el período (precio_mensual = total del período)
+ */
+const tipoDePago = (oferta) => (Number(oferta?.duracion_meses) > 1 ? 'one_time' : 'subscription');
+
+/** Un tier que no es FREE sólo se contrata pagando: disponible y con precio > 0. */
+const esFree = (code) => String(code || '').toUpperCase() === 'FREE';
+const esPagable = (oferta) => Boolean(oferta && oferta.disponible && Number(oferta.precio_mensual) > 0);
+
+/**
  * Chequeo de feature para usar dentro de services/routers sin req.user
  * (n8n, micrositio). Lanza un Error con status 403 y code PLAN_INACTIVE si
  * el plan no la incluye o está vencido.
@@ -177,4 +192,7 @@ module.exports = {
   listarOfertas,
   ofertaContratable,
   resolverFeatures,
+  tipoDePago,
+  esFree,
+  esPagable,
 };

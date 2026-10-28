@@ -1,4 +1,6 @@
 const pool = require('../../pool');
+// Días en la zona del tenant (antes DATE(created_at) = día UTC). cliente_id es siempre $3.
+const { fechaLocalSql } = require('../../utils/fechaTenant');
 
   
 const getReporteVentasWithFilters = async (request) => {
@@ -7,7 +9,7 @@ const getReporteVentasWithFilters = async (request) => {
   // Usamos una consulta parametrizada con condición dinámica segura
   let query = `
     SELECT 
-      DATE(p.created_at) AS fecha,
+      ${fechaLocalSql('p.created_at', '$3')} AS fecha,
       pr.nombre AS producto,
       SUM(pp.cantidad)::int AS cantidad_total,
       SUM(pp.cantidad * pp.precio_unitario)::float8 AS total_vendido 
@@ -15,7 +17,7 @@ const getReporteVentasWithFilters = async (request) => {
     JOIN pedido_producto pp ON p.id = pp.pedido_id 
     JOIN producto pr ON pr.id = pp.producto_id 
     WHERE 
-      DATE(p.created_at) BETWEEN $1 AND $2  AND p.cliente_id = $3::int
+      ${fechaLocalSql('p.created_at', '$3')} BETWEEN $1 AND $2  AND p.cliente_id = $3::int
   `;
 
   const params = [fecha_desde, fecha_hasta, cliente_id];
@@ -59,7 +61,7 @@ const getReporteClientesWithFilters = async (request) => {
     LEFT JOIN pedido_producto pp ON p.id = pp.pedido_id
     LEFT JOIN producto pr ON pp.producto_id = pr.id
     WHERE 
-      DATE(p.created_at) BETWEEN $1 AND $2 AND p.cliente_id = $3::int
+      ${fechaLocalSql('p.created_at', '$3')} BETWEEN $1 AND $2 AND p.cliente_id = $3::int
   `;
 
   const params = [fecha_desde, fecha_hasta, cliente_id];
@@ -81,6 +83,8 @@ const getReporteClientesWithFilters = async (request) => {
   return result.rows;
 };
 
+// sc.categoria_salida_id guarda el id de categoria_tipo (nombre histórico; ver
+// migración 021). El JOIN contra categoria_tipo es el correcto.
 const getReporteGastosPorTipoCategoria = async (request) => {
   const { fecha_desde, fecha_hasta, tipoId, cliente_id } = request;
 
@@ -91,7 +95,7 @@ const getReporteGastosPorTipoCategoria = async (request) => {
       SUM(sc.monto)::float8 AS total_gastos
     FROM salida_caja sc
     JOIN categoria_tipo ct ON sc.categoria_salida_id = ct.id
-    WHERE DATE(sc.created_at) BETWEEN $1 AND $2
+    WHERE ${fechaLocalSql('sc.created_at', '$3')} BETWEEN $1 AND $2
       AND sc.cliente_id = $3::int
   `;
 
@@ -119,7 +123,7 @@ const getReporteGastosPorCategoriaSalida = async (request) => {
       SUM(sc.monto)::float8 AS total_gastos
     FROM salida_caja sc
     WHERE 
-      DATE(sc.created_at) BETWEEN $1 AND $2
+      ${fechaLocalSql('sc.created_at', '$3')} BETWEEN $1 AND $2
       AND sc.cliente_id = $3::int
   `;
 

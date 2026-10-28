@@ -27,6 +27,12 @@ module.exports = {
     }
     return basePool.query(...args);
   },
+  /**
+   * Siempre al pool directo, aunque haya contexto de tenant: lo que se escribe
+   * acá no participa de la transacción del request y sobrevive a su ROLLBACK.
+   * Sólo para telemetría (turn_log). Las consultas igual filtran por cliente_id.
+   */
+  queryDirecta: (...args) => basePool.query(...args),
   connect: (...args) => basePool.connect(...args),
   end: (...args) => basePool.end(...args),
   get totalCount() { return basePool.totalCount; },

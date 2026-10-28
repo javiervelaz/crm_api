@@ -11,7 +11,8 @@ const { ESTADOS } = require('../verificacion/estados');
 const { TTL_DIAS } = require('../verificacion/config');
 const mailer = require('../email');
 
-const TZ = 'America/Argentina/Cordoba';
+// Un cliente nuevo arranca con la zona por defecto de cliente.timezone (020)
+const { TZ_DEFAULT: TZ } = require('../../utils/fechaTenant');
 const RUBRO_DEFAULT = 'gastronomia';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
@@ -94,7 +95,8 @@ const createClienteService = async (data) => {
     // Precio, duración y disponibilidad del tier EN este rubro (rubro_tier, 019).
     // Un tier pago sin precio cargado no se puede contratar: a $0 sería gratis.
     const oferta = await planService.getOferta(rubroRow.codigo, tier.id, client);
-    if (UPPER_FREE !== String(tier.code).toUpperCase() && (!oferta || !oferta.disponible)) {
+    // Un tier pago sin precio (aunque esté disponible) sería un plan gratis sin vencimiento.
+    if (UPPER_FREE !== String(tier.code).toUpperCase() && !planService.esPagable(oferta)) {
       throw new SignupError('Ese plan todavía no está disponible para tu rubro', { code: 'PLAN_NO_DISPONIBLE', field: 'plan' });
     }
     if (oferta) tier = { ...tier, precio_mensual: oferta.precio_mensual, duracion_meses: oferta.duracion_meses, rubro_codigo: rubroRow.codigo };

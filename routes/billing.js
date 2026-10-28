@@ -38,7 +38,8 @@ router.post('/checkout', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: 'Ese plan no requiere pago', code: 'PLAN_SIN_COSTO' });
     }
 
-    const paymentType = req.body.paymentType || 'one_time';
+    // Lo decide la oferta, no el body: el cliente no elige cómo se le cobra
+    const paymentType = planService.tipoDePago(tier);
 
     if (paymentType === 'subscription') {
       const { initPoint, preapprovalId } = await mp.createSubscription(cliente, tier);

@@ -1,8 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../pool');
+const { authenticateCron } = require('../middleware/cronAuth');
 
-router.get('', async (req, res) => {
+// Vercel Cron (vercel.json, 03:00 UTC = 00:00 en Argentina) manda
+// Authorization: Bearer <CRON_SECRET>.
+router.use(authenticateCron);
+
+router.get('/', async (req, res) => {
   try {
     const result = await pool.query(`
       UPDATE cliente
@@ -12,7 +17,8 @@ router.get('', async (req, res) => {
       tier_expiration_date = NULL,
       updated_at = NOW()
       WHERE tier_expiration_date IS NOT NULL
-      AND tier_expiration_date < CURRENT_DATE
+      -- vence al terminar el día en la zona del comercio, no a las 21:00 de Argentina
+      AND tier_expiration_date < (now() AT TIME ZONE timezone)::date
     `);
 
     console.log(`Planes vencidos degradados: ${result.rowCount}`);

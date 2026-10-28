@@ -1,6 +1,7 @@
 const e = require('express');
 const db = require('../../model/cliente/db');
 const pool = require('../../pool');
+const { hoyEn, TZ_DEFAULT } = require('../../utils/fechaTenant');
 const bcrypt = require('bcrypt');
 
 const createCliente = async (data) => {
@@ -111,7 +112,7 @@ const createCliente = async (data) => {
     const user = userRes.rows[0];
 
     // 4) Crear profile para el user admin
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = hoyEn(TZ_DEFAULT); // YYYY-MM-DD en la zona del comercio (antes: día UTC)
     const legajo = `ADMIN-${cliente.id}`;
 
        // Hasheamos el password del admin (o usamos uno por defecto si no vino)
