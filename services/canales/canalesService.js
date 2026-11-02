@@ -283,10 +283,14 @@ const puedeRecibirAvisos = (u) => esStaffActivo(u) && (u.modulos || []).includes
  * devuelve una función que los manda SIN tocar la DB: se llama después de
  * responder al cliente, cuando la conexión de tenant ya se cerró.
  */
-const prepararAvisos = async (clienteId, datosPedido) => {
-  const destinatarios = await usuariosDb.getDestinatariosAvisos(clienteId);
+/**
+ * Arma los envíos de un texto a quienes reciben avisos de `modulo`. Lee y
+ * desencripta dentro del contexto de tenant y devuelve una función que manda
+ * SIN tocar la DB (se llama después de responder / del COMMIT).
+ */
+const prepararEnvioAvisos = async (clienteId, texto, { modulo = 'operaciones', etiqueta = 'aviso' } = {}) => {
+  const destinatarios = await usuariosDb.getDestinatariosAvisos(clienteId, modulo);
   if (!destinatarios.length) return async () => 0;
-  const texto = textoAviso(datosPedido);
   const tokens = new Map();
   const envios = [];
   for (const d of destinatarios) {
@@ -299,10 +303,13 @@ const prepararAvisos = async (clienteId, datosPedido) => {
   return async () => {
     const r = await Promise.allSettled(envios.map((e) => telegram.sendMessage(e.token, e.chatId, texto)));
     const fallidos = r.filter((x) => x.status === 'rejected');
-    if (fallidos.length) console.warn(`[canales] ${fallidos.length} aviso(s) de pedido no enviados (cliente ${clienteId})`);
+    if (fallidos.length) console.warn(`[canales] ${fallidos.length} ${etiqueta}(s) no enviados (cliente ${clienteId})`);
     return r.length - fallidos.length;
   };
 };
+
+const prepararAvisos = (clienteId, datosPedido) =>
+  prepararEnvioAvisos(clienteId, textoAviso(datosPedido), { modulo: 'operaciones', etiqueta: 'aviso de pedido' });
 
 // ─── "Mi Telegram": vinculación de cada usuario ───────────────────────────────
 
@@ -359,6 +366,7 @@ module.exports = {
   desconectar,
   procesarUpdateTelegram,
   prepararAvisos,
+  prepararEnvioAvisos,
   textoAviso,
   miTelegram,
   generarVinculacion,

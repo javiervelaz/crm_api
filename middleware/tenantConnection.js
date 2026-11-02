@@ -26,6 +26,8 @@ const crearStoreTenant = (clienteId) => {
     client: null,
     cerrado: false,
     _initPromise: null,
+    /** Efectos externos (avisos) que sólo corren si la transacción se confirma. */
+    _alConfirmar: [],
     getClient() {
       // Unidad de trabajo cerrada: no abrir otra conexión ni devolver la que volvió al pool.
       if (this.cerrado) return Promise.reject(new Error('Request cerrado: sin conexión de tenant'));
@@ -49,10 +51,24 @@ const crearStoreTenant = (clienteId) => {
     },
   };
 
+  /** Corre lo encolado con despuesDelCommit, fuera del request y sin propagar errores. */
+  const correrConfirmados = () => {
+    const tareas = store._alConfirmar.splice(0);
+    for (const fn of tareas) {
+      setImmediate(() => {
+        Promise.resolve().then(fn).catch((err) => console.error('[tenantConnection] despuesDelCommit:', err.message));
+      });
+    }
+  };
+
   const settle = async (commit) => {
     if (store.cerrado) return;
     store.cerrado = true;
-    if (!store._initPromise) return; // nunca se conectó: nada que cerrar
+    if (!store._initPromise) { // nunca se conectó: nada que cerrar
+      if (commit) correrConfirmados();
+      else store._alConfirmar.length = 0;
+      return;
+    }
     // Si el cierre llega mientras la conexión se está abriendo (cliente que
     // abortó con el pool ocupado), esperarla para liberarla: si no, queda
     // tomada para siempre con la transacción abierta.
@@ -63,13 +79,17 @@ const crearStoreTenant = (clienteId) => {
       return; // la apertura falló y ya liberó
     }
     store.client = null;
+    let confirmado = false;
     try {
       await client.query(commit ? 'COMMIT' : 'ROLLBACK');
+      confirmado = commit;
     } catch (err) {
       console.error('[tenantConnection] cierre:', err.message);
     } finally {
       client.release();
     }
+    if (confirmado) correrConfirmados();
+    else store._alConfirmar.length = 0;
   };
 
   return { store, settle };
@@ -121,4 +141,20 @@ const runWithTenant = async (clienteId, fn) => {
   return resultado;
 };
 
-module.exports = { withTenantConnection, runWithTenant, crearStoreTenant };
+/**
+ * Encola `fn` para cuando la unidad de trabajo del tenant haga COMMIT
+ * (avisos por Telegram, mails). Si hace ROLLBACK, no corre. Fuera de un
+ * contexto de tenant corre enseguida, en el próximo tick. Nunca lanza.
+ */
+const despuesDelCommit = (fn) => {
+  const store = getStore();
+  if (store && Array.isArray(store._alConfirmar) && !store.cerrado) {
+    store._alConfirmar.push(fn);
+    return;
+  }
+  setImmediate(() => {
+    Promise.resolve().then(fn).catch((err) => console.error('[tenantConnection] despuesDelCommit:', err.message));
+  });
+};
+
+module.exports = { withTenantConnection, runWithTenant, crearStoreTenant, despuesDelCommit };

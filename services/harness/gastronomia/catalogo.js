@@ -7,7 +7,7 @@
 const consultas = require('../../../model/harness/consultas');
 const { ventanaODefault, parsearVentana } = require('../core/ventana');
 const { normalizar } = require('../core/normalizar');
-const { moneda, entero, plural, variacion } = require('../core/formato');
+const { moneda, entero, plural, variacion, cantidad } = require('../core/formato');
 const { validarCatalogo } = require('../core/autorizacion');
 
 const RUBROS = ['gastronomia'];
@@ -178,6 +178,60 @@ const ultimoCierre = async (turno, ctx) => {
   return { texto: `Último cierre: ${ddmm(c.fecha)}.\n${lineaCaja(c)} · ${final}.` };
 };
 
+// ─── stock (inventario) ──────────────────────────────────────────────────
+const SIN_STOCK_CARGADO = 'Todavía no cargaste stock. Lo armás en Counter → Inventario: cargás una compra y arranca solo.';
+
+/** "Mozzarella: 4,8 kg (mínimo 5 kg), por debajo del mínimo." */
+const lineaStock = (i) => {
+  const stock = Number(i.stock);
+  const minimo = i.stock_minimo == null ? null : Number(i.stock_minimo);
+  const base = `${i.nombre}: ${stock <= 0 ? 'sin stock' : cantidad(stock, i.unidad)}`;
+  if (stock < 0) return `${i.nombre}: en negativo (${cantidad(stock, i.unidad)}). Se vendió más de lo cargado: contalo y corregilo en Inventario.`;
+  if (minimo == null) return `${base}.`;
+  const estado = stock < minimo ? ', por debajo del mínimo' : '';
+  return `${base} (mínimo ${cantidad(minimo, i.unidad)})${estado}.`;
+};
+
+const stockItem = async (turno, ctx) => {
+  const items = await consultas.stockItems(ctx.clienteId);
+  if (!items.length) return { texto: SIN_STOCK_CARGADO };
+
+  if (!turno.item) {
+    const bajos = items.filter((i) => i.stock_minimo != null && Number(i.stock) < Number(i.stock_minimo));
+    const sin = items.filter((i) => Number(i.stock) <= 0);
+    const lineas = [`Tenés ${plural(items.length, 'ítem', 'ítems')} en stock.`];
+    if (sin.length) lineas.push(`Sin stock: ${sin.slice(0, 5).map((i) => i.nombre).join(', ')}${sin.length > 5 ? ` y ${sin.length - 5} más` : ''}.`);
+    if (bajos.length) lineas.push(`Bajo el mínimo: ${plural(bajos.length, 'ítem', 'ítems')}. Preguntame "¿qué tengo que comprar?" para ver el detalle.`);
+    if (!sin.length && !bajos.length) lineas.push('Todo está sobre el mínimo.');
+    return { texto: lineas.join('\n') };
+  }
+
+  const hallados = buscarProductos(turno.item, items);
+  if (!hallados.length) return { texto: `No encontré "${turno.item}" en tu stock. Escribilo como lo cargaste en Inventario.` };
+  if (hallados.length > 8) return { texto: `"${turno.item}" coincide con ${hallados.length} ítems. Probá con un nombre más específico.` };
+  if (hallados.length === 1) return { texto: lineaStock(hallados[0]) };
+  return { texto: hallados.map((i) => `• ${lineaStock(i)}`).join('\n') };
+};
+
+const stockBajo = async (turno, ctx) => {
+  const bajos = await consultas.stockBajo(ctx.clienteId);
+  if (!bajos.length) {
+    const items = await consultas.stockItems(ctx.clienteId);
+    if (!items.length) return { texto: SIN_STOCK_CARGADO };
+    if (!items.some((i) => i.stock_minimo != null)) {
+      return { texto: 'Ningún ítem tiene un mínimo cargado, así que no sé qué te falta. Ponele mínimo a lo que no te puede faltar en Counter → Inventario.' };
+    }
+    return { texto: 'No te falta nada: todo está sobre el mínimo.' };
+  }
+  const lineas = bajos.slice(0, 15).map((i) => {
+    const stock = Number(i.stock);
+    const queda = stock <= 0 ? 'sin stock' : `quedan ${cantidad(stock, i.unidad)}`;
+    return `• ${i.nombre}: ${queda} (mínimo ${cantidad(i.stock_minimo, i.unidad)}, faltan ${cantidad(i.faltante, i.unidad)})`;
+  });
+  if (bajos.length > 15) lineas.push(`… y ${bajos.length - 15} más en Counter → Inventario.`);
+  return { texto: [`Para comprar (${bajos.length}):`, ...lineas].join('\n') };
+};
+
 const AYUDA = [
   'Podés preguntarme, por ejemplo:',
   '• ¿Cuánto vendí hoy? / ayer / esta semana / en octubre',
@@ -186,10 +240,12 @@ const AYUDA = [
   '• ¿Cuánto pagué de sueldos el mes pasado?',
   '• Compará las ventas de este mes con el mes pasado',
   '• ¿Cuántos clientes nuevos tuve en octubre?',
+  '• ¿Cuánta mozzarella me queda? / ¿Qué tengo que comprar?',
   '• Después podés seguir con "¿y ayer?" o "¿y los gastos?"',
 ].join('\n');
 
 const CAJA = { modulo: 'cerrarcaja', permiso: 'cerrarcaja.list', rubros: RUBROS };
+const STOCK = { modulo: 'inventario', permiso: 'inventario.list', feature: 'canUseInventario', rubros: RUBROS };
 
 const CATALOGO = validarCatalogo([
   { name: 'ayuda', publico: true, ejecutar: async () => ({ texto: AYUDA }) },
@@ -201,6 +257,8 @@ const CATALOGO = validarCatalogo([
   { name: 'gastos_sueldos', ...GASTOS, ejecutar: gastosSueldos },
   { name: 'estado_caja', ...CAJA, ejecutar: estadoCaja },
   { name: 'ultimo_cierre', ...CAJA, ejecutar: ultimoCierre },
+  { name: 'stock_item', ...STOCK, ejecutar: stockItem },
+  { name: 'stock_bajo', ...STOCK, ejecutar: stockBajo },
 ]);
 
 module.exports = { CATALOGO, AYUDA, _internos: { buscarProductos, tramoPrevio } };

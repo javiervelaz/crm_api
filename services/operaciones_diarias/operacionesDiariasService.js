@@ -4,6 +4,7 @@ const RegistroDiario = require('../../model/registro_diario/db');
 const Users  = require("../../model/users/db") 
 const Profile   =  require("../../model/profile/db");
 const { json } = require('body-parser');
+const ventaStock = require('../inventario/ventaStockService');
 
 // Lógica para registrar salida de caja
 exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId,cliente_id) => {
@@ -50,6 +51,13 @@ exports.crearPedido = async ( data) => {
         
         // Insertar los productos relacionados en la tabla intermedia
         await Pedido.insertPedidoProducto(pedidoId, productos); 
+        // Inventario (Fase 2): descuenta según receta. Nunca frena la venta.
+        await ventaStock.descontarPorPedido(cliente_id, {
+            pedido_id: pedidoId,
+            lineas: productos,
+            usuario_id,
+            comanda_nro: nuevoNumeroComanda,
+        });
             if(cliente_telefono != 1){
                 const profileByTelefono  = await Profile.getByTelefono(cliente_telefono,cliente_id);
             if(profileByTelefono == null) {

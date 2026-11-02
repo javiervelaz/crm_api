@@ -10,6 +10,9 @@ const PLAN_FEATURES = {
     canUsePedidosOnline: true,    // link público del micrositio
     maxPedidosMensuales: 50,
     maxProductos: 5,
+    canUseInventario: false,
+    canUseRecetas: false,
+    maxStockItems: null,
     diasDeTrial: 14,
   },
   BASIC: {
@@ -19,6 +22,9 @@ const PLAN_FEATURES = {
     canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
+    canUseInventario: true,
+    canUseRecetas: false,
+    maxStockItems: 50,
   },
   PREMIUM: {
     canUseReports: true,
@@ -27,6 +33,9 @@ const PLAN_FEATURES = {
     canUsePedidosOnline: true,
     maxPedidosMensuales: null,
     maxProductos: null,
+    canUseInventario: true,
+    canUseRecetas: true,
+    maxStockItems: null,
   },
 };
 // CUSTOM = PREMIUM pagado anual con descuento: mismas prestaciones.

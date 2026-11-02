@@ -10,6 +10,29 @@ const { normalizar } = require('./normalizar');
 const SALUDO = /^(hola+|holis|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hey|ayuda|help|menu|que (podes|sabes|haces)( hacer)?|como funcionas?)( bot| counter)?$/;
 const VERBO_VENTA = '(?:vendi|vendimos|vendio|vendieron|factur\\w*|ingres\\w*|entr(?:o|aron|adas?)|recaud\\w*|ventas?|vendido)';
 
+// Stock (inventario). Lo que no es un ítem de stock aunque la frase lo parezca
+// ("cuántos pedidos hay", "cuánta plata me queda") sigue de largo.
+const NO_ES_STOCK = /^(pedidos?|ventas?|clientes?|plata|dinero|caja|efectivo|gastos?|mesas?|turnos?|empleados?|deudas?)\b/;
+const UNIDADES_STOCK = /\b(kilos?|kg|gramos?|grs?|litros?|lts?|unidades?|paquetes?|cajas?|bolsas?|horm\w*)\s+(de\s+)?/g;
+const STOCK_BAJO = /\b(que|cuales?) (tengo|hay|tenemos|necesito|me toca) que (comprar|reponer|pedir)\b|\bque (compro|repongo|me falta|nos falta|falta)\b(?! (pagar|cobrar))|\bfaltantes?\b|\b(stock|inventario) bajo\b|\blista de (compras?|reposicion)\b|\bque se (esta |estan )?(acabando|terminando)\b/;
+const STOCK_RESUMEN = /^(el |mi )?(stock|inventario)$|^como (esta|anda|va) (el |mi )?(stock|inventario)$|^que (tengo|hay) en (el )?(stock|inventario)$/;
+
+const itemDeStock = (t) => {
+  const pats = [
+    /\bcuant[oa]s? (?:me |nos )?(?:queda\w*|hay|tengo|tenemos) de (.+)$/,
+    /\b(?:stock|inventario) de (.+)$/,
+    /\bcuant[oa]s? (.+?) (?:me |nos |te )?(?:queda\w*|hay|tengo|tenemos)\b/,
+    /^(?:me |nos )?(?:queda|quedan|hay) (?:algo de |todavia |aun )?(.+)$/,
+  ];
+  for (const re of pats) {
+    const m = t.match(re);
+    if (!m) continue;
+    const term = m[1].replace(UNIDADES_STOCK, '').trim();
+    if (term && !NO_ES_STOCK.test(term)) return term;
+  }
+  return null;
+};
+
 const router = (texto) => {
   const t = normalizar(texto);
   if (!t) return null;
@@ -32,6 +55,9 @@ const router = (texto) => {
     return { intent: 'gastos_periodo', texto: t };
   }
 
+  if (STOCK_BAJO.test(t)) return { intent: 'stock_bajo', texto: t };
+  if (STOCK_RESUMEN.test(t)) return { intent: 'stock_item', item: null, texto: t };
+
   // Unidades: "cuántas hamburguesas vendí", "cuántos cafés vendimos"
   let m = t.match(new RegExp(`\\bcuant(?:os|as)\\s+(.+?)\\s+${VERBO_VENTA}\\b`));
   if (m) return { intent: 'ventas_producto', producto: m[1], texto: t };
@@ -42,6 +68,9 @@ const router = (texto) => {
   if (new RegExp(`\\b(cuanto|cuanta plata|total|ventas?|resumen)\\b.*${VERBO_VENTA}|\\b(ventas?|facturacion|recaudacion)\\b`).test(t)) {
     return { intent: 'ventas_periodo', texto: t };
   }
+  // Stock de un ítem: después de ventas, así "cuántas pizzas vendí" no cae acá
+  const item = itemDeStock(t);
+  if (item) return { intent: 'stock_item', item, texto: t };
   return null;
 };
 
