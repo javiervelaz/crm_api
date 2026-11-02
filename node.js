@@ -81,6 +81,7 @@ app.use('/api/producto',          require('./routes/producto'));
 app.use('/api/tipo-producto',     require('./routes/tipoProducto'));
 app.use('/api/categoria-salida',  require('./routes/categoriaSalida'));
 app.use('/api/salida-caja',       require('./routes/salidaCaja'));
+app.use('/api/inventario',        require('./routes/inventario'));
 app.use('/api/reportes',          require('./routes/reportes'));
 app.use('/api/categoria-tipo',    require('./routes/categoriaTipo'));
 app.use('/api/cliente',           require('./routes/cliente'));
