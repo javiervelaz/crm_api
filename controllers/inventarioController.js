@@ -2,6 +2,7 @@
 // Tenant y usuario salen siempre del request autenticado (scopeTenant / JWT),
 // nunca del body ni de la URL.
 const inventarioService = require('../services/inventario/inventarioService');
+const recetaService = require('../services/inventario/recetaService');
 
 const responderError = (res, next, err) => {
   if (err && err.status && err.status < 500) {
@@ -31,6 +32,13 @@ const registrarMovimiento = handler(
 const listarMovimientos = handler((req) => inventarioService.listarMovimientos(req.clienteId, req.query));
 const listarAlertas = handler((req) => inventarioService.listarAlertas(req.clienteId));
 
+// Recetas (Fase 2). requireFeature deja las features del plan en req.clienteTier.
+const listarRecetas = handler((req) => recetaService.listarProductos(req.clienteId));
+const obtenerReceta = handler((req) => recetaService.obtener(req.clienteId, Number(req.params.id)));
+const guardarReceta = handler((req) =>
+  recetaService.guardar(req.clienteId, Number(req.params.id), req.body, req.clienteTier?.features || {})
+);
+
 module.exports = {
   listarItems,
   obtenerItem,
@@ -40,4 +48,7 @@ module.exports = {
   registrarMovimiento,
   listarMovimientos,
   listarAlertas,
+  listarRecetas,
+  obtenerReceta,
+  guardarReceta,
 };

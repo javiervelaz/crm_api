@@ -141,6 +141,116 @@ const getCategoriaTipoId = async (codigo) => {
   return rows[0]?.id ?? null;
 };
 
+// ─── Recetas (Fase 2) ─────────────────────────────────────────────────────
+
+const getProducto = async (cliente_id, producto_id) => {
+  const { rows } = await pool.query(
+    `SELECT id, nombre, permite_mitad FROM producto WHERE cliente_id = $1 AND id = $2`,
+    [cliente_id, producto_id]
+  );
+  return rows[0] || null;
+};
+
+/** Productos del comercio con su receta resumida (para la pantalla de recetas). */
+const listProductosConReceta = async (cliente_id) => {
+  const { rows } = await pool.query(
+    `SELECT p.id, p.nombre, p.permite_mitad,
+            COALESCE(json_agg(json_build_object(
+              'stock_item_id', i.id, 'nombre', i.nombre, 'tipo', i.tipo, 'unidad', i.unidad,
+              'cantidad_por_unidad', r.cantidad_por_unidad, 'activo', i.activo
+            ) ORDER BY lower(i.nombre)) FILTER (WHERE r.id IS NOT NULL), '[]') AS receta
+       FROM producto p
+       LEFT JOIN receta r     ON r.producto_id = p.id AND r.cliente_id = p.cliente_id
+       LEFT JOIN stock_item i ON i.id = r.stock_item_id AND i.cliente_id = r.cliente_id
+      WHERE p.cliente_id = $1
+      GROUP BY p.id
+      ORDER BY lower(p.nombre)`,
+    [cliente_id]
+  );
+  return rows;
+};
+
+const getReceta = async (cliente_id, producto_id) => {
+  const { rows } = await pool.query(
+    `SELECT r.stock_item_id, i.nombre, i.tipo, i.unidad, i.activo, r.cantidad_por_unidad
+       FROM receta r
+       JOIN stock_item i ON i.id = r.stock_item_id AND i.cliente_id = r.cliente_id
+      WHERE r.cliente_id = $1 AND r.producto_id = $2
+      ORDER BY lower(i.nombre)`,
+    [cliente_id, producto_id]
+  );
+  return rows;
+};
+
+/** Ítems del comercio por id (para validar una receta antes de guardarla). */
+const getItemsPorIds = async (cliente_id, ids) => {
+  const { rows } = await pool.query(
+    `SELECT id, nombre, tipo, unidad, activo FROM stock_item WHERE cliente_id = $1 AND id = ANY($2::int[])`,
+    [cliente_id, ids]
+  );
+  return rows;
+};
+
+/** Reemplaza la receta completa del producto (lista vacía = sin receta). */
+const replaceReceta = async (cliente_id, producto_id, lineas) => {
+  await pool.query(`DELETE FROM receta WHERE cliente_id = $1 AND producto_id = $2`, [cliente_id, producto_id]);
+  if (!lineas.length) return;
+  await pool.query(
+    `INSERT INTO receta (cliente_id, producto_id, stock_item_id, cantidad_por_unidad)
+     SELECT $1, $2, x.stock_item_id, x.cantidad
+       FROM UNNEST($3::int[], $4::numeric[]) AS x(stock_item_id, cantidad)`,
+    [cliente_id, producto_id, lineas.map((l) => l.stock_item_id), lineas.map((l) => l.cantidad_por_unidad)]
+  );
+};
+
+/** Recetas de varios productos, sólo con ítems activos (lo que descuenta una venta). */
+const getRecetasPorProductos = async (cliente_id, producto_ids) => {
+  const { rows } = await pool.query(
+    `SELECT r.producto_id, r.stock_item_id, r.cantidad_por_unidad, i.nombre, i.unidad, i.stock_minimo
+       FROM receta r
+       JOIN stock_item i ON i.id = r.stock_item_id AND i.cliente_id = r.cliente_id AND i.activo = true
+      WHERE r.cliente_id = $1 AND r.producto_id = ANY($2::int[])`,
+    [cliente_id, producto_ids]
+  );
+  return rows;
+};
+
+/** Neto descontado por ítem para un pedido (venta + reversa_venta). */
+const getNetoVentaPorPedido = async (cliente_id, pedido_id) => {
+  const { rows } = await pool.query(
+    `SELECT stock_item_id, SUM(cantidad)::numeric AS neto
+       FROM stock_movimiento
+      WHERE cliente_id = $1 AND pedido_id = $2 AND tipo IN ('venta', 'reversa_venta')
+      GROUP BY stock_item_id`,
+    [cliente_id, pedido_id]
+  );
+  return rows.map((r) => ({ stock_item_id: r.stock_item_id, neto: Number(r.neto) }));
+};
+
+/** Saldos actuales de varios ítems (para detectar cruces del mínimo). */
+const getStocks = async (cliente_id, ids) => {
+  const { rows } = await pool.query(
+    `SELECT stock_item_id, COALESCE(SUM(cantidad), 0)::numeric AS stock
+       FROM stock_movimiento
+      WHERE cliente_id = $1 AND stock_item_id = ANY($2::int[])
+      GROUP BY stock_item_id`,
+    [cliente_id, ids]
+  );
+  return new Map(rows.map((r) => [r.stock_item_id, Number(r.stock)]));
+};
+
+/** ¿El comercio tiene el módulo inventario activo? */
+const tenantUsaInventario = async (cliente_id) => {
+  const { rows } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM modulo
+        WHERE cliente_id = $1 AND codigo = 'inventario' AND status = true AND deleted_at IS NULL
+     ) AS usa`,
+    [cliente_id]
+  );
+  return rows[0].usa === true;
+};
+
 module.exports = {
   listItems,
   getItem,
@@ -154,4 +264,13 @@ module.exports = {
   listAlertas,
   getCajaAbiertaId,
   getCategoriaTipoId,
+  getProducto,
+  listProductosConReceta,
+  getReceta,
+  getItemsPorIds,
+  replaceReceta,
+  getRecetasPorProductos,
+  getNetoVentaPorPedido,
+  getStocks,
+  tenantUsaInventario,
 };

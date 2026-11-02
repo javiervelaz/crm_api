@@ -71,10 +71,10 @@ const getPedidoById = async (req, res) => {
   const deletePedido = async (req, res) => {
     const { id,cliente_id } = req.params;
     try {
-      const result = await PedidoService.deletePedidoService(id,cliente_id);
+      const result = await PedidoService.deletePedidoService(id, cliente_id, req.user?.userId);
       res.status(200).json(result);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.status || 500).json({ error: err.message });
     }
   };
 

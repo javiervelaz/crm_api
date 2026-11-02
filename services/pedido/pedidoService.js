@@ -1,3 +1,4 @@
+const ventaStock = require('../inventario/ventaStockService');
 const db = require('../../model/pedido/db');
 
 const createPedidoService = async (pedido) => { 
@@ -54,12 +55,23 @@ const createPedidoService = async (pedido) => {
     return result;
   }
 
-  const deletePedidoService = async (id,cliente_id) => {
-    const result = await db.deletePedido(id,cliente_id);
-    if (!result) {
-      return res.status(404).json({ error: 'Pedido not found' });
+  /**
+   * Borra un pedido del comercio. Antes de borrarlo devuelve al stock lo que
+   * descontó (inventario, Fase 2), en la misma transacción del request.
+   */
+  const deletePedidoService = async (id, cliente_id, usuario_id) => {
+    const pedido = await db.getPedidoDelTenant(id, cliente_id);
+    if (!pedido) {
+      const err = new Error('Pedido no encontrado');
+      err.status = 404;
+      throw err;
     }
-    return result;
+    await ventaStock.revertirPedido(cliente_id, {
+      pedido_id: pedido.id,
+      usuario_id: usuario_id || pedido.usuario_id,
+      comanda_nro: pedido.comanda_nro,
+    });
+    return db.deletePedido(id, cliente_id);
   }
 
   module.exports = {

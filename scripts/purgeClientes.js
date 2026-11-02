@@ -49,6 +49,7 @@ const BORRADOS = [
   ['conteo_caja',           `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
   // stock_movimiento referencia pedido, salida_caja, "user" y stock_item: va antes que todos
   ['stock_movimiento',      `cliente_id = ANY($1)`],
+  ['receta',                `cliente_id = ANY($1)`],   // antes que producto y stock_item
   ['producto_img',          `producto_id IN (SELECT id FROM producto WHERE cliente_id = ANY($1))`],
   ['whatsapp_message',      `conversation_id IN (SELECT id FROM whatsapp_conversation WHERE cliente_id = ANY($1))`],
   ['salida_caja',              `cliente_id = ANY($1)`],

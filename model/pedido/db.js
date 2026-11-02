@@ -124,27 +124,31 @@ const createPedido  = async (pedidos) => {
     return result.rows[0];
   };
   
-  const deletePedido = async (id,cliente_id) => {
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN'); // Iniciar transacción
-  
-      // 1. Eliminar productos del pedido
-      await client.query('DELETE FROM "pedido_producto" WHERE pedido_id = $1 RETURNING *', [id]);
-      
-      // 2. Eliminar el pedido
-      const result = await client.query('DELETE FROM "pedido" WHERE id = $1 and cliente_id =  $2 RETURNING *', [id,cliente_id]);
-      
-      await client.query('COMMIT'); // Confirmar transacción
-      return result.rows[0];
-      
-    } catch (error) {
-      await client.query('ROLLBACK'); // Revertir en caso de error
-      throw error;
-    } finally {
-      client.release(); // Liberar conexión
-    }
+  /** Pedido del comercio (o null). Lo usa el borrado para la reversa de stock. */
+  const getPedidoDelTenant = async (id, cliente_id) => {
+    const result = await pool.query(
+      'SELECT id, comanda_nro, usuario_id FROM "pedido" WHERE id = $1 AND cliente_id = $2',
+      [id, cliente_id]
+    );
+    return result.rows[0] || null;
+  };
+
+  // Corre en la transacción del request (pool proxy + withTenantConnection).
+  // Antes abría su propia conexión fuera de esa transacción y borraba las
+  // líneas sólo por pedido_id: con el id de un pedido ajeno, el DELETE del
+  // pedido no matcheaba pero las líneas del otro comercio se borraban igual.
+  const deletePedido = async (id, cliente_id) => {
+    await pool.query(
+      `DELETE FROM "pedido_producto"
+        WHERE pedido_id = $1
+          AND pedido_id IN (SELECT id FROM "pedido" WHERE id = $1 AND cliente_id = $2)`,
+      [id, cliente_id]
+    );
+    const result = await pool.query(
+      'DELETE FROM "pedido" WHERE id = $1 AND cliente_id = $2 RETURNING *',
+      [id, cliente_id]
+    );
+    return result.rows[0];
   };
 
   const terminarPedido = async (id,cliente_id) => {
@@ -174,6 +178,7 @@ const createPedido  = async (pedidos) => {
     getPedidos,
     updatePedido,
     deletePedido,
+    getPedidoDelTenant,
     insertPedidoProducto,
     getPedidoByRegistroId,
     terminarPedido,
