@@ -10,8 +10,12 @@ const pool = require('../../pool');
 const { getStore } = require('../../tenantContext');
 const db = require('../../model/inventario/db');
 const planService = require('../cliente/planService');
+const avisosStock = require('./avisosStock');
 
 const redondear = (n) => Math.round(n * 1000) / 1000;
+
+/** Estaba en o sobre el mínimo y quedó por debajo (sólo el cruce avisa). */
+const cruzaMinimo = (previo, actual, minimo) => minimo != null && previo >= minimo && actual < minimo;
 
 /** Unidades vendidas de una línea de pedido: las mitades cuentan 0,5. */
 const unidadesDeLinea = (linea) => {
@@ -34,7 +38,7 @@ const calcularConsumo = (lineas, recetas) => {
     if (!(unidades > 0)) continue;
     for (const r of porProducto.get(Number(l.producto_id)) || []) {
       const id = Number(r.stock_item_id);
-      const prev = consumo.get(id) || { stock_item_id: id, nombre: r.nombre, cantidad: 0 };
+      const prev = consumo.get(id) || { stock_item_id: id, nombre: r.nombre, unidad: r.unidad, cantidad: 0 };
       prev.cantidad = redondear(prev.cantidad + unidades * Number(r.cantidad_por_unidad));
       consumo.set(id, prev);
     }
@@ -95,14 +99,16 @@ const descontarPorPedido = (cliente_id, { pedido_id, lineas, usuario_id, comanda
 
     // Cruces del mínimo: estaba en o sobre el mínimo y quedó por debajo
     const minimos = new Map(recetas.map((r) => [Number(r.stock_item_id), r.stock_minimo == null ? null : Number(r.stock_minimo)]));
-    return consumo
+    const cruces = consumo
       .map((c) => {
         const minimo = minimos.get(c.stock_item_id);
         const previo = antes.get(c.stock_item_id) ?? 0;
         const actual = redondear(previo - c.cantidad);
         return { ...c, previo, actual, minimo };
       })
-      .filter((c) => c.minimo != null && c.previo >= c.minimo && c.actual < c.minimo);
+      .filter((c) => cruzaMinimo(c.previo, c.actual, c.minimo));
+    await avisosStock.avisarCruces(cliente_id, cruces);
+    return cruces;
   });
 
 /** Devuelve al stock lo descontado por un pedido que se va a borrar. */
@@ -123,4 +129,4 @@ const revertirPedido = (cliente_id, { pedido_id, usuario_id, comanda_nro = null 
     return n;
   });
 
-module.exports = { descontarPorPedido, revertirPedido, _interno: { calcularConsumo, unidadesDeLinea } };
+module.exports = { descontarPorPedido, revertirPedido, cruzaMinimo, _interno: { calcularConsumo, unidadesDeLinea } };

@@ -16,7 +16,7 @@ const { router } = require('./router');
 
 const TTL_SEGUNDOS = 600;
 // Intents que aceptan seguimiento (los demás no tienen ventana o no se repiten con otra).
-const RECORDABLES = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos']);
+const RECORDABLES = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos', 'stock_item']);
 const CON_VENTANA = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos']);
 const RELLENO = new Set(['y', 'e', 'en', 'de', 'del', 'para', 'durante', 'que', 'tal', 'cuanto', 'cuantos', 'cuantas', 'como', 'fue', 'fueron', 'el', 'la', 'los', 'las', 'un', 'una']);
 const MAX_PALABRAS = 7;
@@ -26,7 +26,9 @@ const sinRelleno = (t) => t.split(' ').filter((w) => w && !RELLENO.has(w)).join(
 /** Lo que hay que recordar de un turno resuelto (o null si no admite seguimiento). */
 const aEstado = (turno) => {
   if (!turno || !RECORDABLES.has(turno.intent)) return null;
-  return { intent: turno.intent, params: { texto: turno.texto, producto: turno.producto ?? null } };
+  const params = { texto: turno.texto, producto: turno.producto ?? null };
+  if (turno.intent === 'stock_item') params.item = turno.item ?? null;
+  return { intent: turno.intent, params };
 };
 
 /**
@@ -36,7 +38,15 @@ const aEstado = (turno) => {
  * @returns turno `{ intent, texto, producto?, seguimiento: true }` o null si no es un seguimiento
  */
 const resolverSeguimiento = (texto, previo, opt) => {
-  if (!previo || !CON_VENTANA.has(previo.intent)) return null;
+  if (!previo) return null;
+  // Stock: "¿y de harina?" después de "¿cuánta mozzarella me queda?"
+  if (previo.intent === 'stock_item') {
+    const t = normalizar(texto);
+    if (!t || parsearVentana(t, opt)) return null; // "¿y ayer?" no es un ítem
+    const m = t.split(' ').length <= MAX_PALABRAS ? t.match(/^(?:y|e) (?:de |del |la |el |los |las )?(.+)$/) : null;
+    return m ? { intent: 'stock_item', item: m[1], texto: t, seguimiento: true } : null;
+  }
+  if (!CON_VENTANA.has(previo.intent)) return null;
   const t = normalizar(texto);
   if (!t || t.split(' ').length > MAX_PALABRAS) return null;
 
