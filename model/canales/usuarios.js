@@ -142,7 +142,8 @@ const listarVinculados = async (clienteId, canalCuentaId) => {
  * de Telegram activos del comercio. Se calcula en cada pedido: sacarle el
  * módulo o dar de baja al usuario corta los avisos al instante.
  */
-const getDestinatariosAvisos = async (clienteId) => {
+/** Staff con avisos prendidos y acceso al módulo (pedidos: 'operaciones'; stock: 'inventario'). */
+const getDestinatariosAvisos = async (clienteId, modulo = 'operaciones') => {
   const r = await pool.query(
     `SELECT cu.chat_id, cc.id AS canal_cuenta_id, cc.credenciales_enc
        FROM canal_usuario cu
@@ -158,9 +159,9 @@ const getDestinatariosAvisos = async (clienteId) => {
             JOIN modulo_rol mr ON mr.id_rol = ur.id_rol AND mr.cliente_id = ur.cliente_id
             JOIN modulo m      ON m.id = mr.id_modulo AND m.cliente_id = mr.cliente_id
            WHERE ur.id_user = u.id AND ur.cliente_id = u.cliente_id
-             AND m.codigo = 'operaciones' AND m.status = true AND m.deleted_at IS NULL
+             AND m.codigo = $3 AND m.status = true AND m.deleted_at IS NULL
         )`,
-    [clienteId, TIPOS_EXTERNOS]
+    [clienteId, TIPOS_EXTERNOS, modulo]
   );
   return r.rows;
 };

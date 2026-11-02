@@ -133,8 +133,36 @@ const ultimoCierre = async (clienteId) => {
   return rows[0] || null;
 };
 
+// ─── stock (inventario, Fase 3) ───────────────────────────────────────────
+// stock_saldo = stock_item + SUM del ledger (migración 025). Cantidades como
+// texto numeric, igual que la plata: el formato las convierte al final.
+
+const stockItems = async (clienteId) => {
+  const { rows } = await pool.query(
+    `SELECT id, nombre, unidad, tipo, stock::text AS stock, stock_minimo::text AS stock_minimo
+       FROM stock_saldo
+      WHERE cliente_id = $1 AND activo = true
+      ORDER BY lower(nombre)`,
+    [clienteId],
+  );
+  return rows;
+};
+
+const stockBajo = async (clienteId) => {
+  const { rows } = await pool.query(
+    `SELECT id, nombre, unidad, stock::text AS stock, stock_minimo::text AS stock_minimo,
+            (stock_minimo - stock)::text AS faltante
+       FROM stock_saldo
+      WHERE cliente_id = $1 AND activo = true AND stock_minimo IS NOT NULL AND stock < stock_minimo
+      ORDER BY (stock <= 0) DESC, (stock / NULLIF(stock_minimo, 0)) ASC, lower(nombre)`,
+    [clienteId],
+  );
+  return rows;
+};
+
 module.exports = {
   cajasAbiertas, ultimoCierre,
   ventasTotales, ventasMejorDia, productosDelComercio, ventasPorProductos,
   gastosPorTipo, gastosTotal, gastosPorDescripcion, clientesNuevos,
+  stockItems, stockBajo,
 };

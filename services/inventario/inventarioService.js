@@ -8,6 +8,8 @@
 const db = require('../../model/inventario/db');
 const salidaCajaDb = require('../../model/salida_caja/db');
 const planService = require('../cliente/planService');
+const avisosStock = require('./avisosStock');
+const { cruzaMinimo } = require('./ventaStockService');
 
 const TIPOS_ITEM = ['insumo', 'producto'];
 const UNIDADES = ['u', 'kg', 'l'];
@@ -228,13 +230,27 @@ const ajuste = async (cliente_id, usuario_id, body, item) => {
 
 const POR_TIPO = { compra, merma, ajuste };
 
+/** Merma o conteo que deja el ítem bajo su mínimo: mismo aviso que una venta (Fase 3). */
+const avisarSiCruza = async (cliente_id, item, movimiento, actualizado) => {
+  if (!movimiento || !(Number(movimiento.cantidad) < 0) || item.stock_minimo == null) return;
+  const actual = actualizado.stock;
+  const previo = Math.round((actual - Number(movimiento.cantidad)) * 1000) / 1000;
+  const minimo = Number(item.stock_minimo);
+  if (!cruzaMinimo(previo, actual, minimo)) return;
+  await avisosStock.avisarCruces(cliente_id, [
+    { stock_item_id: item.id, nombre: item.nombre, unidad: item.unidad, previo, actual, minimo },
+  ]);
+};
+
 const registrarMovimiento = async (cliente_id, usuario_id, body = {}) => {
   if (!usuario_id) throw error(401, 'Usuario no identificado');
   const handler = POR_TIPO[body.tipo];
   if (!handler) throw bad('tipo debe ser compra, merma o ajuste');
   const item = await itemParaMovimiento(cliente_id, body.stock_item_id);
   const r = await handler(cliente_id, usuario_id, body, item);
-  return { ...r, item: await obtenerItem(cliente_id, item.id) };
+  const actualizado = await obtenerItem(cliente_id, item.id);
+  await avisarSiCruza(cliente_id, item, r.movimiento, actualizado);
+  return { ...r, item: actualizado };
 };
 
 const listarMovimientos = async (cliente_id, query = {}) => {

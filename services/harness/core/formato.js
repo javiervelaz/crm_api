@@ -26,4 +26,15 @@ const variacion = (actual, base) => {
   return `${p > 0 ? '+' : ''}${p} %`;
 };
 
-module.exports = { moneda, entero, plural, variacion };
+/** Cantidad de stock legible: "2,5 kg", "800 g", "12 u". Menos de 1 kg o 1 l va en g o ml. */
+const cantidad = (valor, unidad) => {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) throw new Error(`cantidad: valor no numérico (${valor})`);
+  const fmt = (x, max) => x.toLocaleString('es-AR', { maximumFractionDigits: max, minimumFractionDigits: 0 });
+  if ((unidad === 'kg' || unidad === 'l') && n !== 0 && Math.abs(n) < 1) {
+    return `${fmt(n * 1000, 0)} ${unidad === 'kg' ? 'g' : 'ml'}`;
+  }
+  return `${fmt(n, 3)} ${unidad}`;
+};
+
+module.exports = { moneda, entero, plural, variacion, cantidad };

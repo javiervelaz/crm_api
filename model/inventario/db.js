@@ -36,7 +36,7 @@ const getItem = async (cliente_id, id) => {
 /** Bloquea la fila del ítem hasta el fin de la transacción (conteos simultáneos). */
 const lockItem = async (cliente_id, id) => {
   const { rows } = await pool.query(
-    `SELECT id, nombre, unidad, activo FROM stock_item WHERE cliente_id = $1 AND id = $2 FOR UPDATE`,
+    `SELECT id, nombre, unidad, activo, stock_minimo FROM stock_item WHERE cliente_id = $1 AND id = $2 FOR UPDATE`,
     [cliente_id, id]
   );
   return rows[0] || null;
