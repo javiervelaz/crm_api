@@ -14,7 +14,7 @@ BEGIN
     'cliente','usuario','producto','tipo_producto','pedido','salida_caja',
     'registro_diario','categoria_salida','rol','permiso','rol_permiso',
     'modulo_rol','user_rol','profile','empleado','sucursal',
-    'compra_insumo','inventario_insumo','movimiento_inventario'
+    'stock_item','stock_movimiento'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);

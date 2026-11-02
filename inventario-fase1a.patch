@@ -1,0 +1,921 @@
+From a5827946a5621a8d51676a6ed0e12367f552519b Mon Sep 17 00:00:00 2001
+From: Javier Velaz <javiervelaz1980@gmail.com>
+Date: Mon, 2 Nov 2026 14:44:43 +0000
+Subject: [PATCH] =?UTF-8?q?feat(inventario):=20fase=201a=20=E2=80=94=20?=
+ =?UTF-8?q?=C3=ADtems,=20movimientos,=20compra=E2=86=92gasto=20y=20alertas?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+API /api/inventario (módulo + canUseInventario + permiso por acción):
+- items: listar con stock y estado (ok/bajo/sin_stock/negativo), alta con
+  límite maxStockItems, edición parcial, baja lógica. La unidad es fija.
+- movimientos: compra, merma y ajuste por conteo. Acepta g/ml y convierte.
+  La compra con registrar_gasto crea el gasto VAR en la caja abierta en la
+  misma transacción del request; actualiza el costo unitario.
+- alertas: ítems bajo el mínimo (lista de compras).
+- Tenant y usuario siempre del JWT. Ajuste con lock de la fila del ítem.
+
+026: stock_item.sucursal_id opcional y nombre único por comercio (el JWT
+siempre trae sucursal 1 y el signup no crea sucursales).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01YVLkpZaqkrFVNtERrBzSxS
+---
+ controllers/inventarioController.js        |  43 +++
+ migrations/026_stock_item_sin_sucursal.sql |  19 ++
+ model/inventario/db.js                     | 157 +++++++++++
+ node.js                                    |   1 +
+ package.json                               |   2 +-
+ routes/inventario.js                       |  28 ++
+ services/inventario/inventarioService.js   | 268 ++++++++++++++++++
+ tests/inventario.test.js                   | 302 +++++++++++++++++++++
+ 8 files changed, 819 insertions(+), 1 deletion(-)
+ create mode 100644 controllers/inventarioController.js
+ create mode 100644 migrations/026_stock_item_sin_sucursal.sql
+ create mode 100644 model/inventario/db.js
+ create mode 100644 routes/inventario.js
+ create mode 100644 services/inventario/inventarioService.js
+ create mode 100644 tests/inventario.test.js
+
+diff --git a/controllers/inventarioController.js b/controllers/inventarioController.js
+new file mode 100644
+index 0000000..95daaaf
+--- /dev/null
++++ b/controllers/inventarioController.js
+@@ -0,0 +1,43 @@
++// controllers/inventarioController.js
++// Tenant y usuario salen siempre del request autenticado (scopeTenant / JWT),
++// nunca del body ni de la URL.
++const inventarioService = require('../services/inventario/inventarioService');
++
++const responderError = (res, next, err) => {
++  if (err && err.status && err.status < 500) {
++    return res.status(err.status).json({ error: err.message, code: err.code || null });
++  }
++  return next(err);
++};
++
++const handler = (fn, status = 200) => async (req, res, next) => {
++  try {
++    res.status(status).json(await fn(req));
++  } catch (err) {
++    responderError(res, next, err);
++  }
++};
++
++const listarItems = handler((req) => inventarioService.listarItems(req.clienteId, req.query));
++const obtenerItem = handler((req) => inventarioService.obtenerItem(req.clienteId, Number(req.params.id)));
++const crearItem = handler((req) => inventarioService.crearItem(req.clienteId, req.body), 201);
++const actualizarItem = handler((req) => inventarioService.actualizarItem(req.clienteId, Number(req.params.id), req.body));
++const desactivarItem = handler((req) => inventarioService.desactivarItem(req.clienteId, Number(req.params.id)));
++
++const registrarMovimiento = handler(
++  (req) => inventarioService.registrarMovimiento(req.clienteId, req.user?.userId, req.body),
++  201
++);
++const listarMovimientos = handler((req) => inventarioService.listarMovimientos(req.clienteId, req.query));
++const listarAlertas = handler((req) => inventarioService.listarAlertas(req.clienteId));
++
++module.exports = {
++  listarItems,
++  obtenerItem,
++  crearItem,
++  actualizarItem,
++  desactivarItem,
++  registrarMovimiento,
++  listarMovimientos,
++  listarAlertas,
++};
+diff --git a/migrations/026_stock_item_sin_sucursal.sql b/migrations/026_stock_item_sin_sucursal.sql
+new file mode 100644
+index 0000000..01ceba6
+--- /dev/null
++++ b/migrations/026_stock_item_sin_sucursal.sql
+@@ -0,0 +1,19 @@
++-- migrations/026_stock_item_sin_sucursal.sql
++--
++-- stock_item.sucursal_id pasa a opcional. El signup no crea sucursales y el
++-- JWT siempre trae sucursal = 1 (services/auth/tokenService.js), así que
++-- exigirla hacía que todos los ítems apuntaran a la sucursal del tenant 1.
++-- Hasta que exista multi-sucursal real, el ítem es del comercio.
++-- El nombre pasa a ser único por comercio.
++--
++-- Idempotente.
++
++BEGIN;
++
++ALTER TABLE stock_item ALTER COLUMN sucursal_id DROP NOT NULL;
++
++DROP INDEX IF EXISTS stock_item_nombre_uq;
++CREATE UNIQUE INDEX IF NOT EXISTS stock_item_nombre_uq
++  ON stock_item (cliente_id, lower(nombre));
++
++COMMIT;
+diff --git a/model/inventario/db.js b/model/inventario/db.js
+new file mode 100644
+index 0000000..2f347af
+--- /dev/null
++++ b/model/inventario/db.js
+@@ -0,0 +1,157 @@
++// model/inventario/db.js — ítems de stock y su ledger (migraciones 025/026).
++//
++// Todas las queries filtran por cliente_id (sin RLS en prod, es el único
++// aislamiento). Corren dentro de la transacción del request (pool proxy +
++// withTenantConnection): un movimiento y su gasto se confirman o caen juntos.
++const pool = require('../../pool');
++
++const COLS_ITEM = `id, nombre, tipo, unidad, stock_minimo, costo_unitario, activo, stock, created_at, updated_at`;
++
++// Saldo < mínimo. Un ítem sin mínimo nunca alerta.
++const BAJO_MINIMO = `stock_minimo IS NOT NULL AND stock < stock_minimo`;
++
++const listItems = async (cliente_id, { tipo = null, bajoMinimo = false, incluirInactivos = false, q = null } = {}) => {
++  const { rows } = await pool.query(
++    `SELECT ${COLS_ITEM}
++       FROM stock_saldo
++      WHERE cliente_id = $1
++        AND ($2::text IS NULL OR tipo = $2)
++        AND ($3::boolean = false OR (${BAJO_MINIMO}))
++        AND ($4::boolean = true OR activo = true)
++        AND ($5::text IS NULL OR nombre ILIKE '%' || $5 || '%')
++      ORDER BY lower(nombre)`,
++    [cliente_id, tipo, bajoMinimo, incluirInactivos, q]
++  );
++  return rows;
++};
++
++const getItem = async (cliente_id, id) => {
++  const { rows } = await pool.query(
++    `SELECT ${COLS_ITEM} FROM stock_saldo WHERE cliente_id = $1 AND id = $2`,
++    [cliente_id, id]
++  );
++  return rows[0] || null;
++};
++
++/** Bloquea la fila del ítem hasta el fin de la transacción (conteos simultáneos). */
++const lockItem = async (cliente_id, id) => {
++  const { rows } = await pool.query(
++    `SELECT id, nombre, unidad, activo FROM stock_item WHERE cliente_id = $1 AND id = $2 FOR UPDATE`,
++    [cliente_id, id]
++  );
++  return rows[0] || null;
++};
++
++const getStock = async (cliente_id, stock_item_id) => {
++  const { rows } = await pool.query(
++    `SELECT COALESCE(SUM(cantidad), 0)::numeric AS stock
++       FROM stock_movimiento WHERE cliente_id = $1 AND stock_item_id = $2`,
++    [cliente_id, stock_item_id]
++  );
++  return Number(rows[0].stock);
++};
++
++const createItem = async (cliente_id, { nombre, tipo, unidad, stock_minimo = null }) => {
++  const { rows } = await pool.query(
++    `INSERT INTO stock_item (cliente_id, nombre, tipo, unidad, stock_minimo)
++     VALUES ($1, $2, $3, $4, $5)
++     RETURNING id`,
++    [cliente_id, nombre, tipo, unidad, stock_minimo]
++  );
++  return rows[0].id;
++};
++
++/** Update parcial. La unidad no se cambia: reinterpretaría todo el historial. */
++const updateItem = async (cliente_id, id, { nombre = null, tipo = null, stock_minimo, activo = null }) => {
++  const tocaMinimo = stock_minimo !== undefined;
++  const { rowCount } = await pool.query(
++    `UPDATE stock_item SET
++        nombre       = COALESCE($3, nombre),
++        tipo         = COALESCE($4, tipo),
++        stock_minimo = CASE WHEN $5::boolean THEN $6::numeric ELSE stock_minimo END,
++        activo       = COALESCE($7, activo),
++        updated_at   = CURRENT_TIMESTAMP
++      WHERE cliente_id = $1 AND id = $2`,
++    [cliente_id, id, nombre, tipo, tocaMinimo, tocaMinimo ? stock_minimo : null, activo]
++  );
++  return rowCount > 0;
++};
++
++const setCostoUnitario = async (cliente_id, id, costo_unitario) => {
++  await pool.query(
++    `UPDATE stock_item SET costo_unitario = $3, updated_at = CURRENT_TIMESTAMP
++      WHERE cliente_id = $1 AND id = $2`,
++    [cliente_id, id, costo_unitario]
++  );
++};
++
++const insertMovimiento = async (cliente_id, m) => {
++  const { rows } = await pool.query(
++    `INSERT INTO stock_movimiento
++       (cliente_id, stock_item_id, tipo, cantidad, costo_total, pedido_id, salida_caja_id, usuario_id, nota)
++     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
++     RETURNING *`,
++    [cliente_id, m.stock_item_id, m.tipo, m.cantidad, m.costo_total ?? null,
++      m.pedido_id ?? null, m.salida_caja_id ?? null, m.usuario_id, m.nota ?? null]
++  );
++  return rows[0];
++};
++
++const listMovimientos = async (cliente_id, { stock_item_id = null, limit = 50, offset = 0 } = {}) => {
++  const { rows } = await pool.query(
++    `SELECT m.id, m.stock_item_id, i.nombre AS item, i.unidad, m.tipo, m.cantidad, m.costo_total,
++            m.pedido_id, m.salida_caja_id, m.nota, m.created_at, u.nombre AS usuario
++       FROM stock_movimiento m
++       JOIN stock_item i ON i.id = m.stock_item_id AND i.cliente_id = m.cliente_id
++       LEFT JOIN "user" u ON u.id = m.usuario_id
++      WHERE m.cliente_id = $1
++        AND ($2::int IS NULL OR m.stock_item_id = $2)
++      ORDER BY m.created_at DESC, m.id DESC
++      LIMIT $3 OFFSET $4`,
++    [cliente_id, stock_item_id, limit, offset]
++  );
++  return rows;
++};
++
++const listAlertas = async (cliente_id) => {
++  const { rows } = await pool.query(
++    `SELECT ${COLS_ITEM}, (stock_minimo - stock) AS faltante
++       FROM stock_saldo
++      WHERE cliente_id = $1 AND activo = true AND ${BAJO_MINIMO}
++      ORDER BY (stock <= 0) DESC, lower(nombre)`,
++    [cliente_id]
++  );
++  return rows;
++};
++
++/** Caja abierta más reciente del comercio (misma definición que la app). */
++const getCajaAbiertaId = async (cliente_id) => {
++  const { rows } = await pool.query(
++    `SELECT id FROM registro_diario
++      WHERE cliente_id = $1 AND caja_cerrada IS NULL
++      ORDER BY fecha DESC, id DESC LIMIT 1`,
++    [cliente_id]
++  );
++  return rows[0]?.id ?? null;
++};
++
++/** Catálogo global (sin cliente_id): id de categoria_tipo para un código (FI/VAR/SU). */
++const getCategoriaTipoId = async (codigo) => {
++  const { rows } = await pool.query(`SELECT id FROM categoria_tipo WHERE codigo = $1`, [codigo]);
++  return rows[0]?.id ?? null;
++};
++
++module.exports = {
++  listItems,
++  getItem,
++  lockItem,
++  getStock,
++  createItem,
++  updateItem,
++  setCostoUnitario,
++  insertMovimiento,
++  listMovimientos,
++  listAlertas,
++  getCajaAbiertaId,
++  getCategoriaTipoId,
++};
+diff --git a/node.js b/node.js
+index d251e90..6c50dde 100644
+--- a/node.js
++++ b/node.js
+@@ -81,6 +81,7 @@ app.use('/api/producto',          require('./routes/producto'));
+ app.use('/api/tipo-producto',     require('./routes/tipoProducto'));
+ app.use('/api/categoria-salida',  require('./routes/categoriaSalida'));
+ app.use('/api/salida-caja',       require('./routes/salidaCaja'));
++app.use('/api/inventario',        require('./routes/inventario'));
+ app.use('/api/reportes',          require('./routes/reportes'));
+ app.use('/api/categoria-tipo',    require('./routes/categoriaTipo'));
+ app.use('/api/cliente',           require('./routes/cliente'));
+diff --git a/package.json b/package.json
+index 1a1b27c..59bd03b 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "prestart": "npx eslint . --no-ignore && node scripts/buildEmailTemplates.js",
+     "pre-copy": "cd .. && npm run  copy.lib base-baileys-memory",
+     "start": "node node.js",
+-    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js tests/tipoDerivado.test.js tests/legajo.test.js tests/eduCatalogo.test.js tests/eduCuotas.test.js tests/usuariosSoloStaff.test.js tests/whatsapp.w0.test.js tests/canales.test.js tests/canalUsuario.test.js tests/tiersPorRubro.test.js tests/fechaTenant.test.js tests/harnessTurnLog.test.js tests/harnessCore.test.js tests/reportesAuthz.test.js tests/harnessIntents.test.js tests/harnessSeguimiento.test.js tests/cierreCaja.test.js tests/salidaCajaMedioPago.test.js tests/inventarioFase0.test.js --exit --timeout 10000 --require tests/setup.js",
++    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js tests/tipoDerivado.test.js tests/legajo.test.js tests/eduCatalogo.test.js tests/eduCuotas.test.js tests/usuariosSoloStaff.test.js tests/whatsapp.w0.test.js tests/canales.test.js tests/canalUsuario.test.js tests/tiersPorRubro.test.js tests/fechaTenant.test.js tests/harnessTurnLog.test.js tests/harnessCore.test.js tests/reportesAuthz.test.js tests/harnessIntents.test.js tests/harnessSeguimiento.test.js tests/cierreCaja.test.js tests/salidaCajaMedioPago.test.js tests/inventarioFase0.test.js tests/inventario.test.js --exit --timeout 10000 --require tests/setup.js",
+     "email:build": "node scripts/buildEmailTemplates.js",
+     "email:preview": "node scripts/previewEmail.js",
+     "email:worker": "node scripts/emailWorker.js",
+diff --git a/routes/inventario.js b/routes/inventario.js
+new file mode 100644
+index 0000000..d1a9600
+--- /dev/null
++++ b/routes/inventario.js
+@@ -0,0 +1,28 @@
++// routes/inventario.js — /api/inventario (JWT + scopeTenant + tx de tenant, ver node.js)
++const express = require('express');
++const { authorizeModule } = require('../middleware/moduleAuth');
++const { authorizePermission } = require('../middleware/permissionMiddleware');
++const { requireFeature } = require('../middleware/featureMiddleware');
++const { requireLimit } = require('../middleware/limitMiddleware');
++const { registerTenantGuards } = require('../middleware/tenantMiddleware');
++const ctrl = require('../controllers/inventarioController');
++
++const router = express.Router();
++registerTenantGuards(router);
++
++// Módulo y plan para todo el router; el permiso, por acción.
++router.use(authorizeModule('inventario'), requireFeature('canUseInventario'));
++const puede = (accion) => authorizePermission('inventario', `inventario.${accion}`);
++
++router.get('/items',        puede('list'),   ctrl.listarItems);       // ?tipo=&bajo_minimo=&q=&incluir_inactivos=
++router.get('/items/:id',    puede('list'),   ctrl.obtenerItem);
++router.post('/items',       puede('create'), requireLimit('maxStockItems'), ctrl.crearItem);
++router.put('/items/:id',    puede('update'), ctrl.actualizarItem);
++router.delete('/items/:id', puede('delete'), ctrl.desactivarItem);   // baja lógica
++
++router.get('/movimientos',  puede('list'),   ctrl.listarMovimientos); // ?stock_item_id=&limit=&offset=
++router.post('/movimientos', puede('create'), ctrl.registrarMovimiento);
++
++router.get('/alertas',      puede('list'),   ctrl.listarAlertas);     // bajo mínimo = lista de compras
++
++module.exports = router;
+diff --git a/services/inventario/inventarioService.js b/services/inventario/inventarioService.js
+new file mode 100644
+index 0000000..e115bf9
+--- /dev/null
++++ b/services/inventario/inventarioService.js
+@@ -0,0 +1,268 @@
++// services/inventario/inventarioService.js — Fase 1a (PLAN_INVENTARIO_v2).
++//
++// · El stock es SUM del ledger: no hay cache que mantener.
++// · Unidades canónicas u/kg/l. Los movimientos aceptan g y ml y se convierten.
++// · Compra con registrar_gasto=true crea el gasto en caja en la misma
++//   transacción del request (pool proxy): o quedan los dos o ninguno.
++// · Nunca se bloquea por stock negativo.
++const db = require('../../model/inventario/db');
++const salidaCajaDb = require('../../model/salida_caja/db');
++const planService = require('../cliente/planService');
++
++const TIPOS_ITEM = ['insumo', 'producto'];
++const UNIDADES = ['u', 'kg', 'l'];
++// Unidad de ingreso → [unidad canónica, factor]
++const CONVERSION = { u: ['u', 1], kg: ['kg', 1], g: ['kg', 0.001], l: ['l', 1], ml: ['l', 0.001] };
++const NOMBRE_MAX = 120;
++const NOTA_MAX = 200;
++
++const error = (status, message, code) => Object.assign(new Error(message), { status, code });
++const bad = (message, code = 'VALIDACION') => error(400, message, code);
++
++const numero = (v, campo, { positivo = false, min = null } = {}) => {
++  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
++  if (typeof n !== 'number' || !Number.isFinite(n)) throw bad(`${campo} debe ser un número`);
++  if (positivo && !(n > 0)) throw bad(`${campo} debe ser mayor a cero`);
++  if (min !== null && n < min) throw bad(`${campo} no puede ser menor a ${min}`);
++  return n;
++};
++
++const redondear = (n, dec = 3) => Math.round(n * 10 ** dec) / 10 ** dec;
++
++const nombreValido = (nombre) => {
++  if (typeof nombre !== 'string' || !nombre.trim()) throw bad('El nombre es obligatorio');
++  const limpio = nombre.trim().replace(/\s+/g, ' ');
++  if (limpio.length > NOMBRE_MAX) throw bad(`El nombre no puede superar ${NOMBRE_MAX} caracteres`);
++  if (/[<>]/.test(limpio)) throw bad('El nombre tiene caracteres no permitidos');
++  return limpio;
++};
++
++const notaValida = (nota) => {
++  if (nota == null || nota === '') return null;
++  if (typeof nota !== 'string') throw bad('La nota debe ser texto');
++  const limpia = nota.trim();
++  if (limpia.length > NOTA_MAX) throw bad(`La nota no puede superar ${NOTA_MAX} caracteres`);
++  return limpia || null;
++};
++
++/** Cantidad en la unidad del ítem. `unidad` es la de ingreso (opcional). */
++const aUnidadDelItem = (cantidad, unidad, item) => {
++  if (unidad == null) return cantidad;
++  const conv = CONVERSION[unidad];
++  if (!conv) throw bad(`Unidad inválida: ${unidad}`);
++  if (conv[0] !== item.unidad) throw bad(`El ítem "${item.nombre}" se mide en ${item.unidad}, no en ${unidad}`);
++  return redondear(cantidad * conv[1]);
++};
++
++const conflictoNombre = (e) => {
++  if (e && e.code === '23505') throw error(409, 'Ya existe un ítem con ese nombre', 'NOMBRE_DUPLICADO');
++  throw e;
++};
++
++const conEstado = (item) => {
++  if (!item) return item;
++  const stock = Number(item.stock);
++  const minimo = item.stock_minimo == null ? null : Number(item.stock_minimo);
++  let estado = 'ok';
++  if (stock < 0) estado = 'negativo';
++  else if (stock === 0) estado = 'sin_stock';
++  else if (minimo !== null && stock < minimo) estado = 'bajo';
++  return { ...item, stock, stock_minimo: minimo, costo_unitario: item.costo_unitario == null ? null : Number(item.costo_unitario), estado };
++};
++
++// ─── Ítems ────────────────────────────────────────────────────────────────
++
++const listarItems = async (cliente_id, query = {}) => {
++  const tipo = query.tipo ?? null;
++  if (tipo !== null && !TIPOS_ITEM.includes(tipo)) throw bad('tipo inválido');
++  const q = typeof query.q === 'string' && query.q.trim() ? query.q.trim().slice(0, NOMBRE_MAX) : null;
++  const rows = await db.listItems(cliente_id, {
++    tipo,
++    bajoMinimo: query.bajo_minimo === 'true' || query.bajo_minimo === true,
++    incluirInactivos: query.incluir_inactivos === 'true' || query.incluir_inactivos === true,
++    q,
++  });
++  return rows.map(conEstado);
++};
++
++const obtenerItem = async (cliente_id, id) => {
++  const item = await db.getItem(cliente_id, id);
++  if (!item) throw error(404, 'Ítem no encontrado', 'NO_ENCONTRADO');
++  return conEstado(item);
++};
++
++const crearItem = async (cliente_id, body = {}) => {
++  const nombre = nombreValido(body.nombre);
++  const tipo = body.tipo ?? 'insumo';
++  if (!TIPOS_ITEM.includes(tipo)) throw bad('tipo debe ser insumo o producto');
++  if (!UNIDADES.includes(body.unidad)) throw bad('unidad debe ser u, kg o l');
++  const stock_minimo = body.stock_minimo == null || body.stock_minimo === ''
++    ? null : numero(body.stock_minimo, 'stock_minimo', { min: 0 });
++  const id = await db.createItem(cliente_id, { nombre, tipo, unidad: body.unidad, stock_minimo }).catch(conflictoNombre);
++  return obtenerItem(cliente_id, id);
++};
++
++/** Reactivar un ítem dado de baja ocupa un lugar del límite del plan (maxStockItems). */
++const validarReactivacion = async (cliente_id, id) => {
++  const actual = await db.getItem(cliente_id, id);
++  if (!actual) throw error(404, 'Ítem no encontrado', 'NO_ENCONTRADO');
++  if (actual.activo) return;
++  const { features, tierCode } = await planService.getClienteTierAndFeatures(cliente_id);
++  const tope = features.maxStockItems;
++  if (tope == null) return;
++  const activos = (await db.listItems(cliente_id)).length;
++  if (activos >= tope) {
++    throw error(403, `Tu plan (${tierCode}) permite hasta ${tope} ítems de stock. Ya alcanzaste el límite.`, 'LIMITE_PLAN');
++  }
++};
++
++const actualizarItem = async (cliente_id, id, body = {}) => {
++  if (body.unidad !== undefined) throw bad('La unidad no se puede cambiar: creá un ítem nuevo', 'UNIDAD_FIJA');
++  const cambios = {};
++  if (body.nombre !== undefined) cambios.nombre = nombreValido(body.nombre);
++  if (body.tipo !== undefined) {
++    if (!TIPOS_ITEM.includes(body.tipo)) throw bad('tipo debe ser insumo o producto');
++    cambios.tipo = body.tipo;
++  }
++  if (body.stock_minimo !== undefined) {
++    cambios.stock_minimo = body.stock_minimo === null || body.stock_minimo === ''
++      ? null : numero(body.stock_minimo, 'stock_minimo', { min: 0 });
++  }
++  if (body.activo !== undefined) {
++    if (typeof body.activo !== 'boolean') throw bad('activo debe ser booleano');
++    cambios.activo = body.activo;
++  }
++  if (!Object.keys(cambios).length) throw bad('No hay cambios para guardar');
++  if (cambios.activo === true) await validarReactivacion(cliente_id, id);
++  const ok = await db.updateItem(cliente_id, id, cambios).catch(conflictoNombre);
++  if (!ok) throw error(404, 'Ítem no encontrado', 'NO_ENCONTRADO');
++  return obtenerItem(cliente_id, id);
++};
++
++/** Baja lógica: el historial queda y el ítem deja de listarse y de contar para el límite. */
++const desactivarItem = async (cliente_id, id) => {
++  const ok = await db.updateItem(cliente_id, id, { activo: false });
++  if (!ok) throw error(404, 'Ítem no encontrado', 'NO_ENCONTRADO');
++  return { id, activo: false };
++};
++
++// ─── Movimientos ──────────────────────────────────────────────────────────
++
++const itemParaMovimiento = async (cliente_id, stock_item_id) => {
++  const id = Number(stock_item_id);
++  if (!Number.isInteger(id) || id <= 0) throw bad('stock_item_id inválido');
++  const item = await db.lockItem(cliente_id, id);
++  if (!item) throw error(404, 'Ítem no encontrado', 'NO_ENCONTRADO');
++  if (!item.activo) throw error(409, 'El ítem está dado de baja', 'ITEM_INACTIVO');
++  return item;
++};
++
++/** Gasto en caja por la compra. Misma regla que /salida-caja: caja abierta si el comercio usa caja. */
++const registrarGasto = async (cliente_id, usuario_id, item, cantidad, costo_total, medio_pago_id) => {
++  if (medio_pago_id != null) {
++    const validos = new Set(await salidaCajaDb.getMediosPagoIds());
++    if (!(Number.isInteger(medio_pago_id) && validos.has(medio_pago_id))) throw bad('Medio de pago inválido');
++  }
++  let registro_diario_id = null;
++  if (await salidaCajaDb.tenantUsaCaja(cliente_id)) {
++    registro_diario_id = await db.getCajaAbiertaId(cliente_id);
++    if (!registro_diario_id) {
++      throw error(409, 'Para registrar la compra como gasto tenés que tener la caja abierta', 'CAJA_CERRADA');
++    }
++  }
++  const categoria_salida_id = await db.getCategoriaTipoId('VAR');
++  if (!categoria_salida_id) throw error(500, 'Falta la categoría de gasto variable (VAR)');
++  return salidaCajaDb.createSalidaCaja({
++    registro_diario_id,
++    categoria_salida_id,
++    descripcion: `Compra: ${item.nombre} (${cantidad} ${item.unidad})`.slice(0, 255),
++    monto: costo_total,
++    usuario_id,
++    cliente_id,
++    medio_pago_id: medio_pago_id ?? null,
++  });
++};
++
++const compra = async (cliente_id, usuario_id, body, item) => {
++  const cantidad = aUnidadDelItem(numero(body.cantidad, 'cantidad', { positivo: true }), body.unidad, item);
++  if (!(cantidad > 0)) throw bad('La cantidad es demasiado chica para la unidad del ítem');
++  const costo_total = body.costo_total == null || body.costo_total === ''
++    ? null : redondear(numero(body.costo_total, 'costo_total', { min: 0 }), 2);
++  const registrar = body.registrar_gasto === true;
++  if (registrar && !(costo_total > 0)) throw bad('Para registrar el gasto la compra necesita un costo mayor a cero');
++
++  const gasto = registrar
++    ? await registrarGasto(cliente_id, usuario_id, item, cantidad, costo_total, body.medio_pago_id ?? null)
++    : null;
++
++  const movimiento = await db.insertMovimiento(cliente_id, {
++    stock_item_id: item.id, tipo: 'compra', cantidad, costo_total,
++    salida_caja_id: gasto?.id ?? null, usuario_id, nota: notaValida(body.nota),
++  });
++  if (costo_total > 0) await db.setCostoUnitario(cliente_id, item.id, redondear(costo_total / cantidad, 4));
++  return { movimiento, gasto };
++};
++
++const merma = async (cliente_id, usuario_id, body, item) => {
++  const cantidad = aUnidadDelItem(numero(body.cantidad, 'cantidad', { positivo: true }), body.unidad, item);
++  if (!(cantidad > 0)) throw bad('La cantidad es demasiado chica para la unidad del ítem');
++  const movimiento = await db.insertMovimiento(cliente_id, {
++    stock_item_id: item.id, tipo: 'merma', cantidad: -cantidad, usuario_id, nota: notaValida(body.nota),
++  });
++  return { movimiento, gasto: null };
++};
++
++/** Conteo: el usuario dice cuánto hay y se asienta la diferencia. */
++const ajuste = async (cliente_id, usuario_id, body, item) => {
++  if (body.contado === undefined) throw bad('El ajuste necesita "contado" (lo que hay físicamente)');
++  const contado = aUnidadDelItem(numero(body.contado, 'contado', { min: 0 }), body.unidad, item);
++  const actual = await db.getStock(cliente_id, item.id);
++  const delta = redondear(contado - actual);
++  if (delta === 0) return { movimiento: null, gasto: null, sin_cambios: true };
++  const movimiento = await db.insertMovimiento(cliente_id, {
++    stock_item_id: item.id, tipo: 'ajuste', cantidad: delta, usuario_id,
++    nota: notaValida(body.nota) ?? `Conteo: ${contado} ${item.unidad} (había ${actual})`,
++  });
++  return { movimiento, gasto: null };
++};
++
++const POR_TIPO = { compra, merma, ajuste };
++
++const registrarMovimiento = async (cliente_id, usuario_id, body = {}) => {
++  if (!usuario_id) throw error(401, 'Usuario no identificado');
++  const handler = POR_TIPO[body.tipo];
++  if (!handler) throw bad('tipo debe ser compra, merma o ajuste');
++  const item = await itemParaMovimiento(cliente_id, body.stock_item_id);
++  const r = await handler(cliente_id, usuario_id, body, item);
++  return { ...r, item: await obtenerItem(cliente_id, item.id) };
++};
++
++const listarMovimientos = async (cliente_id, query = {}) => {
++  const stock_item_id = query.stock_item_id == null || query.stock_item_id === ''
++    ? null : Number(query.stock_item_id);
++  if (stock_item_id !== null && !(Number.isInteger(stock_item_id) && stock_item_id > 0)) throw bad('stock_item_id inválido');
++  const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 200);
++  const offset = Math.max(parseInt(query.offset, 10) || 0, 0);
++  const rows = await db.listMovimientos(cliente_id, { stock_item_id, limit, offset });
++  return {
++    data: rows.map((m) => ({ ...m, cantidad: Number(m.cantidad), costo_total: m.costo_total == null ? null : Number(m.costo_total) })),
++    meta: { limit, offset },
++  };
++};
++
++const listarAlertas = async (cliente_id) => {
++  const rows = await db.listAlertas(cliente_id);
++  return rows.map((r) => ({ ...conEstado(r), faltante: Number(r.faltante) }));
++};
++
++module.exports = {
++  listarItems,
++  obtenerItem,
++  crearItem,
++  actualizarItem,
++  desactivarItem,
++  registrarMovimiento,
++  listarMovimientos,
++  listarAlertas,
++  _interno: { aUnidadDelItem, conEstado, nombreValido },
++};
+diff --git a/tests/inventario.test.js b/tests/inventario.test.js
+new file mode 100644
+index 0000000..5525398
+--- /dev/null
++++ b/tests/inventario.test.js
+@@ -0,0 +1,302 @@
++/**
++ * inventario.test.js — Fase 1a: ítems, movimientos, compra→gasto, alertas.
++ */
++const request = require('supertest');
++const sinon = require('sinon');
++const jwt = require('jsonwebtoken');
++
++const app = require('../node');
++const pool = require('../pool');
++const db = require('../model/inventario/db');
++const salidaCajaDb = require('../model/salida_caja/db');
++const planService = require('../services/cliente/planService');
++const service = require('../services/inventario/inventarioService');
++
++let expect;
++before(async () => { ({ expect } = await import('chai')); });
++afterEach(() => sinon.restore());
++
++const CLIENTE = 77;
++const USUARIO = 5;
++const ITEM = { id: 3, nombre: 'Mozzarella', unidad: 'kg', activo: true };
++const ITEM_SALDO = { id: 3, nombre: 'Mozzarella', tipo: 'insumo', unidad: 'kg', stock_minimo: '5', costo_unitario: null, activo: true, stock: '10' };
++
++const esperarError = async (p) => { try { await p; } catch (e) { return e; } throw new Error('se esperaba un error'); };
++
++// ─── Aislamiento por tenant ───────────────────────────────────────────────
++describe('Inventario — model: toda query filtra por cliente_id', () => {
++  const llamadas = {
++    listItems: () => db.listItems(CLIENTE),
++    getItem: () => db.getItem(CLIENTE, 3),
++    lockItem: () => db.lockItem(CLIENTE, 3),
++    getStock: () => db.getStock(CLIENTE, 3),
++    createItem: () => db.createItem(CLIENTE, { nombre: 'x', tipo: 'insumo', unidad: 'u' }),
++    updateItem: () => db.updateItem(CLIENTE, 3, { nombre: 'y' }),
++    setCostoUnitario: () => db.setCostoUnitario(CLIENTE, 3, 10),
++    insertMovimiento: () => db.insertMovimiento(CLIENTE, { stock_item_id: 3, tipo: 'compra', cantidad: 1, usuario_id: USUARIO }),
++    listMovimientos: () => db.listMovimientos(CLIENTE),
++    listAlertas: () => db.listAlertas(CLIENTE),
++    getCajaAbiertaId: () => db.getCajaAbiertaId(CLIENTE),
++  };
++  // Catálogo global, sin tenant
++  const GLOBALES = ['getCategoriaTipoId'];
++
++  it('cubre todas las funciones exportadas', () => {
++    expect(Object.keys(db).sort()).to.deep.equal([...Object.keys(llamadas), ...GLOBALES].sort());
++  });
++
++  for (const [nombre, fn] of Object.entries(llamadas)) {
++    it(nombre, async () => {
++      const q = sinon.stub(pool, 'query').resolves({ rows: [{ id: 1, stock: '0' }], rowCount: 1 });
++      await fn();
++      const [sql, params] = q.firstCall.args;
++      // SELECT/UPDATE: WHERE cliente_id = $1 · INSERT: primera columna cliente_id con $1
++      const filtra = /\bcliente_id = \$1\b/.test(sql) || /^\s*INSERT INTO \w+\s*\(\s*cliente_id\b[\s\S]*VALUES \(\$1\b/.test(sql);
++      expect(filtra, `${nombre}: ${sql}`).to.equal(true);
++      expect(params[0], nombre).to.equal(CLIENTE);
++    });
++  }
++
++  it('el ledger no se edita: no hay UPDATE ni DELETE sobre stock_movimiento', () => {
++    const src = require('fs').readFileSync(require.resolve('../model/inventario/db'), 'utf8');
++    expect(src).to.not.match(/(UPDATE|DELETE FROM)\s+stock_movimiento/i);
++  });
++});
++
++// ─── Service ──────────────────────────────────────────────────────────────
++describe('Inventario — service', () => {
++  let insert;
++  beforeEach(() => {
++    sinon.stub(db, 'lockItem').resolves(ITEM);
++    sinon.stub(db, 'getItem').resolves(ITEM_SALDO);
++    sinon.stub(db, 'setCostoUnitario').resolves();
++    insert = sinon.stub(db, 'insertMovimiento').callsFake(async (_c, m) => ({ id: 1, ...m }));
++  });
++
++  describe('compra', () => {
++    it('con gasto y caja abierta: crea el gasto VAR y lo enlaza al movimiento', async () => {
++      sinon.stub(salidaCajaDb, 'tenantUsaCaja').resolves(true);
++      sinon.stub(db, 'getCajaAbiertaId').resolves(12);
++      sinon.stub(db, 'getCategoriaTipoId').withArgs('VAR').resolves(2);
++      const crearGasto = sinon.stub(salidaCajaDb, 'createSalidaCaja').resolves({ id: 99 });
++
++      const r = await service.registrarMovimiento(CLIENTE, USUARIO, {
++        tipo: 'compra', stock_item_id: 3, cantidad: 2.5, costo_total: 30000, registrar_gasto: true,
++      });
++
++      const g = crearGasto.firstCall.args[0];
++      expect(g).to.include({ registro_diario_id: 12, categoria_salida_id: 2, monto: 30000, usuario_id: USUARIO, cliente_id: CLIENTE });
++      expect(g.descripcion).to.equal('Compra: Mozzarella (2.5 kg)');
++      expect(insert.firstCall.args[1]).to.include({ tipo: 'compra', cantidad: 2.5, costo_total: 30000, salida_caja_id: 99, usuario_id: USUARIO });
++      expect(db.setCostoUnitario.firstCall.args).to.deep.equal([CLIENTE, 3, 12000]);
++      expect(r.gasto.id).to.equal(99);
++    });
++
++    it('con gasto y caja cerrada: 409 y no asienta nada', async () => {
++      sinon.stub(salidaCajaDb, 'tenantUsaCaja').resolves(true);
++      sinon.stub(db, 'getCajaAbiertaId').resolves(null);
++      const crearGasto = sinon.stub(salidaCajaDb, 'createSalidaCaja');
++      const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, {
++        tipo: 'compra', stock_item_id: 3, cantidad: 1, costo_total: 100, registrar_gasto: true,
++      }));
++      expect(e.status).to.equal(409);
++      expect(e.code).to.equal('CAJA_CERRADA');
++      expect(crearGasto.called).to.equal(false);
++      expect(insert.called).to.equal(false);
++    });
++
++    it('comercio sin caja: el gasto va sin registro diario', async () => {
++      sinon.stub(salidaCajaDb, 'tenantUsaCaja').resolves(false);
++      const caja = sinon.stub(db, 'getCajaAbiertaId');
++      sinon.stub(db, 'getCategoriaTipoId').resolves(2);
++      const crearGasto = sinon.stub(salidaCajaDb, 'createSalidaCaja').resolves({ id: 5 });
++      await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'compra', stock_item_id: 3, cantidad: 1, costo_total: 100, registrar_gasto: true });
++      expect(crearGasto.firstCall.args[0].registro_diario_id).to.equal(null);
++      expect(caja.called).to.equal(false);
++    });
++
++    it('registrar_gasto sin costo: 400', async () => {
++      const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'compra', stock_item_id: 3, cantidad: 1, registrar_gasto: true }));
++      expect(e.status).to.equal(400);
++      expect(insert.called).to.equal(false);
++    });
++
++    it('sin gasto: sólo el movimiento', async () => {
++      const crearGasto = sinon.stub(salidaCajaDb, 'createSalidaCaja');
++      await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'compra', stock_item_id: 3, cantidad: 1, costo_total: 500 });
++      expect(crearGasto.called).to.equal(false);
++      expect(insert.firstCall.args[1].salida_caja_id).to.equal(null);
++    });
++
++    it('convierte g a kg y rechaza unidades de otra magnitud', async () => {
++      await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'compra', stock_item_id: 3, cantidad: 500, unidad: 'g' });
++      expect(insert.firstCall.args[1].cantidad).to.equal(0.5);
++      const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'compra', stock_item_id: 3, cantidad: 1, unidad: 'ml' }));
++      expect(e.status).to.equal(400);
++    });
++
++    it('medio de pago inválido: 400 antes de crear el gasto', async () => {
++      sinon.stub(salidaCajaDb, 'getMediosPagoIds').resolves([1, 2]);
++      const crearGasto = sinon.stub(salidaCajaDb, 'createSalidaCaja');
++      const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, {
++        tipo: 'compra', stock_item_id: 3, cantidad: 1, costo_total: 100, registrar_gasto: true, medio_pago_id: 9,
++      }));
++      expect(e.status).to.equal(400);
++      expect(crearGasto.called).to.equal(false);
++    });
++  });
++
++  it('merma: se asienta negativa', async () => {
++    await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'merma', stock_item_id: 3, cantidad: 0.3, nota: 'se venció' });
++    expect(insert.firstCall.args[1]).to.include({ tipo: 'merma', cantidad: -0.3, nota: 'se venció' });
++  });
++
++  describe('ajuste por conteo', () => {
++    it('asienta la diferencia contra el ledger', async () => {
++      sinon.stub(db, 'getStock').resolves(10);
++      await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'ajuste', stock_item_id: 3, contado: 7.25 });
++      expect(insert.firstCall.args[1]).to.include({ tipo: 'ajuste', cantidad: -2.75 });
++    });
++
++    it('sin diferencia no inserta', async () => {
++      sinon.stub(db, 'getStock').resolves(10);
++      const r = await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'ajuste', stock_item_id: 3, contado: 10 });
++      expect(r.sin_cambios).to.equal(true);
++      expect(insert.called).to.equal(false);
++    });
++
++    it('bloquea el ítem antes de leer el stock (conteos simultáneos)', async () => {
++      const stock = sinon.stub(db, 'getStock').resolves(10);
++      await service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'ajuste', stock_item_id: 3, contado: 8 });
++      expect(db.lockItem.calledBefore(stock)).to.equal(true);
++    });
++  });
++
++  it('ítem dado de baja: 409', async () => {
++    db.lockItem.resolves({ ...ITEM, activo: false });
++    const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'merma', stock_item_id: 3, cantidad: 1 }));
++    expect(e.status).to.equal(409);
++  });
++
++  it('tipo venta no se acepta por API (lo asienta el pedido, Fase 2)', async () => {
++    const e = await esperarError(service.registrarMovimiento(CLIENTE, USUARIO, { tipo: 'venta', stock_item_id: 3, cantidad: 1 }));
++    expect(e.status).to.equal(400);
++  });
++});
++
++describe('Inventario — ítems', () => {
++  it('estado: negativo / sin_stock / bajo / ok', () => {
++    const { conEstado } = service._interno;
++    expect(conEstado({ stock: '-1', stock_minimo: '5' }).estado).to.equal('negativo');
++    expect(conEstado({ stock: '0', stock_minimo: null }).estado).to.equal('sin_stock');
++    expect(conEstado({ stock: '2', stock_minimo: '5' }).estado).to.equal('bajo');
++    expect(conEstado({ stock: '9', stock_minimo: '5' }).estado).to.equal('ok');
++    expect(conEstado({ stock: '9', stock_minimo: null }).estado).to.equal('ok');
++  });
++
++  it('nombre: normaliza espacios y rechaza HTML', () => {
++    const { nombreValido } = service._interno;
++    expect(nombreValido('  Queso   rallado ')).to.equal('Queso rallado');
++    expect(() => nombreValido('<img src=x onerror=alert(1)>')).to.throw(/no permitidos/);
++  });
++
++  it('nombre duplicado: 409', async () => {
++    sinon.stub(db, 'createItem').rejects(Object.assign(new Error('dup'), { code: '23505' }));
++    const e = await esperarError(service.crearItem(CLIENTE, { nombre: 'Harina', unidad: 'kg' }));
++    expect(e.status).to.equal(409);
++  });
++
++  it('la unidad no se puede cambiar', async () => {
++    const e = await esperarError(service.actualizarItem(CLIENTE, 3, { unidad: 'u' }));
++    expect(e.code).to.equal('UNIDAD_FIJA');
++  });
++
++  it('reactivar un ítem respeta el límite del plan', async () => {
++    sinon.stub(db, 'getItem').resolves({ ...ITEM_SALDO, activo: false });
++    sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ features: { maxStockItems: 2 }, tierCode: 'BASIC' });
++    sinon.stub(db, 'listItems').resolves([{}, {}]);
++    const upd = sinon.stub(db, 'updateItem');
++    const e = await esperarError(service.actualizarItem(CLIENTE, 3, { activo: true }));
++    expect(e.status).to.equal(403);
++    expect(upd.called).to.equal(false);
++  });
++
++  it('editar un ítem activo mandando activo:true no consulta el límite', async () => {
++    sinon.stub(db, 'getItem').resolves(ITEM_SALDO);
++    const plan = sinon.stub(planService, 'getClienteTierAndFeatures');
++    sinon.stub(db, 'updateItem').resolves(true);
++    await service.actualizarItem(CLIENTE, 3, { nombre: 'Muzza', activo: true });
++    expect(plan.called).to.equal(false);
++  });
++});
++
++// ─── HTTP ─────────────────────────────────────────────────────────────────
++describe('Inventario — HTTP /api/inventario', () => {
++  const TODOS = ['inventario.list', 'inventario.create', 'inventario.update', 'inventario.delete'];
++  const token = ({ modules = ['inventario'], perms = TODOS } = {}) => jwt.sign(
++    { userId: USUARIO, cliente_id: CLIENTE, role: ['admin'], modules, permissions: { inventario: perms } },
++    process.env.JWT_SECRET, { expiresIn: '1h' }
++  );
++  const conPlan = (features) => sinon.stub(planService, 'getClienteTierAndFeatures')
++    .resolves({ features, tierCode: 'BASIC', isExpired: false });
++
++  it('sin módulo: 403', async () => {
++    const res = await request(app).get('/api/inventario/items').set('Authorization', `Bearer ${token({ modules: [] })}`);
++    expect(res.status).to.equal(403);
++  });
++
++  it('plan sin inventario: 403 PLAN_INACTIVE', async () => {
++    conPlan({ canUseInventario: false });
++    const res = await request(app).get('/api/inventario/items').set('Authorization', `Bearer ${token()}`);
++    expect(res.status).to.equal(403);
++    expect(res.body.code).to.equal('PLAN_INACTIVE');
++  });
++
++  it('sin permiso de la acción: 403', async () => {
++    conPlan({ canUseInventario: true });
++    const res = await request(app).post('/api/inventario/movimientos')
++      .set('Authorization', `Bearer ${token({ perms: ['inventario.list'] })}`)
++      .send({ tipo: 'merma', stock_item_id: 3, cantidad: 1 });
++    expect(res.status).to.equal(403);
++  });
++
++  it('cliente_id ajeno en el body: lo frena scopeTenant', async () => {
++    const svc = sinon.stub(service, 'registrarMovimiento');
++    sinon.stub(console, 'warn');
++    const res = await request(app).post('/api/inventario/movimientos')
++      .set('Authorization', `Bearer ${token()}`)
++      .send({ tipo: 'merma', stock_item_id: 3, cantidad: 1, cliente_id: 1 });
++    expect(res.status).to.equal(403);
++    expect(svc.called).to.equal(false);
++  });
++
++  it('movimiento: tenant y usuario salen del JWT, no del body', async () => {
++    conPlan({ canUseInventario: true });
++    const svc = sinon.stub(service, 'registrarMovimiento').resolves({ movimiento: { id: 1 } });
++    const res = await request(app).post('/api/inventario/movimientos')
++      .set('Authorization', `Bearer ${token()}`)
++      .send({ tipo: 'merma', stock_item_id: 3, cantidad: 1, usuario_id: 999 });
++    expect(res.status).to.equal(201);
++    const [cliente, usuario] = svc.firstCall.args;
++    expect(cliente).to.equal(CLIENTE);
++    expect(usuario).to.equal(USUARIO);
++  });
++
++  it('errores de negocio salen con su status y code', async () => {
++    conPlan({ canUseInventario: true });
++    sinon.stub(service, 'registrarMovimiento').rejects(Object.assign(new Error('caja'), { status: 409, code: 'CAJA_CERRADA' }));
++    const res = await request(app).post('/api/inventario/movimientos')
++      .set('Authorization', `Bearer ${token()}`).send({});
++    expect(res.status).to.equal(409);
++    expect(res.body.code).to.equal('CAJA_CERRADA');
++  });
++
++  it('alta de ítem pasa por el límite del plan', async () => {
++    conPlan({ canUseInventario: true, maxStockItems: 50 });
++    sinon.stub(pool, 'query').resolves({ rows: [{ count: '50' }] });
++    const res = await request(app).post('/api/inventario/items')
++      .set('Authorization', `Bearer ${token()}`).send({ nombre: 'Harina', unidad: 'kg' });
++    expect(res.status).to.equal(403);
++    expect(res.body.error).to.match(/ítems de stock/);
++  });
++});
+-- 
+2.43.0
+

@@ -38,13 +38,21 @@ const requireLimit = (limitKey) => {
           break;
         }
 
+        case 'maxStockItems': {
+          countRes = await pool.query(
+            'SELECT COUNT(*) FROM stock_item WHERE cliente_id = $1 AND activo = true',
+            [user.cliente_id]
+          );
+          break;
+        }
+
         default:
           return res.status(500).json({ error: 'Restriccion no implementada: ' + limitKey });
       }
 
       const currentCount = Number(countRes.rows[0].count);
       if (currentCount >= limitValue) {
-        const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes' };
+        const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes', maxStockItems: 'ítems de stock' };
         const label = LABELS[limitKey] || 'recursos';
         return res.status(403).json({
           error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + label + '. Ya alcanzaste el límite.',

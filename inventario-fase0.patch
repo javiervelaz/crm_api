@@ -1,0 +1,450 @@
+From 1d53f34c944e686f6cd7a30de97ff71af582aeba Mon Sep 17 00:00:00 2001
+From: Javier Velaz <javiervelaz1980@gmail.com>
+Date: Mon, 2 Nov 2026 14:22:24 +0000
+Subject: [PATCH] =?UTF-8?q?feat(inventario):=20fase=200=20=E2=80=94=20tabl?=
+ =?UTF-8?q?as=20de=20stock,=20m=C3=B3dulo,=20permisos=20y=20features=20por?=
+ =?UTF-8?q?=20tier?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- 025_inventario.sql: drop de las tablas legacy (aborta si tienen filas),
+  stock_item + stock_movimiento (ledger append-only, FK compuesta por
+  tenant, ON DELETE SET NULL a pedido/salida_caja) + vista stock_saldo.
+  Módulo inventario en gastronomía con backfill de módulo, rol admin y
+  permisos. Features en rubro_tier sin pisar valores cargados.
+- requireLimit: case maxStockItems (ítems activos del tenant).
+- planService: defaults canUseInventario / canUseRecetas / maxStockItems.
+- purgeClientes: stock_* en lugar de las tablas legacy.
+- 002_rls: lista de tablas actualizada.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01YVLkpZaqkrFVNtERrBzSxS
+---
+ middleware/limitMiddleware.js   |  10 +-
+ migrations/002_rls.sql          |   2 +-
+ migrations/025_inventario.sql   | 172 ++++++++++++++++++++++++++++++++
+ package.json                    |   2 +-
+ scripts/purgeClientes.js        |   9 +-
+ services/cliente/planService.js |   9 ++
+ tests/inventarioFase0.test.js   | 110 ++++++++++++++++++++
+ 7 files changed, 306 insertions(+), 8 deletions(-)
+ create mode 100644 migrations/025_inventario.sql
+ create mode 100644 tests/inventarioFase0.test.js
+
+diff --git a/middleware/limitMiddleware.js b/middleware/limitMiddleware.js
+index 259e694..f6ebaba 100644
+--- a/middleware/limitMiddleware.js
++++ b/middleware/limitMiddleware.js
+@@ -38,13 +38,21 @@ const requireLimit = (limitKey) => {
+           break;
+         }
+ 
++        case 'maxStockItems': {
++          countRes = await pool.query(
++            'SELECT COUNT(*) FROM stock_item WHERE cliente_id = $1 AND activo = true',
++            [user.cliente_id]
++          );
++          break;
++        }
++
+         default:
+           return res.status(500).json({ error: 'Restriccion no implementada: ' + limitKey });
+       }
+ 
+       const currentCount = Number(countRes.rows[0].count);
+       if (currentCount >= limitValue) {
+-        const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes' };
++        const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes', maxStockItems: 'ítems de stock' };
+         const label = LABELS[limitKey] || 'recursos';
+         return res.status(403).json({
+           error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + label + '. Ya alcanzaste el límite.',
+diff --git a/migrations/002_rls.sql b/migrations/002_rls.sql
+index 510787b..3a4eace 100644
+--- a/migrations/002_rls.sql
++++ b/migrations/002_rls.sql
+@@ -14,7 +14,7 @@ BEGIN
+     'cliente','usuario','producto','tipo_producto','pedido','salida_caja',
+     'registro_diario','categoria_salida','rol','permiso','rol_permiso',
+     'modulo_rol','user_rol','profile','empleado','sucursal',
+-    'compra_insumo','inventario_insumo','movimiento_inventario'
++    'stock_item','stock_movimiento'
+   ]
+   LOOP
+     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+diff --git a/migrations/025_inventario.sql b/migrations/025_inventario.sql
+new file mode 100644
+index 0000000..c6a0a03
+--- /dev/null
++++ b/migrations/025_inventario.sql
+@@ -0,0 +1,172 @@
++-- migrations/025_inventario.sql
++--
++-- Inventario — Fase 0 (plan: PLAN_INVENTARIO_v2_2026-10-28).
++--
++-- · Drop de las tablas legacy (inventario_insumos, compra_insumo,
++--   movimiento_inventario): vacías en prod (verificado 02/11/2026) y sin
++--   código que las use desde d534d9e. Si alguna tiene filas, la migración
++--   aborta y no toca nada.
++-- · stock_item + stock_movimiento (ledger append-only) + vista stock_saldo.
++--   El stock NO se cachea: es SUM(cantidad) del ledger.
++--   Unidades canónicas u/kg/l (la UI convierte g y ml).
++--   (stock_item_id, cliente_id) es FK compuesta: un movimiento no puede
++--   apuntar a un ítem de otro comercio aunque el código se equivoque.
++-- · Módulo `inventario` en el catálogo y en la plantilla de gastronomía.
++--   Backfill de los comercios existentes: módulo, acceso del rol admin y
++--   permisos inventario.list/create/update/delete (patrón de 015).
++-- · Features en rubro_tier (gastronomía): FREE sin inventario, BASIC hasta
++--   50 ítems sin recetas, PREMIUM/CUSTOM sin límite con recetas. Sólo se
++--   setean si la clave no existe: no pisa ajustes manuales.
++--
++-- Recetas (Fase 2) van en su propia migración.
++--
++-- Idempotente.
++
++BEGIN;
++
++-- ─── Legacy ───────────────────────────────────────────────────────────────
++DO $$
++DECLARE t text; n bigint;
++BEGIN
++  FOREACH t IN ARRAY ARRAY['movimiento_inventario','compra_insumo','inventario_insumos'] LOOP
++    IF to_regclass(t) IS NOT NULL THEN
++      EXECUTE format('SELECT count(*) FROM %I', t) INTO n;
++      IF n > 0 THEN
++        RAISE EXCEPTION 'Tabla legacy % tiene % filas: revisar antes de dropear', t, n;
++      END IF;
++    END IF;
++  END LOOP;
++END $$;
++
++DROP TABLE IF EXISTS movimiento_inventario;
++DROP TABLE IF EXISTS compra_insumo;
++DROP TABLE IF EXISTS inventario_insumos;
++
++-- ─── Tablas ───────────────────────────────────────────────────────────────
++CREATE TABLE IF NOT EXISTS stock_item (
++  id             SERIAL PRIMARY KEY,
++  cliente_id     INT           NOT NULL REFERENCES cliente (id),     -- sin DEFAULT
++  sucursal_id    INT           NOT NULL REFERENCES sucursal (id),
++  nombre         VARCHAR(120)  NOT NULL CHECK (length(btrim(nombre)) > 0),
++  tipo           VARCHAR(10)   NOT NULL CHECK (tipo IN ('insumo','producto')),
++  unidad         VARCHAR(2)    NOT NULL CHECK (unidad IN ('u','kg','l')),
++  stock_minimo   NUMERIC(14,3) CHECK (stock_minimo IS NULL OR stock_minimo >= 0),
++  costo_unitario NUMERIC(14,4) CHECK (costo_unitario IS NULL OR costo_unitario >= 0),
++  activo         BOOLEAN       NOT NULL DEFAULT true,
++  created_at     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  updated_at     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT stock_item_id_cliente_uq UNIQUE (id, cliente_id)
++);
++CREATE UNIQUE INDEX IF NOT EXISTS stock_item_nombre_uq
++  ON stock_item (cliente_id, sucursal_id, lower(nombre));
++
++-- Append-only: nunca UPDATE ni DELETE (salvo la purga de tenants).
++CREATE TABLE IF NOT EXISTS stock_movimiento (
++  id             BIGSERIAL     PRIMARY KEY,
++  cliente_id     INT           NOT NULL REFERENCES cliente (id),
++  stock_item_id  INT           NOT NULL,
++  tipo           VARCHAR(14)   NOT NULL
++                 CHECK (tipo IN ('compra','ajuste','merma','venta','reversa_venta')),
++  cantidad       NUMERIC(14,3) NOT NULL CHECK (cantidad <> 0),           -- con signo
++  costo_total    NUMERIC(14,2) CHECK (costo_total IS NULL OR costo_total >= 0),
++  -- Los pedidos y gastos se borran físicamente: el movimiento sobrevive.
++  pedido_id      INT           REFERENCES pedido (id)      ON DELETE SET NULL,
++  salida_caja_id INT           REFERENCES salida_caja (id) ON DELETE SET NULL,
++  usuario_id     INT           NOT NULL REFERENCES "user" (id),          -- del JWT
++  nota           VARCHAR(200),
++  created_at     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT stock_mov_item_fk FOREIGN KEY (stock_item_id, cliente_id)
++    REFERENCES stock_item (id, cliente_id),
++  CONSTRAINT stock_mov_signo_ck CHECK (
++       (tipo IN ('compra','reversa_venta') AND cantidad > 0)
++    OR (tipo IN ('merma','venta')          AND cantidad < 0)
++    OR  tipo = 'ajuste'
++  )
++);
++CREATE INDEX IF NOT EXISTS stock_mov_item_idx
++  ON stock_movimiento (cliente_id, stock_item_id);
++CREATE INDEX IF NOT EXISTS stock_mov_pedido_idx
++  ON stock_movimiento (pedido_id) WHERE pedido_id IS NOT NULL;
++
++-- Stock por ítem. Las consultas igual filtran por cliente_id.
++CREATE OR REPLACE VIEW stock_saldo AS
++SELECT i.*, COALESCE(SUM(m.cantidad), 0)::NUMERIC(14,3) AS stock
++  FROM stock_item i
++  LEFT JOIN stock_movimiento m
++         ON m.stock_item_id = i.id AND m.cliente_id = i.cliente_id
++ GROUP BY i.id;
++
++-- ─── Módulo ───────────────────────────────────────────────────────────────
++INSERT INTO modulo_maestro (codigo, descripcion, status)
++SELECT 'inventario', 'Inventario y stock', true
++ WHERE NOT EXISTS (SELECT 1 FROM modulo_maestro WHERE codigo = 'inventario');
++
++INSERT INTO rubro_modulo_maestro (rubro_codigo, modulo_maestro_id, config_default)
++SELECT 'gastronomia', mm.id, '{}'::jsonb
++  FROM modulo_maestro mm
++ WHERE mm.codigo = 'inventario'
++ON CONFLICT DO NOTHING;
++
++-- ─── Backfill de comercios existentes ─────────────────────────────────────
++INSERT INTO modulo (codigo, descripcion, status, cliente_id, config)
++SELECT mm.codigo, mm.descripcion, true, c.id, rmm.config_default
++  FROM cliente c
++  JOIN rubro_modulo_maestro rmm ON rmm.rubro_codigo = c.rubro_codigo
++  JOIN modulo_maestro mm        ON mm.id = rmm.modulo_maestro_id AND mm.codigo = 'inventario'
++ WHERE NOT EXISTS (
++         SELECT 1 FROM modulo m
++          WHERE m.cliente_id = c.id AND m.codigo = 'inventario' AND m.deleted_at IS NULL
++       );
++
++INSERT INTO modulo_rol (id_rol, id_modulo, cliente_id)
++SELECT r.id, m.id, m.cliente_id
++  FROM modulo m
++  JOIN rol r ON r.cliente_id = m.cliente_id
++  LEFT JOIN user_type ut ON ut.id = r.user_type_id
++ WHERE m.codigo = 'inventario' AND m.deleted_at IS NULL
++   AND (ut.codigo = 'ADMIN' OR (r.user_type_id IS NULL AND lower(r.descripcion) = 'admin'))
++   AND NOT EXISTS (
++         SELECT 1 FROM modulo_rol mr WHERE mr.id_rol = r.id AND mr.id_modulo = m.id
++       );
++
++INSERT INTO permiso (descripcion, codigo, modulo_id, cliente_id, es_global)
++SELECT pa.descripcion || ' - ' || m.descripcion, m.codigo || '.' || pa.codigo, m.id, m.cliente_id, false
++  FROM modulo m
++ CROSS JOIN permiso_accion pa
++ WHERE m.codigo = 'inventario' AND m.deleted_at IS NULL
++   AND NOT EXISTS (
++         SELECT 1 FROM permiso p
++          WHERE p.cliente_id = m.cliente_id AND p.codigo = m.codigo || '.' || pa.codigo
++       );
++
++INSERT INTO rol_permiso (rol_id, permiso_id, cliente_id)
++SELECT mr.id_rol, p.id, p.cliente_id
++  FROM permiso p
++  JOIN modulo m      ON m.id = p.modulo_id AND m.codigo = 'inventario'
++  JOIN modulo_rol mr ON mr.id_modulo = m.id
++ WHERE NOT EXISTS (
++         SELECT 1 FROM rol_permiso rp WHERE rp.rol_id = mr.id_rol AND rp.permiso_id = p.id
++       );
++
++-- ─── Features por tier (gastronomía) ──────────────────────────────────────
++UPDATE rubro_tier rt
++   SET features = rt.features || f.features, updated_at = NOW()
++  FROM tier t
++  JOIN (VALUES
++    ('FREE',    '{"canUseInventario": false, "canUseRecetas": false, "maxStockItems": null}'::jsonb),
++    ('BASIC',   '{"canUseInventario": true,  "canUseRecetas": false, "maxStockItems": 50}'::jsonb),
++    ('PREMIUM', '{"canUseInventario": true,  "canUseRecetas": true,  "maxStockItems": null}'::jsonb),
++    ('CUSTOM',  '{"canUseInventario": true,  "canUseRecetas": true,  "maxStockItems": null}'::jsonb)
++  ) AS f(code, features) ON f.code = UPPER(t.code)
++ WHERE rt.tier_id = t.id
++   AND rt.rubro_codigo = 'gastronomia'
++   AND NOT rt.features ? 'canUseInventario';
++
++-- Resto de los rubros: explícitamente sin inventario.
++UPDATE rubro_tier
++   SET features = features || '{"canUseInventario": false, "canUseRecetas": false, "maxStockItems": null}'::jsonb,
++       updated_at = NOW()
++ WHERE rubro_codigo <> 'gastronomia'
++   AND NOT features ? 'canUseInventario';
++
++COMMIT;
+diff --git a/package.json b/package.json
+index e59bf12..1a1b27c 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "prestart": "npx eslint . --no-ignore && node scripts/buildEmailTemplates.js",
+     "pre-copy": "cd .. && npm run  copy.lib base-baileys-memory",
+     "start": "node node.js",
+-    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js tests/tipoDerivado.test.js tests/legajo.test.js tests/eduCatalogo.test.js tests/eduCuotas.test.js tests/usuariosSoloStaff.test.js tests/whatsapp.w0.test.js tests/canales.test.js tests/canalUsuario.test.js tests/tiersPorRubro.test.js tests/fechaTenant.test.js tests/harnessTurnLog.test.js tests/harnessCore.test.js tests/reportesAuthz.test.js tests/harnessIntents.test.js tests/harnessSeguimiento.test.js tests/cierreCaja.test.js tests/salidaCajaMedioPago.test.js --exit --timeout 10000 --require tests/setup.js",
++    "test": "cross-env NODE_ENV=test JWT_SECRET=test-secret-for-tests MP_MOCK=false MP_WEBHOOK_SECRET=test-webhook-secret HANDOFF_JWT_SECRET=test-handoff-secret CRON_SECRET=test-cron-secret-for-tests-only PLATFORM_ADMIN_TOKEN=test-platform-admin-token-for-tests-only mocha tests/billing.test.js tests/signup.test.js tests/verificacion.test.js tests/cliente.test.js tests/rol.test.js tests/operaciones.test.js tests/security.fase1.test.js tests/validaciones.tanda3.test.js tests/rubros.test.js tests/gastosSinCaja.test.js tests/rolesEdu.test.js tests/tipoDerivado.test.js tests/legajo.test.js tests/eduCatalogo.test.js tests/eduCuotas.test.js tests/usuariosSoloStaff.test.js tests/whatsapp.w0.test.js tests/canales.test.js tests/canalUsuario.test.js tests/tiersPorRubro.test.js tests/fechaTenant.test.js tests/harnessTurnLog.test.js tests/harnessCore.test.js tests/reportesAuthz.test.js tests/harnessIntents.test.js tests/harnessSeguimiento.test.js tests/cierreCaja.test.js tests/salidaCajaMedioPago.test.js tests/inventarioFase0.test.js --exit --timeout 10000 --require tests/setup.js",
+     "email:build": "node scripts/buildEmailTemplates.js",
+     "email:preview": "node scripts/previewEmail.js",
+     "email:worker": "node scripts/emailWorker.js",
+diff --git a/scripts/purgeClientes.js b/scripts/purgeClientes.js
+index d9f990b..9d0c9a5 100644
+--- a/scripts/purgeClientes.js
++++ b/scripts/purgeClientes.js
+@@ -35,7 +35,7 @@ const WHERE_CANDIDATOS = `
+   AND NOT EXISTS (SELECT 1 FROM pedido               t WHERE t.cliente_id = c.id)
+   AND NOT EXISTS (SELECT 1 FROM registro_diario      t WHERE t.cliente_id = c.id)
+   AND NOT EXISTS (SELECT 1 FROM salida_caja          t WHERE t.cliente_id = c.id)
+-  AND NOT EXISTS (SELECT 1 FROM compra_insumo        t WHERE t.cliente_id = c.id)
++  AND NOT EXISTS (SELECT 1 FROM stock_item           t WHERE t.cliente_id = c.id)
+   AND NOT EXISTS (SELECT 1 FROM producto             t WHERE t.cliente_id = c.id)
+   AND NOT EXISTS (SELECT 1 FROM whatsapp_bot_cliente t WHERE t.cliente_id = c.id)
+   AND NOT EXISTS (
+@@ -47,15 +47,14 @@ const WHERE_CANDIDATOS = `
+ const BORRADOS = [
+   ['pedido_producto',       `pedido_id IN (SELECT id FROM pedido WHERE cliente_id = ANY($1))`],
+   ['conteo_caja',           `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
+-  ['movimiento_inventario', `inventario_insumos_id IN (SELECT id FROM inventario_insumos WHERE cliente_id = ANY($1))`],
+-  ['movimiento_inventario', `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
++  // stock_movimiento referencia pedido, salida_caja, "user" y stock_item: va antes que todos
++  ['stock_movimiento',      `cliente_id = ANY($1)`],
+   ['producto_img',          `producto_id IN (SELECT id FROM producto WHERE cliente_id = ANY($1))`],
+   ['whatsapp_message',      `conversation_id IN (SELECT id FROM whatsapp_conversation WHERE cliente_id = ANY($1))`],
+-  ['compra_insumo',            `cliente_id = ANY($1)`],
+   ['salida_caja',              `cliente_id = ANY($1)`],
+   ['pedido',                   `cliente_id = ANY($1)`],
+   ['registro_diario',          `cliente_id = ANY($1)`],
+-  ['inventario_insumos',       `cliente_id = ANY($1)`],
++  ['stock_item',               `cliente_id = ANY($1)`],
+   ['producto',                 `cliente_id = ANY($1)`],
+   ['tipo_producto',            `cliente_id = ANY($1)`],
+   ['categoria_salida',         `cliente_id = ANY($1)`],
+diff --git a/services/cliente/planService.js b/services/cliente/planService.js
+index 353ed37..db42f36 100644
+--- a/services/cliente/planService.js
++++ b/services/cliente/planService.js
+@@ -10,6 +10,9 @@ const PLAN_FEATURES = {
+     canUsePedidosOnline: true,    // link público del micrositio
+     maxPedidosMensuales: 50,
+     maxProductos: 5,
++    canUseInventario: false,
++    canUseRecetas: false,
++    maxStockItems: null,
+     diasDeTrial: 14,
+   },
+   BASIC: {
+@@ -19,6 +22,9 @@ const PLAN_FEATURES = {
+     canUsePedidosOnline: true,
+     maxPedidosMensuales: null,
+     maxProductos: null,
++    canUseInventario: true,
++    canUseRecetas: false,
++    maxStockItems: 50,
+   },
+   PREMIUM: {
+     canUseReports: true,
+@@ -27,6 +33,9 @@ const PLAN_FEATURES = {
+     canUsePedidosOnline: true,
+     maxPedidosMensuales: null,
+     maxProductos: null,
++    canUseInventario: true,
++    canUseRecetas: true,
++    maxStockItems: null,
+   },
+ };
+ // CUSTOM = PREMIUM pagado anual con descuento: mismas prestaciones.
+diff --git a/tests/inventarioFase0.test.js b/tests/inventarioFase0.test.js
+new file mode 100644
+index 0000000..ad19e17
+--- /dev/null
++++ b/tests/inventarioFase0.test.js
+@@ -0,0 +1,110 @@
++/**
++ * inventarioFase0.test.js — cimientos del módulo inventario (migración 025)
++ */
++const fs = require('fs');
++const path = require('path');
++const sinon = require('sinon');
++
++const pool = require('../pool');
++const planService = require('../services/cliente/planService');
++const { requireLimit } = require('../middleware/limitMiddleware');
++
++let expect;
++before(async () => { ({ expect } = await import('chai')); });
++afterEach(() => sinon.restore());
++
++const correr = async (mw, req) => {
++  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
++  let siguio = false;
++  await mw(req, res, () => { siguio = true; });
++  return { res, siguio };
++};
++
++describe('Inventario — features por tier (defaults)', () => {
++  it('FREE sin inventario; BASIC con tope de 50 y sin recetas; PREMIUM/CUSTOM sin tope y con recetas', () => {
++    const F = planService.PLAN_FEATURES;
++    expect(F.FREE).to.include({ canUseInventario: false, canUseRecetas: false });
++    expect(F.BASIC).to.include({ canUseInventario: true, canUseRecetas: false, maxStockItems: 50 });
++    expect(F.PREMIUM).to.include({ canUseInventario: true, canUseRecetas: true, maxStockItems: null });
++    expect(F.CUSTOM).to.include({ canUseInventario: true, canUseRecetas: true, maxStockItems: null });
++  });
++});
++
++describe('Inventario — requireLimit(maxStockItems)', () => {
++  const req = { user: { cliente_id: 7 } };
++
++  it('cuenta sólo ítems activos del tenant y bloquea al llegar al tope', async () => {
++    sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ features: { maxStockItems: 50 }, tierCode: 'BASIC' });
++    const q = sinon.stub(pool, 'query').resolves({ rows: [{ count: '50' }] });
++    const { res, siguio } = await correr(requireLimit('maxStockItems'), req);
++    expect(siguio).to.equal(false);
++    expect(res.statusCode).to.equal(403);
++    expect(res.body.error).to.match(/50 ítems de stock/);
++    const sql = q.firstCall.args[0].replace(/\s+/g, ' ').toUpperCase();
++    expect(sql).to.include('FROM STOCK_ITEM WHERE CLIENTE_ID = $1 AND ACTIVO = TRUE');
++    expect(q.firstCall.args[1]).to.deep.equal([7]);
++  });
++
++  it('deja pasar por debajo del tope', async () => {
++    sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ features: { maxStockItems: 50 }, tierCode: 'BASIC' });
++    sinon.stub(pool, 'query').resolves({ rows: [{ count: '49' }] });
++    const { siguio } = await correr(requireLimit('maxStockItems'), req);
++    expect(siguio).to.equal(true);
++  });
++
++  it('sin tope (null) no consulta la base', async () => {
++    sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ features: { maxStockItems: null }, tierCode: 'PREMIUM' });
++    const q = sinon.stub(pool, 'query');
++    const { siguio } = await correr(requireLimit('maxStockItems'), req);
++    expect(siguio).to.equal(true);
++    expect(q.called).to.equal(false);
++  });
++});
++
++describe('Inventario — migración 025 (chequeos estáticos)', () => {
++  const sql = fs.readFileSync(path.join(__dirname, '../migrations/025_inventario.sql'), 'utf8');
++  const tabla = (n) => sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${n} \\(([\\s\\S]*?)\\n\\);`))[1];
++
++  it('aborta si las tablas legacy tienen filas antes de dropearlas', () => {
++    expect(sql.indexOf('RAISE EXCEPTION')).to.be.lessThan(sql.indexOf('DROP TABLE IF EXISTS'));
++  });
++
++  it('cliente_id NOT NULL y sin DEFAULT en las tablas nuevas', () => {
++    for (const t of ['stock_item', 'stock_movimiento']) {
++      const linea = tabla(t).split('\n').find((l) => /^\s*cliente_id\s/.test(l));
++      expect(linea, t).to.match(/NOT NULL/);
++      expect(linea.replace(/--.*$/, ''), t).to.not.match(/DEFAULT/);
++    }
++  });
++
++  it('el movimiento referencia al ítem por (id, cliente_id)', () => {
++    expect(tabla('stock_movimiento')).to.match(/FOREIGN KEY \(stock_item_id, cliente_id\)\s+REFERENCES stock_item \(id, cliente_id\)/);
++  });
++
++  it('pedido y gasto borrados no rompen el ledger (ON DELETE SET NULL)', () => {
++    const t = tabla('stock_movimiento');
++    expect(t).to.match(/pedido_id\s+INT\s+REFERENCES pedido \(id\)\s+ON DELETE SET NULL/);
++    expect(t).to.match(/salida_caja_id\s+INT\s+REFERENCES salida_caja \(id\) ON DELETE SET NULL/);
++  });
++
++  it('las features no pisan valores ya cargados en rubro_tier', () => {
++    const updates = sql.match(/UPDATE rubro_tier[\s\S]*?;/g);
++    expect(updates).to.have.length(2);
++    for (const u of updates) expect(u).to.include("NOT");
++  });
++});
++
++describe('Inventario — purga de tenants', () => {
++  const src = fs.readFileSync(path.join(__dirname, '../scripts/purgeClientes.js'), 'utf8');
++
++  it('no referencia tablas legacy', () => {
++    expect(src).to.not.match(/compra_insumo|inventario_insumos|movimiento_inventario/);
++  });
++
++  it('borra stock_movimiento antes que pedido, salida_caja, user y stock_item', () => {
++    const pos = (t) => src.indexOf(`['${t}'`);
++    const mov = pos('stock_movimiento');
++    expect(mov).to.be.greaterThan(-1);
++    for (const t of ['pedido', 'salida_caja', '"user"', 'stock_item']) expect(mov, t).to.be.lessThan(pos(t));
++  });
++});
+-- 
+2.43.0
+
