@@ -37,6 +37,16 @@ describe('Inventario — model: toda query filtra por cliente_id', () => {
     listMovimientos: () => db.listMovimientos(CLIENTE),
     listAlertas: () => db.listAlertas(CLIENTE),
     getCajaAbiertaId: () => db.getCajaAbiertaId(CLIENTE),
+    // Fase 2
+    getProducto: () => db.getProducto(CLIENTE, 9),
+    listProductosConReceta: () => db.listProductosConReceta(CLIENTE),
+    getReceta: () => db.getReceta(CLIENTE, 9),
+    getItemsPorIds: () => db.getItemsPorIds(CLIENTE, [3]),
+    replaceReceta: () => db.replaceReceta(CLIENTE, 9, [{ stock_item_id: 3, cantidad_por_unidad: 0.2 }]),
+    getRecetasPorProductos: () => db.getRecetasPorProductos(CLIENTE, [9]),
+    getNetoVentaPorPedido: () => db.getNetoVentaPorPedido(CLIENTE, 50),
+    getStocks: () => db.getStocks(CLIENTE, [3]),
+    tenantUsaInventario: () => db.tenantUsaInventario(CLIENTE),
   };
   // Catálogo global, sin tenant
   const GLOBALES = ['getCategoriaTipoId'];

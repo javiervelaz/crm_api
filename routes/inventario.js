@@ -23,6 +23,11 @@ router.delete('/items/:id', puede('delete'), ctrl.desactivarItem);   // baja ló
 router.get('/movimientos',  puede('list'),   ctrl.listarMovimientos); // ?stock_item_id=&limit=&offset=
 router.post('/movimientos', puede('create'), ctrl.registrarMovimiento);
 
+// Recetas: :id es el id del PRODUCTO (validado por registerTenantGuards)
+router.get('/recetas',      puede('list'),   ctrl.listarRecetas);
+router.get('/recetas/:id',  puede('list'),   ctrl.obtenerReceta);
+router.put('/recetas/:id',  puede('update'), ctrl.guardarReceta);    // { lineas: [{ stock_item_id, cantidad, unidad? }] }
+
 router.get('/alertas',      puede('list'),   ctrl.listarAlertas);     // bajo mínimo = lista de compras
 
 module.exports = router;
