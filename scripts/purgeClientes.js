@@ -35,7 +35,7 @@ const WHERE_CANDIDATOS = `
   AND NOT EXISTS (SELECT 1 FROM pedido               t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM registro_diario      t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM salida_caja          t WHERE t.cliente_id = c.id)
-  AND NOT EXISTS (SELECT 1 FROM compra_insumo        t WHERE t.cliente_id = c.id)
+  AND NOT EXISTS (SELECT 1 FROM stock_item           t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM producto             t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM whatsapp_bot_cliente t WHERE t.cliente_id = c.id)
   AND NOT EXISTS (
@@ -47,15 +47,14 @@ const WHERE_CANDIDATOS = `
 const BORRADOS = [
   ['pedido_producto',       `pedido_id IN (SELECT id FROM pedido WHERE cliente_id = ANY($1))`],
   ['conteo_caja',           `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
-  ['movimiento_inventario', `inventario_insumos_id IN (SELECT id FROM inventario_insumos WHERE cliente_id = ANY($1))`],
-  ['movimiento_inventario', `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
+  // stock_movimiento referencia pedido, salida_caja, "user" y stock_item: va antes que todos
+  ['stock_movimiento',      `cliente_id = ANY($1)`],
   ['producto_img',          `producto_id IN (SELECT id FROM producto WHERE cliente_id = ANY($1))`],
   ['whatsapp_message',      `conversation_id IN (SELECT id FROM whatsapp_conversation WHERE cliente_id = ANY($1))`],
-  ['compra_insumo',            `cliente_id = ANY($1)`],
   ['salida_caja',              `cliente_id = ANY($1)`],
   ['pedido',                   `cliente_id = ANY($1)`],
   ['registro_diario',          `cliente_id = ANY($1)`],
-  ['inventario_insumos',       `cliente_id = ANY($1)`],
+  ['stock_item',               `cliente_id = ANY($1)`],
   ['producto',                 `cliente_id = ANY($1)`],
   ['tipo_producto',            `cliente_id = ANY($1)`],
   ['categoria_salida',         `cliente_id = ANY($1)`],
