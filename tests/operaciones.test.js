@@ -22,9 +22,10 @@ describe('Operaciones Diarias API', () => {
         username: 'test',
         sucursal: 1,
         role: ['admin'],
-        modules: ['operaciones'],
+        modules: ['operaciones', 'gasto'],
         permissions: {
           operaciones: ['operaciones.list', 'operaciones.delete', 'operaciones.create'],
+          gasto: ['gasto.create'],
         },
       },
       process.env.JWT_SECRET,

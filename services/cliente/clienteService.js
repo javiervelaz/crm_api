@@ -256,6 +256,11 @@ const createClienteService = async (data) => {
       );
     }
 
+    // Roles que no son admin (empleado): permisos por defecto del rubro
+    // (rubro_rol_plantilla, migración 028). Antes nacían vacíos y el empleado
+    // entraba a "No tenés acceso".
+    await client.query('SELECT aplicar_plantilla_roles($1)', [cliente.id]);
+
     // Token de verificación de email
     const verificationToken = crypto.randomBytes(32).toString('hex');
     await client.query(

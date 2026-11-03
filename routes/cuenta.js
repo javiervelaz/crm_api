@@ -15,6 +15,9 @@ registerTenantGuards(router);
 // Cualquier usuario autenticado: su propia contraseña.
 router.post('/password', ctrl.cambiarPassword);
 
+// Cualquier usuario autenticado: token nuevo con sus permisos actuales.
+router.post('/sesion', ctrl.refrescarSesion);
+
 // Gestión de credenciales: sólo staff admin con el módulo usuarios.
 // esExterno se chequea aparte porque authorizeRole mira nombres de rol, que
 // el admin puede editar (un rol "admin" asignado a un alumno no alcanza).

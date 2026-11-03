@@ -25,4 +25,15 @@ function issueToken(user) {
   return jwt.sign(buildTokenPayload(user), process.env.JWT_SECRET, { expiresIn: TTL });
 }
 
-module.exports = { issueToken, buildTokenPayload, TTL };
+/**
+ * Token con los datos actuales del usuario pero el MISMO vencimiento que el
+ * anterior (refresco de permisos). Refrescar no alarga la sesión: sigue
+ * venciendo a las TTL del login, como siempre.
+ */
+function reissueToken(user, exp) {
+  const ahora = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(exp) || exp <= ahora) throw new Error('reissueToken: vencimiento inválido');
+  return jwt.sign({ ...buildTokenPayload(user), exp }, process.env.JWT_SECRET);
+}
+
+module.exports = { issueToken, reissueToken, buildTokenPayload, TTL };
