@@ -21,8 +21,8 @@ router.get('/legajo/proximo', getProximoLegajo);
 router.post('/', createProfile);
 router.get('/list/:cliente_id', getProfiles);
 router.get('/:id/:cliente_id', getProfileById);
-router.put('/:id', updateProfile);
-router.delete('/:id/:cliente_id',authenticateJWT ,deleteProfile);
+router.put('/:id', updateProfile);   // propio, o ajeno con usuarios.update (profileService)
+router.delete('/:id/:cliente_id', authenticateJWT, authorizeModule('usuarios'), authorizePermission('usuarios', 'usuarios.delete'), deleteProfile);
 router.get('/user/:id/:cliente_id', getProfileByUserId);
 
 module.exports = router;

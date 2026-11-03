@@ -62,7 +62,9 @@ const createPedido  = async (pedidos) => {
     return result.rows;
   }
 
-  const getDetallePedido = async (pedidoId) => {
+  // Filtra por comercio: antes devolvía las líneas de cualquier pedido de
+  // cualquier comercio con sólo conocer el id.
+  const getDetallePedido = async (pedidoId, cliente_id) => {
   const result = await pool.query(
     `
     SELECT
@@ -85,12 +87,14 @@ const createPedido  = async (pedidos) => {
         LIMIT 1
       ) AS producto_image_public_id
     FROM pedido_producto pp
+    INNER JOIN pedido pe
+      ON pe.id = pp.pedido_id AND pe.cliente_id = $2
     INNER JOIN producto p
       ON pp.producto_id = p.id
     WHERE pp.pedido_id = $1
     ORDER BY pp.id
     `,
-    [pedidoId],
+    [pedidoId, cliente_id],
   );
 
   return result.rows;

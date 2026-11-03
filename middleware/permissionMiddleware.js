@@ -44,6 +44,7 @@ const authorizePermission = (moduleCode, permissionCodes, mode = 'OR') => {
           error: `Acción no permitida. Se requiere ${modeText}: [${requiredPermissions.join(
             ', '
           )}] en el módulo '${moduleCode}'.`,
+          code: 'SIN_PERMISO',
         });
       }
   

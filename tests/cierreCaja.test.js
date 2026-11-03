@@ -13,7 +13,7 @@ describe('Cierre de caja: diferencia y totales los calcula el servidor', () => {
   before(async () => {
     ({ expect } = await import('chai'));
     token = jwt.sign(
-      { userId: 7, cliente_id: 1, username: 'caja', sucursal: 1, role: ['admin'], modules: ['operaciones'], permissions: {} },
+      { userId: 7, cliente_id: 1, username: 'caja', sucursal: 1, role: ['admin'], modules: ['operaciones', 'cerrarcaja'], permissions: {} },
       process.env.JWT_SECRET,
       { expiresIn: '1h' },
     );

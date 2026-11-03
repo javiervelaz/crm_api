@@ -30,8 +30,8 @@ const createPedidoService = async (pedido) => {
     return result.rows[0];
   }
 
-  const getDetallePedido = async (id) => {
-    const result = await db.getDetallePedido(id);
+  const getDetallePedido = async (id, cliente_id) => {
+    const result = await db.getDetallePedido(id, cliente_id);
     return result;
   };
 

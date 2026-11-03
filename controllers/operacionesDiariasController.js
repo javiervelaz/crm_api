@@ -7,7 +7,13 @@ const crearPedido = async (req, res) => {
     
     try {
 
-        const pedido = await operacionesDiariasService.crearPedido( req.body);
+        // Quién cargó el pedido sale del token, no del body: antes se podía
+        // firmar un pedido a nombre de otro usuario del comercio.
+        const pedido = await operacionesDiariasService.crearPedido({
+            ...req.body,
+            usuario_id: req.user?.userId ?? req.body?.usuario_id,
+            cliente_id: req.clienteId ?? req.body?.cliente_id,
+        });
         res.status(201).json({status:'OK',idPedido:pedido});
     } catch (error) {
         res.status(500).json({ message: error.message });

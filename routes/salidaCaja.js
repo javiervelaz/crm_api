@@ -13,15 +13,21 @@ const {
   getMontoGastos,
   getMontoGastosEfectivo
 } = require('../controllers/salidaCajaController');
+const { requierePermiso } = require('../middleware/acceso');
 
-router.get('/config', getGastosConfig);       // { requiereCaja }
-router.get('/periodo', getGastosPorPeriodo);  // ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
-router.get('/efectivo/:id', getMontoGastosEfectivo); // gastos en efectivo de una caja
-router.post('/', createSalidaCaja);
-router.get('/list/:id/:cliente_id', getSalidaCajaList);
-router.get('/:id/:cliente_id', getSalidaCajaById);
-router.put('/:id', updateSalidaCaja);
-router.delete('/:id/:cliente_id', deleteSalidaCaja);
-router.post('/monto-gastos/:id', getMontoGastos);
+// Gastos. Antes ninguna ruta pedía módulo ni permiso: cualquier usuario del
+// staff cargaba, editaba o borraba gastos. Los montos del día los usa también
+// Cierre de caja.
+const VER = requierePermiso('gasto.list', 'flujo.list', 'cerrarcaja.list');
+
+router.get('/config', getGastosConfig);       // { requiereCaja } — también la usa Inventario: sólo staff
+router.get('/periodo', requierePermiso('gasto.list', 'flujo.list'), getGastosPorPeriodo);  // ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+router.get('/efectivo/:id', VER, getMontoGastosEfectivo); // gastos en efectivo de una caja
+router.post('/', requierePermiso('gasto.create', 'flujo.create'), createSalidaCaja);
+router.get('/list/:id/:cliente_id', VER, getSalidaCajaList);
+router.get('/:id/:cliente_id', VER, getSalidaCajaById);
+router.put('/:id', requierePermiso('gasto.update', 'flujo.update'), updateSalidaCaja);
+router.delete('/:id/:cliente_id', requierePermiso('gasto.delete', 'flujo.delete'), deleteSalidaCaja);
+router.post('/monto-gastos/:id', VER, getMontoGastos);
 
 module.exports = router;

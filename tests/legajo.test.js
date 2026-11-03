@@ -62,6 +62,7 @@ describe('Legajo autonumérico', () => {
   });
 
   it('PUT /api/profile/:id no modifica el legajo y usa el tenant del JWT', async () => {
+    sinon.stub(profileDb, 'getProfileById').resolves({ id: 5, id_user: 99, cliente_id: 40 });
     const upd = sinon.stub(profileDb, 'updateProfile').callsFake(async (id, p) => ({ id, ...p }));
     const res = await request(app).put('/api/profile/5').set(auth()).send({ telefono: '351', legajo: '999' });
     expect(res.status).to.equal(200);

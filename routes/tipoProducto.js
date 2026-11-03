@@ -17,7 +17,7 @@ const {
 router.post('/',authenticateJWT,authorizeModule('productos'),authorizePermission('productos', 'productos.create'), createTipoProducto);
 router.get('/list/:cliente_id', getTipoProductoList);
 router.get('/:id', getTipoProductoById);
-router.put('/:id', updateTipoProducto);
-router.delete('/:id', deleteTipoProducto);
+router.put('/:id', authenticateJWT, authorizeModule('productos'), authorizePermission('productos', 'productos.update'), updateTipoProducto);
+router.delete('/:id', authenticateJWT, authorizeModule('productos'), authorizePermission('productos', 'productos.delete'), deleteTipoProducto);
 
 module.exports = router;

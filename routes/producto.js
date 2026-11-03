@@ -4,6 +4,7 @@ const { authorizePermission } = require("../middleware/permissionMiddleware");
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 const { requireLimit } = require('../middleware/limitMiddleware');
+const { requierePermiso } = require('../middleware/acceso');
 
 
 
@@ -38,7 +39,9 @@ router.delete(
 );
 router.post('/', authenticateJWT,authorizeModule('productos'),
 authorizePermission('productos','productos.create'),requireLimit('maxProductos'),createProducto);
-router.get('/list/:cliente_id',authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.list'), getProductoList);
+// La lista la usa también la toma de pedidos: un empleado que carga pedidos
+// no necesita ver (ni tener en el menú) la pantalla de Productos.
+router.get('/list/:cliente_id', authenticateJWT, requierePermiso('productos.list', 'operaciones.create'), getProductoList);
 router.post('/list/:cliente_id', getProductoList);
 router.get('/:id/:cliente_id', getProductoById);
 router.put('/:id',authenticateJWT,authorizeModule('productos'),authorizePermission('productos','productos.update'), updateProducto);
