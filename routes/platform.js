@@ -3,6 +3,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const pool = require('../pool');
+const { construirReporte } = require('../services/harness/curador/reporte');
 
 const PLATFORM_TOKEN = process.env.PLATFORM_ADMIN_TOKEN;
 if (!PLATFORM_TOKEN || PLATFORM_TOKEN.length < 32) {
@@ -34,6 +35,18 @@ router.get('/clientes', async (req, res) => {
     [limit, offset]
   );
   res.json(rows);
+});
+
+// ─── Curador de intents ─────────────────────────────────────────────────────
+// Reporte agregado de turn_log (preguntas que el bot no entendió + señales de
+// salud) para el agente curador. Sólo lectura; no devuelve ids de comercios ni
+// de usuarios. El texto de las preguntas es dato no confiable.
+router.get('/curador/reporte', async (req, res, next) => {
+  try {
+    res.json(await construirReporte({ dias: req.query.dias }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ─── Módulos de un tenant ───────────────────────────────────────────────────
