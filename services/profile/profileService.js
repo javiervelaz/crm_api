@@ -25,11 +25,24 @@ const looksHashed = (v) => typeof v === 'string' && /^\$2[aby]\$/.test(v);
 
 // El legajo lo asigna la API (autonumérico por tenant); el que venga en el
 // body se ignora.
-const createProfileService = async (data) => {
+/**
+ * ¿Puede `actor` tocar el perfil de `idUser`? El suyo siempre; el de otro,
+ * sólo quien administra usuarios. Antes PUT /api/profile/:id no tenía guard:
+ * un empleado le cambiaba la contraseña al dueño y entraba como él.
+ */
+const exigirDuenioOAdministrador = (actor, idUser) => {
+  if (!actor) return; // llamadas internas (alta de comercio, scripts)
+  if (Number(idUser) === Number(actor.userId)) return;
+  if (actor.administraUsuarios === true) return;
+  throw new ProfileError('Sólo podés editar tu propio perfil', 403, 'PERFIL_AJENO');
+};
+
+const createProfileService = async (data, actor = null) => {
   const { id_user, dni, telefono, password, fecha_ingreso, cliente_id } = data;
   if (!id_user || !password || !telefono) {
     throw new ProfileError('All fields are required');
   }
+  exigirDuenioOAdministrador(actor, id_user);
   if (!(await userRolDb.userDelTenant(id_user, cliente_id))) {
     throw new ProfileError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
   }
@@ -60,8 +73,13 @@ const getProfileListService = async (cliente_id) => {
   return stripPasswordList(result);
 };
 
-const updateProfileService = async (profileId, data) => {
+const updateProfileService = async (profileId, data, actor = null) => {
   let formattedFechaIngreso = null;
+  if (actor) {
+    const actual = await db.getProfileById(profileId, data.cliente_id);
+    if (!actual) throw new ProfileError('Perfil no encontrado', 404, 'PERFIL_NO_ENCONTRADO');
+    exigirDuenioOAdministrador(actor, actual.id_user);
+  }
   // legajo no se edita: lo asigna la API en el alta.
   const { dni, telefono, password, fecha_ingreso, cliente_id } = data;
   if (fecha_ingreso != null) {
@@ -88,8 +106,8 @@ const deleteProfileService = async (id, cliente_id) => {
 };
 
 module.exports = {
-  ProfileError,
   createProfileService,
+  ProfileError,
   getProximoLegajoService,
   getProfileByIdService,
   getProfileListService,

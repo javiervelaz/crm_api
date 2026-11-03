@@ -9,6 +9,10 @@ const {
   updateEmpleado,
   deleteEmpleado,
 } = require('../controllers/empleadoController');
+const { soloAdmin } = require('../middleware/acceso');
+
+// Legajo de empleados: sólo el admin (antes, sin guard).
+router.use(soloAdmin);
 
 router.post('/', createEmpleado);
 router.get('/list', getEmpleados);

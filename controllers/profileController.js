@@ -1,15 +1,22 @@
+const { esAdmin, tienePermiso } = require('../middleware/acceso');
 
 const profileService = require('../services/profile/profileService');
 
 
 // El tenant sale del JWT y el legajo lo asigna la API.
+/** Quién hace el pedido y si administra usuarios (perfiles ajenos). */
+const actorDe = (req) => ({
+  userId: req.user?.userId,
+  administraUsuarios: esAdmin(req.user) || tienePermiso(req.user, 'usuarios.update') || tienePermiso(req.user, 'usuarios.create'),
+});
+
 const createProfile = async (req, res) => {
   const { id_user, dni, telefono, password, fecha_ingreso } = req.body || {};
 
   try {
     const result = await profileService.createProfileService({
       id_user, dni, telefono, password, fecha_ingreso, cliente_id: req.clienteId,
-    });
+    }, actorDe(req));
     res.status(201).json(result);
   } catch (error) {
     const status = error instanceof profileService.ProfileError ? error.status : 400;
@@ -69,9 +76,14 @@ const updateProfile = async (req, res) => {
   const { dni, telefono, password, fecha_ingreso } = req.body || {};
 
   try {
-    const result = await profileService.updateProfileService(profileId, { dni, telefono, password, fecha_ingreso, cliente_id: req.clienteId });
+    const result = await profileService.updateProfileService(
+      profileId, { dni, telefono, password, fecha_ingreso, cliente_id: req.clienteId }, actorDe(req)
+    );
     res.status(200).json(result);
   } catch (error) {
+    if (error instanceof profileService.ProfileError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     res.status(500).json({ error: error.message });
   }
 };

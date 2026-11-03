@@ -38,7 +38,7 @@ const getPedidoById = async (req, res) => {
   const getDetallePedido = async (req, res) => {
     const { id } = req.params;
     try {
-      const Pedido = await PedidoService.getDetallePedido( id );
+      const Pedido = await PedidoService.getDetallePedido(id, req.clienteId);
         if (!Pedido) {
           return res.status(404).json({ error: 'Pedido88 not found' });
         }
