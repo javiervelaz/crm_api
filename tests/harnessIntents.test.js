@@ -299,6 +299,7 @@ describe('aislamiento: toda consulta del harness filtra por cliente_id ($1)', ()
     ultimoCierre: [7],
     stockItems: [7],
     stockBajo: [7],
+    comprasPeriodo: [7, '2026-10-01', '2026-10-28'],
   };
 
   it('cubre todas las funciones exportadas (una consulta nueva sin caso acá rompe el test)', () => {
