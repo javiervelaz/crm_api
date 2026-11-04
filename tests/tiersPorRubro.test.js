@@ -171,19 +171,19 @@ describe('Webhook de pago único — idempotente', () => {
 
   it('primer aviso: registra el pago y activa 12 meses', async () => {
     const prev = process.env.MP_MOCK; process.env.MP_MOCK = 'false';
-    sinon.stub(global, 'fetch').resolves({ json: async () => pago });
+    sinon.stub(global, 'fetch').resolves({ ok: true, status: 200, json: async () => pago });
     const q = sinon.stub(pool, 'query').callsFake(async (sql) => (norm(sql).includes('INSERT INTO BILLING_PAGO') ? { rows: [{ id: 1 }] } : { rows: [] }));
     const res = await enviar();
     process.env.MP_MOCK = prev;
     expect(res.text).to.equal('OK');
     const ins = q.getCalls().find((c) => norm(c.args[0]).includes('INSERT INTO BILLING_PAGO'));
-    expect(ins.args[1]).to.deep.equal(['7', 4, 'gastronomia', 'pay-1', 500, 12]);
+    expect(ins.args[1]).to.deep.equal(['7', 4, 'gastronomia', 'pay-1', 500, 12, 'pago_unico', null]);
     expect(q.getCalls().some((c) => norm(c.args[0]).includes('UPDATE CLIENTE'))).to.equal(true);
   });
 
   it('reintento del mismo pago: no extiende el plan otra vez', async () => {
     const prev = process.env.MP_MOCK; process.env.MP_MOCK = 'false';
-    sinon.stub(global, 'fetch').resolves({ json: async () => pago });
+    sinon.stub(global, 'fetch').resolves({ ok: true, status: 200, json: async () => pago });
     const q = sinon.stub(pool, 'query').resolves({ rows: [] }); // ON CONFLICT DO NOTHING → sin RETURNING
     const res = await enviar();
     process.env.MP_MOCK = prev;

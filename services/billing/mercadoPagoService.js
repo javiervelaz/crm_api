@@ -53,7 +53,7 @@ const payerEmail = USE_MOCK || process.env.NODE_ENV !== 'production'
     reason: `Suscripción plan ${tier.code}`,
     external_reference: `cliente-${cliente.id}-tier-${tier.id}`,
     payer_email: payerEmail,
-    back_url: process.env.FRONTEND_SUCCESS_URL || 'https://google.com',
+    back_url: process.env.FRONTEND_SUCCESS_URL || `${process.env.PLATFORM_BASE_URL}/auth/pago?status=success`,
     auto_recurring: {
       frequency: 1,
       frequency_type: 'months',
@@ -160,21 +160,57 @@ async function saveSubscription(clienteId, tierId, preapprovalId, tier = {}) {
 }
 
 /**
- * Registra un pago único aprobado. Devuelve false si ese pago ya estaba
+ * Registra un pago aprobado (pago único o cobro mensual de una suscripción),
+ * idempotente por el id real del pago en MP. Devuelve false si ya estaba
  * registrado (reintento del webhook): el plan NO se vuelve a extender.
  */
-async function registrarPagoUnico({ clienteId, tierId, rubroCodigo, mpPaymentId, monto, duracionMeses }) {
+async function registrarPago({
+  clienteId, tierId, rubroCodigo, mpPaymentId, monto, duracionMeses,
+  origen = 'pago_unico', mpPreapprovalId = null,
+}) {
   const r = await pool.query(
-    `INSERT INTO billing_pago (cliente_id, tier_id, rubro_codigo, mp_payment_id, monto, duracion_meses)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO billing_pago (cliente_id, tier_id, rubro_codigo, mp_payment_id, monto, duracion_meses, origen, mp_preapproval_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (mp_payment_id) DO NOTHING
      RETURNING id`,
-    [clienteId, tierId, rubroCodigo ?? null, String(mpPaymentId), Number(monto) || 0, Number(duracionMeses) || 1]
+    [clienteId, tierId, rubroCodigo ?? null, String(mpPaymentId), Number(monto) || 0,
+      Number(duracionMeses) || 1, origen, mpPreapprovalId]
   );
   return r.rows.length > 0;
 }
 
+const registrarPagoUnico = (args) => registrarPago({ ...args, origen: 'pago_unico' });
 
+/**
+ * Compensación: si después de registrar el pago falla la activación del plan,
+ * se borra el registro para que el reintento de MP lo vuelva a procesar.
+ * Sin esto el reintento responde ALREADY PROCESSED y el plan no se activa nunca.
+ */
+async function anularRegistroPago(mpPaymentId) {
+  await pool.query('DELETE FROM billing_pago WHERE mp_payment_id = $1', [String(mpPaymentId)]);
+}
+
+/**
+ * Suscripción: el plan queda cubierto hasta `fechaBase + 1 mes` (en la zona
+ * del comercio). No suma: si llegan el alta del preapproval y el primer cobro
+ * el mismo día, o el mismo evento dos veces, el vencimiento es el mismo.
+ * Nunca acorta un vencimiento más largo que ya tenga (p. ej. un anual).
+ */
+async function cubrirPeriodo(clienteId, tierId, fechaBase = new Date()) {
+  const base = new Date(fechaBase);
+  const iso = Number.isNaN(base.getTime()) ? new Date().toISOString() : base.toISOString();
+  await pool.query(
+    `UPDATE cliente
+        SET tier_id              = $1,
+            tier_expiration_date = GREATEST(
+              COALESCE(tier_expiration_date, (now() AT TIME ZONE timezone)::date),
+              ((($3::timestamptz) AT TIME ZONE timezone)::date + interval '1 month')::date
+            ),
+            updated_at           = now()
+      WHERE id = $2`,
+    [tierId, clienteId, iso]
+  );
+}
 
 /**
  * Activa el tier y setea la fecha de vencimiento.
@@ -195,7 +231,6 @@ async function activateTierForCliente(clienteId, tierId, { meses } = {}) {
               COALESCE(tier_expiration_date, (now() AT TIME ZONE timezone)::date),
               (now() AT TIME ZONE timezone)::date
             ) + ($2 || ' months')::interval,
-            tier_downgraded_at   = NULL,
             updated_at           = now()
       WHERE id = $3`,
     [tierId, duracion, clienteId]
@@ -235,7 +270,10 @@ module.exports = {
   createSubscription,
   createOneTimePayment,
   saveSubscription,
+  registrarPago,
   registrarPagoUnico,
+  anularRegistroPago,
+  cubrirPeriodo,
   activateTierForCliente,
   simulateWebhook,
   USE_MOCK,
