@@ -92,20 +92,33 @@ describe('curador — modelo (SQL)', () => {
   });
 });
 
-describe('GET /api/platform/curador/reporte', () => {
-  const token = process.env.PLATFORM_ADMIN_TOKEN;
-  it('sin token de plataforma: 401', async () => {
-    const res = await request(app).get('/api/platform/curador/reporte');
-    expect(res.status).to.equal(401);
+describe('GET /api/curador/reporte', () => {
+  const TOKEN = 'curador-token-de-prueba-0123456789abcdef';
+  let previo;
+  beforeEach(() => { previo = process.env.CURADOR_TOKEN; process.env.CURADOR_TOKEN = TOKEN; });
+  afterEach(() => { if (previo === undefined) delete process.env.CURADOR_TOKEN; else process.env.CURADOR_TOKEN = previo; });
+
+  it('sin token: 401', async () => {
+    expect((await request(app).get('/api/curador/reporte')).status).to.equal(401);
   });
-  it('un JWT de usuario común no alcanza: 401', async () => {
-    const res = await request(app).get('/api/platform/curador/reporte').set('Authorization', 'Bearer cualquiercosa');
-    expect(res.status).to.equal(401);
+  it('token equivocado o un JWT de usuario: 401', async () => {
+    expect((await request(app).get('/api/curador/reporte').set('Authorization', 'Bearer cualquiercosa')).status).to.equal(401);
   });
-  it('con token de plataforma devuelve el reporte', async () => {
+  it('el token de plataforma NO sirve acá (y el del curador no sirve en /platform)', async () => {
+    const plat = process.env.PLATFORM_ADMIN_TOKEN;
+    expect((await request(app).get('/api/curador/reporte').set('Authorization', `Bearer ${plat}`)).status).to.equal(401);
+    expect((await request(app).get('/api/platform/clientes').set('Authorization', `Bearer ${TOKEN}`)).status).to.equal(401);
+  });
+  it('sin CURADOR_TOKEN configurado (o corto) queda cerrado: 503', async () => {
+    delete process.env.CURADOR_TOKEN;
+    expect((await request(app).get('/api/curador/reporte').set('Authorization', 'Bearer ')).status).to.equal(503);
+    process.env.CURADOR_TOKEN = 'corto';
+    expect((await request(app).get('/api/curador/reporte').set('Authorization', 'Bearer corto')).status).to.equal(503);
+  });
+  it('con el token correcto devuelve el reporte', async () => {
     sinon.stub(curadorDb, 'noEntendidos').resolves([]);
     sinon.stub(curadorDb, 'resumen').resolves([]);
-    const res = await request(app).get('/api/platform/curador/reporte?dias=14').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/curador/reporte?dias=14').set('Authorization', `Bearer ${TOKEN}`);
     expect(res.status).to.equal(200);
     expect(res.body).to.include({ ventana_dias: 14, muestra_suficiente: false });
   });
