@@ -1,6 +1,7 @@
 // crm_api/middleware/limitMiddleware.js
 const planService = require('../services/cliente/planService');
 const pool = require('../pool');
+const planBloqueo = require('../model/senales/planBloqueo');
 const { inicioMesUtcSql } = require('../utils/fechaTenant');
 
 const requireLimit = (limitKey) => {
@@ -10,13 +11,13 @@ const requireLimit = (limitKey) => {
       return res.status(403).json({ error: 'Cliente no asociado al usuario' });
     }
 
-    const { features, tierCode } = await planService.getClienteTierAndFeatures(user.cliente_id);
-    const limitValue = features[limitKey];
-
-    // Si el plan no tiene restriccion en este item
-    if (limitValue == null) return next();
-
     try {
+      const { features, tierCode } = await planService.getClienteTierAndFeatures(user.cliente_id);
+      const limitValue = features[limitKey];
+
+      // Si el plan no tiene restriccion en este item
+      if (limitValue == null) return next();
+
       let countRes;
 
       switch (limitKey) {
@@ -54,6 +55,11 @@ const requireLimit = (limitKey) => {
       if (currentCount >= limitValue) {
         const LABELS = { maxProductos: 'productos', maxPedidosMensuales: 'pedidos por mes', maxStockItems: 'ítems de stock' };
         const label = LABELS[limitKey] || 'recursos';
+        // Señal comercial (migración 029): qué límite frena a los comercios.
+        await planBloqueo.registrarSeguro({
+          clienteId: user.cliente_id, tipo: 'limite', clave: limitKey, tierCode,
+          ruta: planBloqueo.rutaSegura(req), userId: user.userId ?? user.id ?? null,
+        });
         return res.status(403).json({
           error: 'Tu plan (' + tierCode + ') permite hasta ' + limitValue + ' ' + label + '. Ya alcanzaste el límite.',
         });
