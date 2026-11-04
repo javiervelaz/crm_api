@@ -279,6 +279,28 @@ describe('Webhook MP — errores, firma y log', () => {
     expect(logs(q)[0]).to.include('error');
   });
 
+  it('401 de MP: el log describe el token sin exponerlo', async () => {
+    const prev = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    process.env.MERCADOPAGO_ACCESS_TOKEN = 'TEST-1234567890-secreto\n';
+    stubMp({ '/v1/payments/123456': { status: 401, body: {} } });
+    const q = stubPool();
+    sinon.stub(console, 'error');
+    const res = await enviar('payment', '123456');
+    process.env.MERCADOPAGO_ACCESS_TOKEN = prev;
+    expect(res.status).to.equal(500);
+    const detalle = logs(q)[0][5];
+    expect(detalle).to.include('token=TEST largo=24');
+    expect(detalle).to.include('salto de línea');
+    expect(detalle).to.not.include('secreto');
+  });
+
+  it('describirToken: vacío, productivo limpio y con comillas', () => {
+    const { describirToken } = require('../services/billing/webhookService');
+    expect(describirToken(undefined)).to.equal('token=vacío');
+    expect(describirToken('APP_USR-abc')).to.equal('token=APP_USR largo=11');
+    expect(describirToken('"APP_USR-abc"')).to.include('comillas');
+  });
+
   it('tipo desconocido: IGNORED y queda en el log', async () => {
     const q = stubPool();
     const res = await enviar('mp-connect', 'abc');
