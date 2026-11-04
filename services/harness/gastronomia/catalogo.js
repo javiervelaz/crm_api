@@ -232,6 +232,25 @@ const stockBajo = async (turno, ctx) => {
   return { texto: [`Para comprar (${bajos.length}):`, ...lineas].join('\n') };
 };
 
+const comprasPeriodo = async (turno, ctx) => {
+  const { v, respuesta } = ventanaDelTurno(turno, ctx, 'hoy');
+  if (respuesta) return respuesta;
+  const filas = await consultas.comprasPeriodo(ctx.clienteId, v.desde, v.hasta);
+  if (!filas.length) {
+    return { texto: `No registraste compras de stock ${en(v.etiqueta)}. Si lo cargaste como gasto, preguntame "¿en qué gasté ${v.etiqueta === 'hoy' ? 'hoy' : v.etiqueta}?".` };
+  }
+  const compras = filas.reduce((n, f) => n + f.compras, 0);
+  const sinCosto = filas.reduce((n, f) => n + f.sin_costo, 0);
+  const conCosto = compras - sinCosto;
+  let cabecera = `Compras ${en(v.etiqueta)}: ${plural(compras, 'compra', 'compras')} de ${plural(filas.length, 'ítem', 'ítems')}`;
+  if (conCosto > 0) cabecera += ` por ${moneda(filas[0].costo_periodo)}`;
+  cabecera += '.';
+  const lineas = filas.slice(0, 10).map((f) => `• ${f.nombre}: ${cantidad(f.cantidad, f.unidad)}${f.costo != null ? ` — ${moneda(f.costo)}` : ''}`);
+  if (filas.length > 10) lineas.push(`… y ${filas.length - 10} más en Counter → Inventario.`);
+  if (sinCosto > 0 && conCosto > 0) lineas.push(`(${plural(sinCosto, 'compra', 'compras')} sin costo cargado, no ${sinCosto === 1 ? 'entra' : 'entran'} en el total)`);
+  return { texto: [cabecera, ...lineas].join('\n') };
+};
+
 const AYUDA = [
   'Podés preguntarme, por ejemplo:',
   '• ¿Cuánto vendí hoy? / ayer / esta semana / en octubre',
@@ -240,7 +259,7 @@ const AYUDA = [
   '• ¿Cuánto pagué de sueldos el mes pasado?',
   '• Compará las ventas de este mes con el mes pasado',
   '• ¿Cuántos clientes nuevos tuve en octubre?',
-  '• ¿Cuánta mozzarella me queda? / ¿Qué tengo que comprar?',
+  '• ¿Cuánta mozzarella me queda? / ¿Qué tengo que comprar? / ¿Qué compré esta semana?',
   '• Después podés seguir con "¿y ayer?" o "¿y los gastos?"',
 ].join('\n');
 
@@ -259,6 +278,7 @@ const CATALOGO = validarCatalogo([
   { name: 'ultimo_cierre', ...CAJA, ejecutar: ultimoCierre },
   { name: 'stock_item', ...STOCK, ejecutar: stockItem },
   { name: 'stock_bajo', ...STOCK, ejecutar: stockBajo },
+  { name: 'compras_periodo', ...STOCK, ejecutar: comprasPeriodo },
 ]);
 
 module.exports = { CATALOGO, AYUDA, _internos: { buscarProductos, tramoPrevio } };

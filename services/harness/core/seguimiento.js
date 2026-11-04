@@ -16,8 +16,8 @@ const { router } = require('./router');
 
 const TTL_SEGUNDOS = 600;
 // Intents que aceptan seguimiento (los demás no tienen ventana o no se repiten con otra).
-const RECORDABLES = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos', 'stock_item']);
-const CON_VENTANA = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos']);
+const RECORDABLES = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos', 'stock_item', 'compras_periodo']);
+const CON_VENTANA = new Set(['ventas_periodo', 'ventas_producto', 'gastos_periodo', 'gastos_sueldos', 'clientes_nuevos', 'compras_periodo']);
 const RELLENO = new Set(['y', 'e', 'en', 'de', 'del', 'para', 'durante', 'que', 'tal', 'cuanto', 'cuantos', 'cuantas', 'como', 'fue', 'fueron', 'el', 'la', 'los', 'las', 'un', 'una']);
 const MAX_PALABRAS = 7;
 

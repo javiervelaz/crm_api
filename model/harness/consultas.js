@@ -160,9 +160,33 @@ const stockBajo = async (clienteId) => {
   return rows;
 };
 
+/**
+ * Compras de stock del período, por ítem (ledger, tipo 'compra'). El total del
+ * período viaja en cada fila (ventana) para no sumar plata en JS.
+ * costo_total puede ser NULL (compra cargada sin costo): se cuenta aparte.
+ */
+const comprasPeriodo = async (clienteId, desde, hasta) => {
+  const { rows } = await pool.query(
+    `SELECT i.nombre, i.unidad,
+            SUM(m.cantidad)::text                   AS cantidad,
+            SUM(m.costo_total)::text                AS costo,
+            COUNT(*)::int                           AS compras,
+            COUNT(*) FILTER (WHERE m.costo_total IS NULL)::int AS sin_costo,
+            COALESCE(SUM(SUM(m.costo_total)) OVER (), 0)::text AS costo_periodo
+       FROM stock_movimiento m
+       JOIN stock_item i ON i.id = m.stock_item_id AND i.cliente_id = m.cliente_id
+      WHERE m.cliente_id = $1 AND m.tipo = 'compra'
+        AND ${dia('m.created_at')} BETWEEN $2::date AND $3::date
+      GROUP BY i.id, i.nombre, i.unidad
+      ORDER BY SUM(m.costo_total) DESC NULLS LAST, lower(i.nombre)`,
+    [clienteId, desde, hasta],
+  );
+  return rows;
+};
+
 module.exports = {
   cajasAbiertas, ultimoCierre,
   ventasTotales, ventasMejorDia, productosDelComercio, ventasPorProductos,
   gastosPorTipo, gastosTotal, gastosPorDescripcion, clientesNuevos,
-  stockItems, stockBajo,
+  stockItems, stockBajo, comprasPeriodo,
 };
