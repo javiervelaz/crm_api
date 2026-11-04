@@ -15,6 +15,9 @@ const VERBO_VENTA = '(?:vendi|vendimos|vendio|vendieron|factur\\w*|ingres\\w*|en
 const NO_ES_STOCK = /^(pedidos?|ventas?|clientes?|plata|dinero|caja|efectivo|gastos?|mesas?|turnos?|empleados?|deudas?)\b/;
 const UNIDADES_STOCK = /\b(kilos?|kg|gramos?|grs?|litros?|lts?|unidades?|paquetes?|cajas?|bolsas?|horm\w*)\s+(de\s+)?/g;
 const STOCK_BAJO = /\b(que|cuales?) (tengo|hay|tenemos|necesito|me toca) que (comprar|reponer|pedir)\b|\bque (compro|repongo|me falta|nos falta|falta)\b(?! (pagar|cobrar))|\bfaltantes?\b|\b(stock|inventario) bajo\b|\blista de (compras?|reposicion)\b|\bque se (esta |estan )?(acabando|terminando)\b/;
+// Compras de stock ya hechas ("qué compré hoy"). El presente "qué compro" es
+// lo que falta (STOCK_BAJO), por eso acá sólo pasado y el sustantivo.
+const COMPRAS = /\b(compre|compramos|compraron|comprado|comprados|comprada|compradas)\b|\b(las|mis|nuestras) compras\b|^compras?\b/;
 const STOCK_RESUMEN = /^(el |mi )?(stock|inventario)$|^como (esta|anda|va) (el |mi )?(stock|inventario)$|^que (tengo|hay) en (el )?(stock|inventario)$/;
 
 const itemDeStock = (t) => {
@@ -56,6 +59,7 @@ const router = (texto) => {
   }
 
   if (STOCK_BAJO.test(t)) return { intent: 'stock_bajo', texto: t };
+  if (COMPRAS.test(t)) return { intent: 'compras_periodo', texto: t };
   if (STOCK_RESUMEN.test(t)) return { intent: 'stock_item', item: null, texto: t };
 
   // Unidades: "cuántas hamburguesas vendí", "cuántos cafés vendimos"
@@ -65,6 +69,10 @@ const router = (texto) => {
   m = t.match(new RegExp(`\\b${VERBO_VENTA}\\s+(?:de|en)\\s+(?!hoy\\b|ayer\\b|este\\b|esta\\b|el\\b|la\\b|los\\b|las\\b)(.+)$`));
   if (m) return { intent: 'ventas_producto', producto: m[1], texto: t };
 
+  // "vendí algo hoy?", "se vendió algo?", "hubo ventas?" (de turn_log, curador 04/11)
+  m = t.match(/\b(?:vendi|vendimos|vendio|vendieron) algo (?:de|en) (?!hoy\b|ayer\b|este\b|esta\b|el\b|la\b|los\b|las\b)(.+)$/);
+  if (m) return { intent: 'ventas_producto', producto: m[1], texto: t };
+  if (/\b(vendi|vendimos|vendio|vendieron) algo\b|\bhubo ventas?\b/.test(t)) return { intent: 'ventas_periodo', texto: t };
   if (new RegExp(`\\b(cuanto|cuanta plata|total|ventas?|resumen)\\b.*${VERBO_VENTA}|\\b(ventas?|facturacion|recaudacion)\\b`).test(t)) {
     return { intent: 'ventas_periodo', texto: t };
   }
