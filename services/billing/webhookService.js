@@ -36,11 +36,32 @@ class MpApiError extends Error {
   }
 }
 
+/**
+ * Describe el token sin exponerlo: tipo (prefijo público de MP), largo y si
+ * arrastra espacios, saltos de línea o comillas. Sirve para diagnosticar un
+ * 401 de MP mirando billing_webhook_log, sin leer la variable de entorno.
+ */
+function describirToken(token) {
+  if (token == null || token === '') return 'token=vacío';
+  const t = String(token);
+  const tipo = t.startsWith('APP_USR-') ? 'APP_USR' : t.startsWith('TEST-') ? 'TEST' : 'desconocido';
+  const basura = [];
+  if (t !== t.trim()) basura.push('espacios/saltos en los bordes');
+  if (/[\r\n]/.test(t)) basura.push('salto de línea');
+  if (/^["']|["']$/.test(t.trim())) basura.push('comillas');
+  return `token=${tipo} largo=${t.length}${basura.length ? ` basura=${basura.join('+')}` : ''}`;
+}
+
 async function mpGet(path) {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
   const res = await fetch(MP_API + path, {
-    headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new MpApiError(res.status, path);
+  if (!res.ok) {
+    const err = new MpApiError(res.status, path);
+    if (res.status === 401 || res.status === 403) err.message += ` (${describirToken(token)})`;
+    throw err;
+  }
   return res.json();
 }
 
@@ -295,5 +316,6 @@ module.exports = {
   aplicarPagoUnico,
   reconciliarSuscripciones,
   logEvento,
+  describirToken,
   MpApiError,
 };
