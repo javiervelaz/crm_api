@@ -1,5 +1,6 @@
 // crm_api/middleware/featureMiddleware.js
 const planService = require('../services/cliente/planService');
+const planBloqueo = require('../model/senales/planBloqueo');
 
 /**
  * Gating por plan. El tenant se resuelve con `getClienteId`: por defecto el
@@ -19,8 +20,14 @@ const requireFeature = (featureName, { getClienteId } = {}) => {
       }
 
       const { features, tierCode, isExpired } = await planService.getClienteTierAndFeatures(clienteId);
+      // Señal comercial (migración 029): qué features piden los comercios que su plan no tiene.
+      const senal = (tipo) => planBloqueo.registrarSeguro({
+        clienteId, tipo, clave: featureName, tierCode,
+        ruta: planBloqueo.rutaSegura(req), userId: req.user?.userId ?? req.user?.id ?? null,
+      });
 
       if (isExpired) {
+        await senal('vencido');
         return res.status(403).json({
           error: `Tu plan actual (${tierCode}) ha vencido. Debés renovarlo para acceder a esta funcionalidad.`,
           code: 'PLAN_INACTIVE',
@@ -33,6 +40,7 @@ const requireFeature = (featureName, { getClienteId } = {}) => {
         });
       }
       if (!features[featureName]) {
+        await senal('feature');
         return res.status(403).json({
           error: `Tu plan actual (${tierCode}) no tiene acceso a esta funcionalidad`,
           code: 'PLAN_INACTIVE',
