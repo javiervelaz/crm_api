@@ -55,6 +55,8 @@ app.use('/api/micrositio', authenticateHandoff, withTenantConnection,
 
 // ─── PLATAFORMA: cross-tenant por diseño, token separado ──────────────────
 app.use('/api/platform',        require('./routes/platform'));
+// Agente curador: token propio de solo lectura (CURADOR_TOKEN), no el de plataforma
+app.use('/api/curador',         require('./routes/curador'));
 // Billing monta ANTES del withTenantConnection: llama a MP
 app.use('/api/billing',  authenticateJWT, scopeTenant, requirePasswordDefinitiva, restringirExternos, require('./routes/billing'));
 // ─── TENANT: todo lo demás. Auth + scope obligatorios, sin excepciones ────
