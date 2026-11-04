@@ -33,6 +33,8 @@ app.use('/api/cron/verificaciones', require('./routes/verificacionCron'));
 app.use('/api/cron/edu-cuotas', require('./routes/eduCuotasCron'));
 // Degrada a FREE los planes vencidos. Estaba en vercel.json pero nunca se montó (404 diario).
 app.use('/api/cron/expire-tiers', require('./routes/expireTiers'));
+// Reconciliación diaria de suscripciones con MercadoPago. CRON_SECRET, lo dispara n8n.
+app.use('/api/cron/billing', require('./routes/billingCron'));
 // ─── PÚBLICAS: no pasan por authenticateJWT ni scopeTenant ────────────────
 app.use('/api/auth',            require('./routes/auth'));
 app.use('/api/saas',            require('./routes/saas'));           // alta pública
