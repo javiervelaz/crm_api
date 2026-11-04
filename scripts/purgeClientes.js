@@ -45,6 +45,9 @@ const WHERE_CANDIDATOS = `
 
 // Orden derivado del grafo de FK: hijos primero, cliente último.
 const BORRADOS = [
+  // señales (migración 029): tienen ON DELETE CASCADE, pero se listan para que el conteo las muestre
+  ['plan_bloqueo',          `cliente_id = ANY($1)`],
+  ['onboarding_hito',       `cliente_id = ANY($1)`],
   ['pedido_producto',       `pedido_id IN (SELECT id FROM pedido WHERE cliente_id = ANY($1))`],
   ['conteo_caja',           `registro_diario_id IN (SELECT id FROM registro_diario WHERE cliente_id = ANY($1))`],
   // stock_movimiento referencia pedido, salida_caja, "user" y stock_item: va antes que todos
