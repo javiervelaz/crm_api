@@ -65,6 +65,67 @@ async function mpGet(path) {
   return res.json();
 }
 
+async function mpPut(path, body) {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const res = await fetch(MP_API + path, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = new MpApiError(res.status, path);
+    if (res.status === 401 || res.status === 403) err.message += ` (${describirToken(token)})`;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
+ * Upgrade / cambio de plan: cuando un plan nuevo queda activo, las otras
+ * suscripciones del cliente (activas, pausadas o pendientes) se cancelan en
+ * MP. Si no, MP sigue cobrando la vieja: doble cobro.
+ *
+ * Nunca rompe el webhook: el plan nuevo ya está activo. Si MP falla, queda
+ * en el log como 'error_cancelar_anterior' y la reconciliación lo reintenta
+ * (regla: un cliente tiene como mucho una suscripción viva).
+ */
+async function cancelarSuscripcionesAnteriores(clienteId, {
+  exceptoPreapprovalId = null, motivo = 'upgrade', estados = ['pending', 'active', 'paused'],
+} = {}) {
+  const { rows } = await pool.query(
+    `SELECT id, mp_preapproval_id
+       FROM billing_subscription
+      WHERE cliente_id = $1
+        AND status = ANY($3::text[])
+        AND mp_preapproval_id IS NOT NULL
+        AND mp_preapproval_id NOT LIKE 'mock-%'
+        AND mp_preapproval_id <> COALESCE($2, '')
+      ORDER BY id`,
+    [clienteId, exceptoPreapprovalId, estados]
+  );
+
+  const canceladas = [];
+  for (const { id, mp_preapproval_id: pre } of rows) {
+    try {
+      await mpPut(`/preapproval/${encodeURIComponent(pre)}`, { status: 'cancelled' });
+      await pool.query(
+        `UPDATE billing_subscription
+            SET status = 'cancelled', mp_status = 'cancelled', updated_at = now()
+          WHERE id = $1`,
+        [id]
+      );
+      await logEvento({ tipo: 'cancelacion_automatica', dataId: pre, mpStatus: 'cancelled',
+        resultado: 'cancelada_por_upgrade', detalle: motivo, clienteId });
+      canceladas.push(pre);
+    } catch (err) {
+      console.error(`[BILLING] No se pudo cancelar el preapproval ${pre} del cliente ${clienteId}:`, err.message);
+      await logEvento({ tipo: 'cancelacion_automatica', dataId: pre, resultado: 'error_cancelar_anterior',
+        detalle: `${motivo}: ${String(err.message || err).slice(0, 400)}`, clienteId });
+    }
+  }
+  return canceladas;
+}
+
 /**
  * Valida x-signature (HMAC-SHA256 sobre el manifest de MP).
  * Devuelve { ok: true } o { ok: false, status, error }.
@@ -157,6 +218,9 @@ async function aplicarPreapproval(preapprovalId) {
     );
     if (act.rows.length > 0) {
       await mp.cubrirPeriodo(sub.cliente_id, sub.tier_id, new Date());
+      await cancelarSuscripcionesAnteriores(sub.cliente_id, {
+        exceptoPreapprovalId: String(preapprovalId), motivo: `nueva suscripción ${preapprovalId}`,
+      });
       return { resultado: 'activada', mpStatus, clienteId: sub.cliente_id, antes: sub.status, texto: 'OK' };
     }
     return { resultado: 'ya_activa', mpStatus, clienteId: sub.cliente_id, antes: sub.status, texto: 'OK' };
@@ -238,6 +302,8 @@ async function aplicarPagoUnico(paymentId) {
     await mp.anularRegistroPago(paymentId);
     throw err;
   }
+  // Pasó a un plan pago por adelantado: ninguna mensual tiene que seguir cobrando
+  await cancelarSuscripcionesAnteriores(clienteId, { motivo: `pago único ${paymentId}` });
   return { resultado: 'pago_registrado', mpStatus, clienteId, texto: 'OK' };
 }
 
@@ -313,6 +379,30 @@ async function reconciliarSuscripciones() {
       errores.push({ preapprovalId: id, error: resultado });
     }
   }
+  // Regla: como mucho una suscripción viva (active/paused) por cliente. Si hay
+  // más (falló la cancelación automática en un upgrade), se queda la última
+  // activada y el resto se cancela en MP.
+  const { rows: duplicadas } = await pool.query(
+    `SELECT cliente_id,
+            (ARRAY_AGG(mp_preapproval_id ORDER BY activada_at DESC NULLS LAST, id DESC))[1] AS vigente
+       FROM billing_subscription
+      WHERE status IN ('active', 'paused')
+        AND mp_preapproval_id IS NOT NULL
+        AND mp_preapproval_id NOT LIKE 'mock-%'
+      GROUP BY cliente_id
+     HAVING COUNT(*) > 1`
+  );
+  for (const { cliente_id: clienteId, vigente } of duplicadas) {
+    const canceladas = await cancelarSuscripcionesAnteriores(clienteId, {
+      exceptoPreapprovalId: vigente, motivo: 'reconciliación: más de una suscripción viva',
+      // un pending puede ser un checkout en curso: la reconciliación no lo toca
+      estados: ['active', 'paused'],
+    });
+    for (const pre of canceladas) {
+      cambios.push({ preapprovalId: pre, antes: 'active', despues: 'cancelled', resultado: 'cancelada_por_upgrade' });
+    }
+  }
+
   return { revisadas: rows.length, cambios, errores };
 }
 
@@ -323,6 +413,7 @@ module.exports = {
   aplicarCobroSuscripcion,
   aplicarPagoUnico,
   reconciliarSuscripciones,
+  cancelarSuscripcionesAnteriores,
   logEvento,
   describirToken,
   MpApiError,
