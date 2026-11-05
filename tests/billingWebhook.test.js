@@ -35,9 +35,9 @@ function enviar(type, id, { queryId = id } = {}) {
 
 /** fetch de MP: mapea path → { status, body } */
 function stubMp(rutas) {
-  return sinon.stub(global, 'fetch').callsFake(async (url) => {
+  return sinon.stub(global, 'fetch').callsFake(async (url, opts = {}) => {
     const path = String(url).replace('https://api.mercadopago.com', '');
-    const r = rutas[path];
+    const r = rutas[`${opts.method || 'GET'} ${path}`] || (opts.method && opts.method !== 'GET' ? undefined : rutas[path]);
     if (!r) return { ok: false, status: 404, json: async () => ({ message: 'not found' }) };
     const status = r.status || 200;
     return { ok: status < 400, status, json: async () => r.body };
@@ -53,9 +53,11 @@ const SUB = { id: 10, cliente_id: 7, tier_id: 3, status: 'pending', rubro_codigo
  *   pagoNuevo    si el INSERT en billing_pago devuelve fila
  *   subs         filas para la reconciliación
  */
-function stubPool({ sub = SUB, activa = true, pagoNuevo = true, subs = [] } = {}) {
+function stubPool({ sub = SUB, activa = true, pagoNuevo = true, subs = [], otras = [], duplicadas = [] } = {}) {
   return sinon.stub(pool, 'query').callsFake(async (sql) => {
     const q = norm(sql);
+    if (q.includes('STATUS = ANY($3::TEXT[])')) return { rows: otras };
+    if (q.includes('HAVING COUNT(*) > 1')) return { rows: duplicadas };
     if (q.includes('FROM BILLING_SUBSCRIPTION WHERE MP_PREAPPROVAL_ID')) return { rows: sub ? [sub] : [] };
     if (q.includes('SET ACTIVADA_AT = NOW()') && q.includes('ACTIVADA_AT IS NULL')) return { rows: activa ? [{ id: SUB.id }] : [] };
     if (q.includes('INSERT INTO BILLING_PAGO')) return { rows: pagoNuevo ? [{ id: 1 }] : [] };
@@ -355,8 +357,98 @@ describe('Webhook MP — errores, firma y log', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+describe('Upgrade: la suscripción anterior se cancela cuando el plan nuevo queda activo', () => {
+  const VIEJA = { id: 9, mp_preapproval_id: 'pre-vieja' };
+
+  it('suscripción nueva authorized: cancela en MP la anterior del mismo cliente', async () => {
+    const f = stubMp({
+      '/preapproval/pre-1': { body: { status: 'authorized' } },
+      'PUT /preapproval/pre-vieja': { body: { status: 'cancelled' } },
+    });
+    const q = stubPool({ otras: [VIEJA] });
+
+    const res = await enviar('subscription_preapproval', 'pre-1');
+
+    expect(res.text).to.equal('OK');
+    const put = f.getCalls().find((c) => c.args[1] && c.args[1].method === 'PUT');
+    expect(put.args[0]).to.equal('https://api.mercadopago.com/preapproval/pre-vieja');
+    expect(JSON.parse(put.args[1].body)).to.deep.equal({ status: 'cancelled' });
+    const sel = llamadas(q, 'STATUS = ANY($3::TEXT[])')[0];
+    expect(sel.args[1]).to.deep.equal([7, 'pre-1', ['pending', 'active', 'paused']]);
+    expect(llamadas(q, "SET STATUS = 'CANCELLED'")[0].args[1]).to.deep.equal([9]);
+    expect(logs(q).some((l) => l.includes('cancelada_por_upgrade'))).to.equal(true);
+  });
+
+  it('si MP no deja cancelar, el plan nuevo queda activo igual y queda en el log', async () => {
+    stubMp({
+      '/preapproval/pre-1': { body: { status: 'authorized' } },
+      'PUT /preapproval/pre-vieja': { status: 500, body: {} },
+    });
+    const q = stubPool({ otras: [VIEJA] });
+    sinon.stub(console, 'error');
+
+    const res = await enviar('subscription_preapproval', 'pre-1');
+
+    expect(res.status).to.equal(200);
+    expect(llamadas(q, 'UPDATE CLIENTE')).to.have.length(1);
+    expect(llamadas(q, "SET STATUS = 'CANCELLED'")).to.have.length(0);
+    expect(logs(q).some((l) => l.includes('error_cancelar_anterior'))).to.equal(true);
+  });
+
+  it('el mismo authorized repetido (ya activa) no vuelve a cancelar nada', async () => {
+    const f = stubMp({ '/preapproval/pre-1': { body: { status: 'authorized' } } });
+    const q = stubPool({ activa: false, otras: [VIEJA] });
+    await enviar('subscription_preapproval', 'pre-1');
+    expect(f.getCalls().some((c) => c.args[1] && c.args[1].method === 'PUT')).to.equal(false);
+    expect(llamadas(q, 'STATUS = ANY($3::TEXT[])')).to.have.length(0);
+  });
+
+  it('pago único aprobado: cancela todas las suscripciones del cliente', async () => {
+    const f = stubMp({
+      '/v1/payments/777': { body: { status: 'approved', transaction_amount: 22000, external_reference: 'cliente-7',
+        metadata: { tipo: 'pago_unico', tier_id: 4, duracion_meses: 12 } } },
+      'PUT /preapproval/pre-vieja': { body: { status: 'cancelled' } },
+    });
+    const q = stubPool({ otras: [VIEJA] });
+
+    const res = await enviar('payment', '777');
+
+    expect(res.text).to.equal('OK');
+    expect(f.getCalls().some((c) => c.args[1] && c.args[1].method === 'PUT')).to.equal(true);
+    expect(llamadas(q, 'STATUS = ANY($3::TEXT[])')[0].args[1]).to.deep.equal(['7', null, ['pending', 'active', 'paused']]);
+  });
+
+  it('pago único ya procesado (reenvío): no cancela nada', async () => {
+    stubMp({ '/v1/payments/777': { body: { status: 'approved', external_reference: 'cliente-7',
+      metadata: { tipo: 'pago_unico', tier_id: 4, duracion_meses: 12 } } } });
+    const q = stubPool({ pagoNuevo: false, otras: [VIEJA] });
+    const res = await enviar('payment', '777');
+    expect(res.text).to.equal('ALREADY PROCESSED');
+    expect(llamadas(q, 'STATUS = ANY($3::TEXT[])')).to.have.length(0);
+  });
+
+  it('cubrirPeriodo no baja de plan: el tier solo cambia si el período nuevo llega al vencimiento actual', async () => {
+    const q = sinon.stub(pool, 'query').resolves({ rows: [] });
+    await mp.cubrirPeriodo(7, 2, new Date());
+    const sql = norm(q.firstCall.args[0]);
+    expect(sql).to.include('CASE WHEN C.TIER_EXPIRATION_DATE IS NULL OR C.TIER_EXPIRATION_DATE <= P.HASTA THEN $1 ELSE C.TIER_ID END');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 describe('POST /api/cron/billing/reconciliar', () => {
   const cron = () => ({ Authorization: `Bearer ${process.env.CRON_SECRET}` });
+
+  it('cliente con dos suscripciones vivas: cancela la vieja, nunca un pending', async () => {
+    stubMp({ 'PUT /preapproval/pre-vieja': { body: { status: 'cancelled' } } });
+    const q = stubPool({ duplicadas: [{ cliente_id: 7, vigente: 'pre-nueva' }], otras: [{ id: 9, mp_preapproval_id: 'pre-vieja' }] });
+
+    const res = await request(app).post('/api/cron/billing/reconciliar').set(cron());
+
+    expect(res.status).to.equal(200);
+    expect(res.body.cambios).to.deep.equal([{ preapprovalId: 'pre-vieja', antes: 'active', despues: 'cancelled', resultado: 'cancelada_por_upgrade' }]);
+    expect(llamadas(q, 'STATUS = ANY($3::TEXT[])')[0].args[1]).to.deep.equal([7, 'pre-nueva', ['active', 'paused']]);
+  });
 
   it('sin CRON_SECRET → 401', async () => {
     const res = await request(app).post('/api/cron/billing/reconciliar');
