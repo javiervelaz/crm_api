@@ -111,7 +111,10 @@ async function createOneTimePayment(cliente, tier) {
       pending: `${process.env.PLATFORM_BASE_URL}/auth/pago?status=pending`,
     },
     auto_return: 'approved',
-    notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
+    // Sin notification_url: el aviso va a la URL configurada en el panel de MP
+    // (Webhooks → Pagos), la misma que usan las suscripciones. Con dos fuentes
+    // (panel + env) bastaba que una se desactualizara para perder pagos únicos
+    // en silencio (capa 2, caso 3).
     payer: {
       email: payerEmail,
     },

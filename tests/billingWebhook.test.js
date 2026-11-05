@@ -394,6 +394,17 @@ describe('POST /api/cron/billing/reconciliar', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+describe('mercadoPagoService.createOneTimePayment', () => {
+  it('no manda notification_url: el aviso sale del panel de MP', () => {
+    const src = require('fs').readFileSync(require.resolve('../services/billing/mercadoPagoService'), 'utf8');
+    const preference = src.slice(src.indexOf('async function createOneTimePayment'), src.indexOf('SAVE SUBSCRIPTION'))
+      .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(preference).to.not.match(/notification_url\s*:/);
+    expect(preference).to.not.include('MERCADOPAGO_WEBHOOK_URL');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 describe('mercadoPagoService.cubrirPeriodo', () => {
   it('fija el vencimiento como GREATEST(actual, base + 1 mes): no suma', async () => {
     const q = sinon.stub(pool, 'query').resolves({ rows: [] });
