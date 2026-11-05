@@ -269,6 +269,16 @@ describe('Webhook MP — errores, firma y log', () => {
     expect(logs(q)[0]).to.include('not_found');
   });
 
+  it('cobro mensual que MP todavía no expone (404): 500 para que MP reintente', async () => {
+    stubMp({});
+    const q = stubPool();
+    const res = await enviar('subscription_authorized_payment', '7033623042');
+    expect(res.status).to.equal(500);
+    expect(res.text).to.equal('RETRY');
+    expect(logs(q)[0]).to.include('not_found_reintento');
+    expect(llamadas(q, 'INSERT INTO BILLING_PAGO')).to.have.length(0);
+  });
+
   it('MP caído (5xx): responde 500 para que MP reintente', async () => {
     stubMp({ '/preapproval/pre-1': { status: 503, body: {} } });
     const q = stubPool();
