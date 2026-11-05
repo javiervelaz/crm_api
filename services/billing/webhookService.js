@@ -266,6 +266,14 @@ async function procesarEvento(body = {}, { requestId } = {}) {
     return { http: 200, texto: r.texto };
   } catch (err) {
     if (err instanceof MpApiError && err.status === 404) {
+      // Un cobro mensual puede avisarse antes de que la API de MP lo exponga
+      // (visto en sandbox: 404 y 3 s después ya existía). Si respondemos 200,
+      // MP no reintenta y el cobro se pierde: la reconciliación no mira
+      // cobros. Para el resto (p. ej. el simulador del panel) 404 es final.
+      if (TIPOS_COBRO.has(tipo)) {
+        await logEvento({ tipo, dataId, requestId, resultado: 'not_found_reintento', detalle: err.message });
+        return { http: 500, texto: 'RETRY' };
+      }
       await logEvento({ tipo, dataId, requestId, resultado: 'not_found', detalle: err.message });
       return { http: 200, texto: 'NOT FOUND' };
     }
