@@ -269,6 +269,16 @@ describe('Webhook MP — errores, firma y log', () => {
     expect(logs(q)[0]).to.include('not_found');
   });
 
+  it('cobro mensual que MP todavía no expone (404): 500 para que MP reintente', async () => {
+    stubMp({});
+    const q = stubPool();
+    const res = await enviar('subscription_authorized_payment', '7033623042');
+    expect(res.status).to.equal(500);
+    expect(res.text).to.equal('RETRY');
+    expect(logs(q)[0]).to.include('not_found_reintento');
+    expect(llamadas(q, 'INSERT INTO BILLING_PAGO')).to.have.length(0);
+  });
+
   it('MP caído (5xx): responde 500 para que MP reintente', async () => {
     stubMp({ '/preapproval/pre-1': { status: 503, body: {} } });
     const q = stubPool();
@@ -380,6 +390,17 @@ describe('POST /api/cron/billing/reconciliar', () => {
     // excluye los ids del modo mock
     expect(norm(llamadas(q, 'SELECT MP_PREAPPROVAL_ID FROM BILLING_SUBSCRIPTION')[0].args[0])).to.include("NOT LIKE 'MOCK-%'");
     expect(logs(q)).to.have.length(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+describe('mercadoPagoService.createOneTimePayment', () => {
+  it('no manda notification_url: el aviso sale del panel de MP', () => {
+    const src = require('fs').readFileSync(require.resolve('../services/billing/mercadoPagoService'), 'utf8');
+    const preference = src.slice(src.indexOf('async function createOneTimePayment'), src.indexOf('SAVE SUBSCRIPTION'))
+      .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(preference).to.not.match(/notification_url\s*:/);
+    expect(preference).to.not.include('MERCADOPAGO_WEBHOOK_URL');
   });
 });
 
