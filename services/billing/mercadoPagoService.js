@@ -198,19 +198,33 @@ async function anularRegistroPago(mpPaymentId) {
  * del comercio). No suma: si llegan el alta del preapproval y el primer cobro
  * el mismo día, o el mismo evento dos veces, el vencimiento es el mismo.
  * Nunca acorta un vencimiento más largo que ya tenga (p. ej. un anual).
+ *
+ * Tampoco baja de plan: si el plan vigente vence DESPUÉS del período que cubre
+ * este cobro (p. ej. pagó un anual y una mensual vieja siguió cobrando), el
+ * tier_id no cambia. El plan lo define lo que vence último.
  */
 async function cubrirPeriodo(clienteId, tierId, fechaBase = new Date()) {
   const base = new Date(fechaBase);
   const iso = Number.isNaN(base.getTime()) ? new Date().toISOString() : base.toISOString();
   await pool.query(
-    `UPDATE cliente
-        SET tier_id              = $1,
+    `WITH p AS (
+       SELECT id,
+              ((($3::timestamptz) AT TIME ZONE timezone)::date + interval '1 month')::date AS hasta
+         FROM cliente WHERE id = $2
+     )
+     UPDATE cliente c
+        SET tier_id              = CASE
+                                     WHEN c.tier_expiration_date IS NULL
+                                       OR c.tier_expiration_date <= p.hasta THEN $1
+                                     ELSE c.tier_id
+                                   END,
             tier_expiration_date = GREATEST(
-              COALESCE(tier_expiration_date, (now() AT TIME ZONE timezone)::date),
-              ((($3::timestamptz) AT TIME ZONE timezone)::date + interval '1 month')::date
+              COALESCE(c.tier_expiration_date, (now() AT TIME ZONE c.timezone)::date),
+              p.hasta
             ),
             updated_at           = now()
-      WHERE id = $2`,
+       FROM p
+      WHERE c.id = p.id`,
     [tierId, clienteId, iso]
   );
 }
