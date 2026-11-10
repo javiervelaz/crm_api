@@ -1,0 +1,48 @@
+<mjml>
+  <mj-include path="./partials/head.mjml" />
+  <mj-body background-color="#f1f5f9" width="560px">
+    <mj-include path="./partials/header.mjml" />
+
+    <mj-section padding="32px 32px 8px 32px">
+      <mj-column>
+        <mj-text font-size="22px" line-height="30px" font-weight="700" color="#0f172a" padding="0">
+          {{#if alcanzado}}Llegaste al límite de {{recurso}}{{else}}Estás cerca del límite de {{recurso}}{{/if}}
+        </mj-text>
+        <mj-text padding="12px 0 0 0">
+          {{#if alcanzado}}
+          Tu plan <strong style="color:#0f172a">{{tierNombre}}</strong> incluye hasta {{limite}} {{recurso}} y <strong style="color:#0f172a">{{nombreComercio}}</strong> ya los usó.
+          {{else}}
+          <strong style="color:#0f172a">{{nombreComercio}}</strong> ya usó {{usado}} de los {{limite}} {{recurso}} que incluye tu plan <strong style="color:#0f172a">{{tierNombre}}</strong>.
+          {{/if}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="16px 32px 8px 32px">
+      <mj-column background-color="#f8fafc" border-radius="10px" padding="16px">
+        <mj-text color="#0f172a" padding="0">
+          {{#if alcanzado}}
+          <div style="padding:0 0 8px 0">Para seguir cargando {{recurso}} tenés que {{#if mensual}}esperar al mes que viene o {{/if}}mejorar tu plan.</div>
+          {{#if linkAfectado}}
+          <div style="padding:0 0 8px 0">Mientras tanto, tus clientes no van a poder hacer pedidos por tu link.</div>
+          {{/if}}
+          <div style="color:#64748b;font-size:13px">Todo lo que ya cargaste sigue ahí: no se pierde nada.</div>
+          {{else}}
+          <div style="padding:0 0 8px 0">Cuando llegues al tope no vas a poder cargar más {{recurso}}{{#if mensual}} hasta que arranque el mes siguiente{{/if}}, salvo que mejores tu plan.</div>
+          <div style="color:#64748b;font-size:13px">Te avisamos ahora para que no te agarre en plena atención.</div>
+          {{/if}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 32px 28px 32px">
+      <mj-column>
+        <mj-button href="{{url urlPlan}}" align="left">
+          Ver planes
+        </mj-button>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./partials/footer.mjml" />
+  </mj-body>
+</mjml>

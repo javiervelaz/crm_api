@@ -8,6 +8,7 @@ const sinon = require('sinon');
 const pool = require('../pool');
 const planService = require('../services/cliente/planService');
 const { requireLimit } = require('../middleware/limitMiddleware');
+const avisoLimite = require('../services/cliente/avisoLimiteService');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -32,6 +33,7 @@ describe('Inventario — features por tier (defaults)', () => {
 
 describe('Inventario — requireLimit(maxStockItems)', () => {
   const req = { user: { cliente_id: 7 } };
+  beforeEach(() => sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: false }));
 
   it('cuenta sólo ítems activos del tenant y bloquea al llegar al tope', async () => {
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ features: { maxStockItems: 50 }, tierCode: 'BASIC' });

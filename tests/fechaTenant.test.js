@@ -11,6 +11,7 @@ const planService = require('../services/cliente/planService');
 const reportes = require('../model/reportes/db');
 const registroDiario = require('../model/registro_diario/db');
 const { requireLimit } = require('../middleware/limitMiddleware');
+const avisoLimite = require('../services/cliente/avisoLimiteService');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -66,6 +67,7 @@ describe('Consultas que dejaron de usar el día UTC', () => {
   });
 
   it('límite de pedidos mensuales: cuenta desde el inicio del mes local', async () => {
+    sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: false });
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves({ tierCode: 'FREE', features: { maxPedidosMensuales: 50 } });
     const q = sinon.stub(pool, 'query').resolves({ rows: [{ count: '50' }] });
     const res = { status: sinon.stub().returnsThis(), json: sinon.stub() };

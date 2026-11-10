@@ -8,6 +8,7 @@ const planService = require('../services/cliente/planService');
 const planBloqueo = require('../model/senales/planBloqueo');
 const { requireFeature } = require('../middleware/featureMiddleware');
 const { requireLimit } = require('../middleware/limitMiddleware');
+const avisoLimite = require('../services/cliente/avisoLimiteService');
 
 let expect;
 before(async () => { ({ expect } = await import('chai')); });
@@ -61,6 +62,8 @@ describe('señales — requireFeature registra el 403 de plan', () => {
 });
 
 describe('señales — requireLimit registra el límite alcanzado', () => {
+  beforeEach(() => sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: false }));
+
   it('límite alcanzado: 403 y señal tipo limite', async () => {
     sinon.stub(planService, 'getClienteTierAndFeatures').resolves(plan({ maxProductos: 20 }));
     sinon.stub(pool, 'query').resolves({ rows: [{ count: '20' }] });
