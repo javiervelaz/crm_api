@@ -24,6 +24,7 @@ const telegram = require('../services/canales/telegramApi');
 const cripto = require('../services/canales/cripto');
 const { generarSlug, SLUG_RE } = require('../services/canales/slug');
 const canalesService = require('../services/canales/canalesService');
+const avisoLimite = require('../services/cliente/avisoLimiteService');
 const operacionesDiariasService = require('../services/operaciones_diarias/operacionesDiariasService');
 
 let expect;
@@ -228,12 +229,31 @@ describe('C1 — link público', () => {
       expect(crear.called).to.equal(false);
     });
 
-    it('FREE con 50 pedidos en el mes → 409 LIMITE_PEDIDOS', async () => {
+    it('FREE con 50 pedidos en el mes → 409 LIMITE_PEDIDOS y se avisa al dueño', async () => {
       const crear = setup('FREE', 50);
+      const aviso = sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: true });
       const res = await request(app).post('/api/micrositio/pedidos').set('Authorization', `Bearer ${handoff()}`).send(body());
       expect(res.status).to.equal(409);
       expect(res.body.code).to.equal('LIMITE_PEDIDOS');
       expect(crear.called).to.equal(false);
+      expect(aviso.firstCall.args[0]).to.include({ clienteId: 7, limitKey: 'maxPedidosMensuales', usado: 50, limite: 50, tierCode: 'FREE' });
+    });
+
+    it('FREE con 40 pedidos: el pedido entra y se avisa que está cerca del tope', async () => {
+      const crear = setup('FREE', 40);
+      const aviso = sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: true });
+      const res = await request(app).post('/api/micrositio/pedidos').set('Authorization', `Bearer ${handoff()}`).send(body());
+      expect(res.status).to.equal(201);
+      expect(crear.calledOnce).to.equal(true);
+      expect(aviso.firstCall.args[0]).to.include({ limitKey: 'maxPedidosMensuales', usado: 40, limite: 50 });
+    });
+
+    it('si el aviso al dueño falla, el cliente final igual puede pedir', async () => {
+      setup('FREE', 40);
+      sinon.stub(console, 'error');
+      sinon.stub(require('../pool'), 'queryDirecta').rejects(new Error('db caída'));
+      const res = await request(app).post('/api/micrositio/pedidos').set('Authorization', `Bearer ${handoff()}`).send(body());
+      expect(res.status).to.equal(201);
     });
 
     it('PREMIUM no cuenta pedidos (sin límite)', async () => {

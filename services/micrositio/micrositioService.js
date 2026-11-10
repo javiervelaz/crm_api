@@ -9,6 +9,7 @@ const db = require('../../model/micrositio/db');
 const productoService = require('../producto/productoService');
 const operacionesDiariasService = require('../operaciones_diarias/operacionesDiariasService');
 const canalesService = require('../canales/canalesService');
+const avisoLimiteService = require('../cliente/avisoLimiteService');
 
 const TELEFONO_RE = /^\d{8,15}$/;
 const ETIQUETA_CANAL = { link: 'Pedido online', telegram: 'Telegram', whatsapp: 'WhatsApp' };
@@ -119,11 +120,19 @@ const crearPedido = async (clienteId, handoff, body = {}, { plan } = {}) => {
 
   // Límite mensual del plan (FREE entra por el link público)
   const maxPedidos = plan && plan.features ? plan.features.maxPedidosMensuales : null;
-  if (maxPedidos != null && (await db.contarPedidosDelMes(clienteId)) >= maxPedidos) {
-    const err = new Error('El comercio no está tomando más pedidos online este mes');
-    err.status = 409;
-    err.code = 'LIMITE_PEDIDOS';
-    throw err;
+  if (maxPedidos != null) {
+    const usados = await db.contarPedidosDelMes(clienteId);
+    // Aviso al dueño por mail (80 % / 100 %): el cliente final no es quien tiene que enterarse.
+    await avisoLimiteService.evaluar({
+      clienteId, limitKey: 'maxPedidosMensuales', usado: usados, limite: maxPedidos,
+      tierCode: plan.tierCode, tierNombre: plan.tierNombre, timezone: plan.timezone,
+    });
+    if (usados >= maxPedidos) {
+      const err = new Error('El comercio no está tomando más pedidos online este mes');
+      err.status = 409;
+      err.code = 'LIMITE_PEDIDOS';
+      throw err;
+    }
   }
 
   // Caja abierta → sucursal y usuario del pedido

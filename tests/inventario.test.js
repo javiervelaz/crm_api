@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 
 const app = require('../node');
 const pool = require('../pool');
+const avisoLimite = require('../services/cliente/avisoLimiteService');
 const db = require('../model/inventario/db');
 const salidaCajaDb = require('../model/salida_caja/db');
 const planService = require('../services/cliente/planService');
@@ -302,6 +303,7 @@ describe('Inventario — HTTP /api/inventario', () => {
   });
 
   it('alta de ítem pasa por el límite del plan', async () => {
+    sinon.stub(avisoLimite, 'evaluar').resolves({ enviado: false });
     conPlan({ canUseInventario: true, maxStockItems: 50 });
     sinon.stub(pool, 'query').resolves({ rows: [{ count: '50' }] });
     const res = await request(app).post('/api/inventario/items')

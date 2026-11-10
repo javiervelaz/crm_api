@@ -1,0 +1,14 @@
+Hola{{#if nombreContacto}} {{nombreContacto}}{{/if}},
+
+{{#if alcanzado}}Llegaste al límite de {{recurso}} de tu plan {{tierNombre}}: {{nombreComercio}} ya usó {{usado}} de {{limite}}.
+
+Para seguir cargando {{recurso}} tenés que {{#if mensual}}esperar al mes que viene o {{/if}}mejorar tu plan.{{#if linkAfectado}} Mientras tanto, tus clientes no van a poder hacer pedidos por tu link.{{/if}}
+Todo lo que ya cargaste sigue ahí: no se pierde nada.{{else}}{{nombreComercio}} ya usó {{usado}} de los {{limite}} {{recurso}} que incluye tu plan {{tierNombre}}.
+
+Cuando llegues al tope no vas a poder cargar más {{recurso}}{{#if mensual}} hasta que arranque el mes siguiente{{/if}}, salvo que mejores tu plan. Te avisamos ahora para que no te agarre en plena atención.{{/if}}
+
+Mirá los planes acá:
+{{urlPlan}}
+
+Counter CRM · Córdoba, Argentina
+Recibís este mail porque sos el contacto de {{nombreComercio}} en Counter.
