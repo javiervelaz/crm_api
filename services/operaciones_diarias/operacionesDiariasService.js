@@ -5,6 +5,8 @@ const Users  = require("../../model/users/db")
 const Profile   =  require("../../model/profile/db");
 const { json } = require('body-parser');
 const ventaStock = require('../inventario/ventaStockService');
+const metaCapi = require('../tracking/metaCapiService');
+const { waitUntil } = require('@vercel/functions');
 
 // Lógica para registrar salida de caja
 exports.registrarSalidaCaja = async (registroDiarioId, categoria, descripcion, monto, usuarioId, sucursalId,cliente_id) => {
@@ -51,6 +53,8 @@ exports.crearPedido = async ( data) => {
         
         // Insertar los productos relacionados en la tabla intermedia
         await Pedido.insertPedidoProducto(pedidoId, productos); 
+        // Activación (Meta CAPI): FirstOrder una sola vez por comercio. No frena la venta.
+        waitUntil(metaCapi.notificarPrimerPedido(cliente_id).catch(() => {}));
         // Inventario (Fase 2): descuenta según receta. Nunca frena la venta.
         await ventaStock.descontarPorPedido(cliente_id, {
             pedido_id: pedidoId,
