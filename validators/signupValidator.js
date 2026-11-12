@@ -60,6 +60,12 @@ const signupRules = [
     .trim().toLowerCase()
     .matches(/^[a-z][a-z0-9_]{1,29}$/).withMessage('Rubro inválido'),
 
+  // Atribución de campañas: nunca debe bloquear un alta. Se sanea (string, recortado)
+  // y lo que no sirva se descarta en silencio.
+  ...['utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'fbclid', 'fbp', 'fbc', 'metaEventId']
+    .map((campo) => body(campo).optional({ values: 'falsy' })
+      .customSanitizer((v) => (typeof v === 'string' ? v.trim().slice(0, 150) : undefined))),
+
   body('aceptaTerminos').equals('true')
     .withMessage('Debés aceptar los términos y condiciones'),
 ];

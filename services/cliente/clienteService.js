@@ -35,6 +35,7 @@ const createClienteService = async (data) => {
     nombre, cuit, adminNombre, adminApellido, adminEmail, adminDni,
     plan, telefono, adminPassword, canal_alta,
     terminosVersion, signupIp, utmSource, utmCampaign, rubro,
+    utmMedium, utmContent, fbclid, metaFbp, metaFbc, metaUa,
   } = data;
 
   if (!adminPassword) {
@@ -112,17 +113,19 @@ const createClienteService = async (data) => {
          nombre, cuit, contacto_nombre, contacto_apellido,
          contacto_email, contacto_telefono, tier_id, canal_alta,
          tier_expiration_date, terminos_aceptados_at, terminos_version,
-         signup_ip, utm_source, utm_campaign, estado, rubro_codigo
+         signup_ip, utm_source, utm_campaign, estado, rubro_codigo,
+         utm_medium, utm_content, fbclid, meta_fbp, meta_fbc, meta_ua
        )
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
                CASE WHEN $9 THEN (now() AT TIME ZONE $10)::date ELSE NULL END,
-               now(), $11, $12, $13, $14, $15, $16)
+               now(), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING *`,
       [
         nombre, cuitNorm, adminNombre, adminApellido, email, telefono,
         tier.id, canal_alta || 'landing', esPago, TZ,
         terminosVersion || null, signupIp || null, utmSource || null, utmCampaign || null,
         ESTADOS.PENDIENTE, rubroRow.codigo,
+        utmMedium || null, utmContent || null, fbclid || null, metaFbp || null, metaFbc || null, metaUa || null,
       ]
     );
     const cliente = clienteRes.rows[0];
