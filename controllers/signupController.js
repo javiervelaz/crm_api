@@ -4,6 +4,7 @@ const { tipoDePago } = require('../services/cliente/planService');
 // Por el objeto del módulo (no destructurado): así los tests pueden stubearlo
 const mp = require('../services/billing/mercadoPagoService');
 const mailer = require('../services/email');
+const metaCapi = require('../services/tracking/metaCapiService');
 const { waitUntil } = require('@vercel/functions');
 
 const TERMINOS_VERSION = process.env.TERMINOS_VERSION || '2026-07';
@@ -12,7 +13,10 @@ const signup = async (req, res) => {
   const {
     comercioNombre, cuit, adminNombre, adminApellido, adminEmail,
     adminDni, telefono, password, plan, utmSource, utmCampaign, rubro,
+    utmMedium, utmContent, fbclid, fbp, fbc, metaEventId,
   } = req.body;
+  const userAgent = req.get('user-agent') || null;
+  const fbcFinal = metaCapi.resolverFbc(fbc, fbclid) || null;
 
   let provisioned;
 
@@ -36,6 +40,12 @@ const signup = async (req, res) => {
       signupIp: req.ip,
       utmSource,
       utmCampaign,
+      utmMedium,
+      utmContent,
+      fbclid,
+      metaFbp: fbp,
+      metaFbc: fbcFinal,
+      metaUa: userAgent,
     });
   } catch (err) {
     if (err.status) {
@@ -86,6 +96,23 @@ const signup = async (req, res) => {
     mailer.drain({ limit: 5 }).catch((err) => {
       console.error(`[signup] drain del outbox falló (cliente ${cliente.id}):`, err.message);
     })
+  );
+
+  // CompleteRegistration hacia Meta (CAPI). Mismo event_id que el Pixel del front: Meta
+  // deduplica. No bloquea ni puede fallar el alta (el servicio no tira).
+  waitUntil(
+    metaCapi.notificarRegistro({
+      cliente,
+      adminUser: provisioned.adminUser,
+      telefono,
+      plan: tier.code,
+      rubro,
+      eventId: metaEventId,
+      ip: req.ip,
+      userAgent,
+      fbp,
+      fbc: fbcFinal,
+    }).catch(() => {})
   );
 
   // ─── Respuesta ────────────────────────────────────────────────────────
