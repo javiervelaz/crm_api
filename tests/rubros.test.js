@@ -224,6 +224,17 @@ describe('GET /api/rubros', () => {
     expect(res.body).to.have.length(2);
     expect(stub.firstCall.args[0]).to.include('activo = true');
   });
+
+  // Un 304 de revalidación no lleva Access-Control-Allow-Origin: el navegador reusaba el del
+  // origen que cacheó primero (landing www → app) y el selector de rubros fallaba por CORS.
+  it('no se cachea en el navegador (sin ETag, Cache-Control: no-store)', async () => {
+    sinon.stub(pool, 'query').resolves({ rows: [{ codigo: 'gastronomia', nombre: 'Gastronomía' }] });
+    const res = await request(app).get('/api/rubros').set('Origin', 'http://localhost:3000');
+
+    expect(res.status).to.equal(200);
+    expect(res.headers['cache-control']).to.equal('no-store');
+    expect(res.headers).to.not.have.property('etag');
+  });
 });
 
 describe('Módulos fuera del rubro del tenant', () => {
