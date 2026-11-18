@@ -24,6 +24,15 @@ app.use(cors({
   origin: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map(o => o.trim()),
   credentials: true,
 }));
+// La API no se cachea en el navegador. Con ETag, una revalidación (If-None-Match)
+// devuelve 304 SIN Access-Control-Allow-Origin y el navegador reusa el del origen
+// que cacheó primero: quien pasaba de www.countercrm.com (landing) a
+// app.countercrm.com/saas veía el selector de rubros roto por CORS.
+app.set('etag', false);
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/signup', require('./routes/signup'));
 app.use('/api/verify-email', require('./routes/verifyEmail'));
