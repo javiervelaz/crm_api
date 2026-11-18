@@ -17,3 +17,14 @@ Module._load = function (id, parent, isMain) {
   }
   return origLoad.apply(this, arguments);
 };
+
+// Los tests de pedidos asumen un comercio que ya cargó su CUIT (obligatorio antes del
+// primer pedido). tests/cuit.test.js cubre el caso sin CUIT: allí se hace sinon.restore()
+// antes de stubear de nuevo.
+exports.mochaHooks = {
+  beforeEach() {
+    const sinon = require('sinon');
+    const cuitDb = require('../model/cliente/cuit');
+    if (!cuitDb.getCuit.restore) sinon.stub(cuitDb, 'getCuit').resolves('30712345671');
+  },
+};

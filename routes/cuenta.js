@@ -29,6 +29,12 @@ const soloAdminStaff = [
   authorizeModule('usuarios'),
 ];
 
+// CUIT diferido (opcional en el alta, obligatorio antes del primer pedido).
+// Leerlo: cualquier usuario autenticado (el panel decide si muestra el aviso).
+// Cargarlo: solo el admin del comercio. Una vez cargado no se cambia desde acá.
+router.get('/cuit', ctrl.getCuit);
+router.post('/cuit', soloAdminStaff, ctrl.cargarCuit);
+
 router.get('/tipos', soloAdminStaff, ctrl.getTipos);
 router.post('/credenciales', soloAdminStaff, ctrl.crearCredenciales);
 router.post('/credenciales/:userId/reset', soloAdminStaff, (req, res, next) => {

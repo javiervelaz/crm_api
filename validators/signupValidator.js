@@ -19,7 +19,10 @@ const signupRules = [
   body('comercioNombre').trim().isLength({ min: 2, max: 120 })
     .withMessage('El nombre del comercio debe tener entre 2 y 120 caracteres'),
 
-  body('cuit').custom((v) => cuitValido(v) || Promise.reject('CUIT inválido')),
+  // El CUIT es opcional en el alta (baja la fricción del anuncio): si viene, tiene que ser válido.
+  // Se vuelve obligatorio antes del primer pedido (middleware/cuitMiddleware.js).
+  body('cuit').optional({ values: 'falsy' })
+    .custom((v) => cuitValido(v) || Promise.reject('CUIT inválido')),
 
   body('adminNombre').trim().isLength({ min: 2, max: 60 }).withMessage('Nombre inválido'),
   body('adminApellido').trim().isLength({ min: 2, max: 60 }).withMessage('Apellido inválido'),
@@ -43,7 +46,9 @@ const signupRules = [
     .matches(/[0-9]/).withMessage('La contraseña debe incluir un número'),
 
   // Formato AR: 10-13 dígitos (con o sin 54 / 9 / 0 / 15)
-  body('telefono').optional({ values: 'falsy' })
+  // Obligatorio: es por donde Vane contacta a quien se registró.
+  body('telefono').exists({ values: 'falsy' }).withMessage('El teléfono es obligatorio')
+    .bail()
     .customSanitizer((v) => String(v).replace(/\D/g, ''))
     .isLength({ min: 10, max: 13 }).withMessage('Teléfono inválido'),
 

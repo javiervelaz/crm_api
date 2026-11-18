@@ -161,7 +161,7 @@ describe('signup — atribución y CompleteRegistration', () => {
   let prev;
   const body = (over = {}) => ({
     comercioNombre: 'Pizzería Don Pepe', cuit: '20-12345678-6', adminNombre: 'Ana', adminApellido: 'Pérez',
-    adminEmail: 'ana@pizza.com', password: 'Clave12345', plan: 'FREE', aceptaTerminos: 'true', ...over,
+    adminEmail: 'ana@pizza.com', telefono: '3513344326', password: 'Clave12345', plan: 'FREE', aceptaTerminos: 'true', ...over,
   });
   const prov = () => sinon.stub(ClienteService, 'createClienteService').resolves({
     cliente: { id: 9, nombre: 'Pizzería Don Pepe', cuit: '20123456786' }, tier: { code: 'FREE', nombre_publico: 'Free' }, esPago: false,

@@ -9,6 +9,7 @@ const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware
 const { authorizeModule } = require('../middleware/moduleAuth');
 const { authorizePermission } = require("../middleware/permissionMiddleware");
 const { requireLimit } = require('../middleware/limitMiddleware');
+const { requireCuit } = require('../middleware/cuitMiddleware');
 const { requierePermiso } = require('../middleware/acceso');
 
 // Pedidos y caja del día. Cada ruta pide el permiso de la pantalla que la usa:
@@ -17,8 +18,8 @@ const PEDIDOS_VER = requierePermiso('operaciones.list', 'cerrarcaja.list');
 const CAJA_HISTORIAL = requierePermiso('reportes.list', 'cerrarcaja.list', 'gasto.list', 'flujo.list');
 
 router.post('/abrir-caja', authenticateJWT, requierePermiso('operaciones.create', 'cerrarcaja.create'), operacionesDiariasController.registrarAperturaCierreCaja);
-router.post('/crear-pedido', authenticateJWT, requierePermiso('operaciones.create'), requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
-router.post('/crear-pedido-whatsaap', authenticateJWT, requierePermiso('operaciones.create'), requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
+router.post('/crear-pedido', authenticateJWT, requierePermiso('operaciones.create'), requireCuit, requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
+router.post('/crear-pedido-whatsaap', authenticateJWT, requierePermiso('operaciones.create'), requireCuit, requireLimit('maxPedidosMensuales'), operacionesDiariasController.crearPedido);
 router.get('/listar-pedidos/:registroDiarioId/:cliente_id', authenticateJWT, authorizeModule('operaciones'),
                 authorizePermission('operaciones', 'operaciones.list'), operacionesDiariasController.listarPedidos);
 router.post('/registrar-salida-caja', authenticateJWT, requierePermiso('gasto.create'), operacionesDiariasController.registrarSalidaCaja);

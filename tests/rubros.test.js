@@ -19,6 +19,7 @@ const SIGNUP_VALIDO = {
   adminNombre: 'Ana',
   adminApellido: 'Paz',
   adminEmail: 'ana@ejemplo.com',
+  telefono: '3513344326',
   password: 'Contrasena123',
   aceptaTerminos: 'true',
   plan: 'FREE',
