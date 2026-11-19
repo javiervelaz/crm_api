@@ -17,6 +17,7 @@ router.get('/mi-plan', authenticateJWT, async (req, res) => {
     const data = await getClienteTierAndFeatures(user.cliente_id);
     res.json(data);
   } catch (err) {
+    if (err.code === 'CLIENTE_NO_ENCONTRADO') return res.status(401).json({ error: 'Sesión inválida', code: err.code });
     console.error('Error en /api/cliente/mi-plan:', err);
     res.status(500).json({ error: 'Error obteniendo el plan del cliente' });
   }
@@ -35,6 +36,7 @@ router.get('/uso', authenticateJWT, async (req, res) => {
     const uso = await getUso(user.cliente_id, features);
     res.json({ tierCode, tierNombre, uso });
   } catch (err) {
+    if (err.code === 'CLIENTE_NO_ENCONTRADO') return res.status(401).json({ error: 'Sesión inválida', code: err.code });
     console.error('Error en /api/cliente-plan/uso:', err);
     res.status(500).json({ error: 'Error obteniendo el uso del plan' });
   }
