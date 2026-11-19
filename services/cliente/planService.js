@@ -82,7 +82,13 @@ const getClienteTierAndFeatures = async (clienteId) => {
   `, [clienteId]);
 
   const row = result.rows[0];
-  if (!row) throw new Error('Cliente no encontrado');
+  if (!row) {
+    // Token firmado de un comercio que ya no existe (borrado): no es un error
+    // del servidor, es una sesión inválida.
+    const err = new Error('Cliente no encontrado');
+    err.code = 'CLIENTE_NO_ENCONTRADO';
+    throw err;
+  }
 
   const tierCode = (row.tier_code || 'FREE').toUpperCase();
   const rubroCodigo = row.rubro_codigo || 'gastronomia';
