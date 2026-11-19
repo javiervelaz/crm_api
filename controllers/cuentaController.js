@@ -1,6 +1,7 @@
 // controllers/cuentaController.js
 const cuentaService = require('../services/cuenta/cuentaService');
 const userService = require('../services/user/userService');
+const cuitService = require('../services/cliente/cuitService');
 const { issueToken, reissueToken, TTL } = require('../services/auth/tokenService');
 const { motivoRechazo } = require('../services/verificacion/estados');
 
@@ -9,6 +10,25 @@ const responderError = (res, next, err) => {
     return res.status(err.status).json({ error: err.message, code: err.code, field: err.field });
   }
   return next(err);
+};
+
+const getCuit = async (req, res, next) => {
+  try {
+    res.json(await cuitService.estado(req.clienteId));
+  } catch (err) {
+    next(err);
+  }
+};
+
+const cargarCuit = async (req, res, next) => {
+  try {
+    res.json(await cuitService.cargar(req.clienteId, (req.body || {}).cuit));
+  } catch (err) {
+    if (err instanceof cuitService.CuitError) {
+      return res.status(err.status).json({ error: err.message, code: err.code, field: 'cuit' });
+    }
+    next(err);
+  }
 };
 
 const getTipos = async (req, res, next) => {
@@ -76,4 +96,4 @@ const refrescarSesion = async (req, res, next) => {
   }
 };
 
-module.exports = { getTipos, crearCredenciales, resetPassword, cambiarPassword, refrescarSesion };
+module.exports = { getCuit, cargarCuit, getTipos, crearCredenciales, resetPassword, cambiarPassword, refrescarSesion };

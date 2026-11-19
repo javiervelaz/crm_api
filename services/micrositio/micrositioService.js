@@ -10,6 +10,7 @@ const productoService = require('../producto/productoService');
 const operacionesDiariasService = require('../operaciones_diarias/operacionesDiariasService');
 const canalesService = require('../canales/canalesService');
 const avisoLimiteService = require('../cliente/avisoLimiteService');
+const cuitDb = require('../../model/cliente/cuit');
 
 const TELEFONO_RE = /^\d{8,15}$/;
 const ETIQUETA_CANAL = { link: 'Pedido online', telegram: 'Telegram', whatsapp: 'WhatsApp' };
@@ -116,6 +117,14 @@ const crearPedido = async (clienteId, handoff, body = {}, { plan } = {}) => {
       throw badRequest(`El monto con el que pagás tiene que ser al menos $${total}`);
     }
     vuelto = redondear(pagaEfectivo - total);
+  }
+
+  // Sin CUIT el comercio todavía no puede tomar pedidos: se lo pide el panel al dueño.
+  if (!(await cuitDb.getCuit(clienteId))) {
+    const err = new Error('El comercio todavía no está tomando pedidos online');
+    err.status = 409;
+    err.code = 'CUIT_REQUERIDO';
+    throw err;
   }
 
   // Límite mensual del plan (FREE entra por el link público)

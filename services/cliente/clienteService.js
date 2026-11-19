@@ -47,7 +47,8 @@ const createClienteService = async (data) => {
   const rubroCodigo = String(rubro || RUBRO_DEFAULT).trim().toLowerCase();
 
   const email = String(adminEmail).trim().toLowerCase();
-  const cuitNorm = String(cuit).replace(/\D/g, '');
+  // CUIT opcional en el alta: sin CUIT se guarda NULL (el UNIQUE admite varios NULL).
+  const cuitNorm = String(cuit ?? '').replace(/\D/g, '') || null;
 
   // Hasheamos antes del BEGIN: bcrypt con 12 rounds tarda ~250ms
   // y no queremos esa transacción abierta ese tiempo de más.
@@ -61,7 +62,7 @@ const createClienteService = async (data) => {
     // Los índices únicos son la garantía real (ver catch de abajo).
     const dup = await client.query(
       `SELECT
-         EXISTS(SELECT 1 FROM cliente WHERE cuit = $1)              AS cuit_taken,
+         ($1::text IS NOT NULL AND EXISTS(SELECT 1 FROM cliente WHERE cuit = $1)) AS cuit_taken,
          EXISTS(SELECT 1 FROM "user" WHERE lower(email) = $2)       AS email_taken`,
       [cuitNorm, email]
     );

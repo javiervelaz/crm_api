@@ -117,6 +117,24 @@ describe('POST /api/signup', () => {
     expect(res.body.field).to.equal('cuit');
   });
 
+  it('acepta el alta sin CUIT (se pide antes del primer pedido)', async () => {
+    const stub = stubProvisioning({ cliente: { id: 1, nombre: VALIDO.comercioNombre, cuit: null } });
+    sinon.stub(mailer, 'drain').resolves({ sent: 1, failed: 0, retry: 0, procesados: 1 });
+
+    const { cuit, ...sinCuit } = VALIDO;
+    const res = await request(app).post('/api/signup').send(sinCuit);
+
+    expect(res.status).to.equal(201);
+    expect(stub.calledOnce).to.equal(true);
+  });
+
+  it('rechaza el alta sin teléfono', async () => {
+    const { telefono, ...sinTel } = VALIDO;
+    const res = await request(app).post('/api/signup').send(sinTel);
+    expect(res.status).to.equal(400);
+    expect(res.body.field).to.equal('telefono');
+  });
+
   it('rechaza password débil', async () => {
     for (const password of ['corta', 'sinmayusculas123', 'SINMINUSCULAS123', 'SinNumeros']) {
       const res = await request(app).post('/api/signup').send({ ...VALIDO, password });
